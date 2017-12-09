@@ -1,0 +1,12 @@
+This file is decpreceted.  Since we now
+use docker.
+
+
+
+On a clean mac:
+
+1. Install anaconda python (2.7)
+2. conda install yaml
+3. conda install -c conda-forge pystache
+4. conda install -c bjornfjohansson pypandoc
+5. conda install -c ecpy watchdog

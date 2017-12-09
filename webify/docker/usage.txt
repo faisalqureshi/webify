@@ -1,0 +1,27 @@
+The following command will run an interactive shell, where you will be able to run
+webify as follows:
+
+	Inside-Docker$ python /webify/webify.py /src /dest
+
+Any changes to /dest will be visible in the host at /path-to/dest folder.
+
+Command:	
+	Host$ docker run -it -v /path-to/webify:/webify -v /path-to/src:/src -v /path-to/dest:/dest webify
+
+Other useful commands:
+
+1. Check if webify docker image is available
+
+	Host$ docker image ls
+
+2. If not available, you have two choices, either get the Docker file and use
+
+	Host$ docker build .
+
+   to build the image.  Or get the docker image tar file and load it as follows
+
+	Host$ docker load webify-docker-image.tar
+
+
+
+
