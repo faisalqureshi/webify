@@ -295,6 +295,7 @@ if __name__ == '__main__':
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
     parser.add_argument('-b','--bib', action='store', default=None, help='Path to bibliography file')
     parser.add_argument('-c','--css', action='store', default=None, help='Path to css file')
+    parser.add_argument('--media-filters', action='store_true', default=False, help='Media filters (see documentation)')
 
     args = parser.parse_args()
 
@@ -316,9 +317,12 @@ if __name__ == '__main__':
         print 'cwd:', cwd
         print 'filepath', filepath
 
-    filters = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
+    filters = None
+    if args.media_filters:
+        html_media = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
+        filters = {'html': [html_media.apply]}
 
-    m = MDfile(filepath=filepath, rootdir='/', dbglevel=dbglevel, extras=extras, filters = {'html': [filters.apply]})
+    m = MDfile(filepath=filepath, rootdir='/', dbglevel=dbglevel, extras=extras, filters=filters)
     if not m.load():
         print 'Exiting.  Nothing to be done here.'
         exit(0)
