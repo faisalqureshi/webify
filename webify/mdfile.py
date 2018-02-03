@@ -18,6 +18,7 @@ class MDfile:
     to: html* | pdf | beamer
     template: None* | path/to/pandoc-template-file
     render: None* | path/to/mustache-template-file
+    bibliography: NoneI | path/to/bibfile
     ___
 
     Contents of the MD file.  
@@ -126,6 +127,12 @@ class MDfile:
             else:
                 self.logger.error('%s file %s not found.' % (item[0],f))
 
+        bibfile = self.get_bibfile()
+        if bibfile:
+            f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = bibfile)            
+
+        pdoc_args.extend(['--filter=pandoc-citeproc'])
+            
         # if the desired output is html
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
@@ -179,6 +186,14 @@ class MDfile:
             return self.yaml['to']
         except:
             return 'html'
+
+    def get_bibfile(self):
+        assert(self.buffer)
+
+        try:
+            return self.yaml['bibliography']
+        except:
+            return None
 
     def get_renderfile(self):
         assert(self.buffer)

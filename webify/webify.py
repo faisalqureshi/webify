@@ -11,8 +11,9 @@ import util
 import os
 import codecs
 import datetime
+import copy
 
-version = '1.6'
+version = '1.7'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_lvls, use_cache):
@@ -39,7 +40,7 @@ class Webify:
             self.ok = False
         
         # Setting up rendering context
-        self.rendering_context = RenderingContext(rootdir)
+        self.rendering_context = RenderingContext(rootdir, debug_lvls['rc'])
 
     def load_yamlfiles(self):
         self.logger.info('Loading YAML files')
@@ -139,11 +140,25 @@ class Webify:
             self.logger.info('MD file found in _partials %s' % p)
             md = MDfile(p, self.rootdir, dbglevel=self.debug_lvls['md'])
             md.load()
-            status, html = md.convert(outputfile=None, use_cache=self.use_cache)
-            if status == 'error':
+            format, buffer = md.convert(outputfile=None, use_cache=self.use_cache)
+            if not format == 'html':
+                self.logger.warning('Error converting file %s in _partials' % f)
                 continue
-            template = md.get_renderfile()
-            rc[f['name'] + '_md'] = self.render_md(f, html, template, rc)
+
+            rc_changes = {}
+            yaml_block = md.get_yaml()
+            try:
+                for k in yaml_block.keys():
+                    if k in rc.keys():
+                        rc_changes[k] = rc[k]
+                    rc[k] = yaml_block[k]
+            except:
+                    pass
+            rc[f['name'] + '_md'] = self.render_md(f, buffer, md.get_renderfile(), rc)
+            
+            for k in rc_changes.keys():
+                rc[k] = rc_changes[k]
+
             #f['handler'] = md
             f['copy-to-destination'] = False # Because files in _partial are never copied over
 
@@ -162,17 +177,27 @@ class Webify:
             if len(c) > 0:
                 continue
 
-            rc = self.rendering_context.get(r)
+            # rc = self.rendering_context.get(r)
 
-            if self.debug_lvls['rc'] == logging.DEBUG:
-                print '\n-------------------------------------------------'
-                print 'render_all_files()'
-                print 'Directory: ', d, r
-                util.debug_rendering_context(rc)
-                print '\n-------------------------------------------------'
+            # if self.debug_lvls['rc'] == logging.DEBUG:
+            #     print '\n-------------------------------------------------'
+            #     print 'render_all_files()'
+            #     print 'Directory: ', d, r
+            #     util.debug_rendering_context(rc)
+            #     print '\n-------------------------------------------------'
 
             for f, p in db.get_files(self.filedb, dirpath=r, fileext=['.md', '.html']):
                 self.logger.info('Rendering file: %s' % p)
+
+                if self.debug_lvls['rc'] == logging.DEBUG:
+                    print '\n-------------------------------------------------'
+                    print 'f', f
+                    print 'p', p
+                    print 'r', r
+                rc = self.rendering_context.get(r)
+                if self.debug_lvls['rc'] == logging.DEBUG:
+                    print '\nFolder specific rc:'
+                    print rc
 
                 if f['ext'] == '.html':
                     h = HTMLfile(p)
@@ -186,8 +211,28 @@ class Webify:
                     md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_lvls['md'])
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
+
+                    rc_changes = {}
                     if format == 'html':
+                        yaml_block = md.get_yaml()
+                        try:
+                            for k in yaml_block.keys():
+                                if k in rc.keys():
+                                    rc_changes[k] = rc[k]
+                                rc[k] = yaml_block[k]
+                        except:
+                            pass
+
+                        if self.debug_lvls['rc'] == logging.DEBUG:
+                            print '\nFile specific rc:'
+                            print rc
+                            print '-------------------------------------------------'
+
                         f['__rendered__'] = self.render_md(f, buffer, md.get_renderfile(), rc)
+
+                        for k in rc_changes.keys():
+                            rc[k] = rc_changes[k]
+
                     elif format == 'file':
                         f['__generated_file__'] = buffer
                     else:
@@ -293,7 +338,7 @@ class Webify:
                     else:
                         assert True
 
-                    if f['copy-to-destination']:
+                    if 'copy-to-destination' in f.keys() and f['copy-to-destination']:
                         filepath = os.path.join(dirpath, f['name']+f['ext'])
                         file_copy = util.copy_file(p, filepath, force_save)
                         if file_copy == 1:

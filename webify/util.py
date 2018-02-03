@@ -61,7 +61,7 @@ def make_directory(dirpath):
 def debug_rendering_context(rc):
     print '\n>>>>>>>>>>> Rendering context'
     for p in rc.keys():
-        print '\nPath:', p
+        print '\nKey:', p
         pprint.pprint(rc[p], indent=1)
     print '\n<<<<<<<<<<< rendering context.\n'
 

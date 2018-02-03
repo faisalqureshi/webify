@@ -63,12 +63,10 @@ class RenderingContext:
         current_rc = self.get(path)
         for k in rc.keys():
             current_rc[k] = rc[k]
-
+            
     def get(self, path):
         if self.logger.getEffectiveLevel() == logging.DEBUG:
-            print '\nRendering context - get():'
-            print 'path:', path
-            print '--------------------------------'
+            print '\nRenderingContext - get(): %s' % path
 
         try:
             if self.context[path]['__cache__'] != None:
@@ -89,6 +87,10 @@ class RenderingContext:
                     rc[k] = file_rc[k]
 
         self.context[path]['__cache__'] = rc
+
+        # if self.logger.getEffectiveLevel() == logging.DEBUG:
+        # 	print rc
+
         return rc
 
     def pprint(self):
