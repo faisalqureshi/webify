@@ -5,6 +5,9 @@ import argparse
 import pypandoc
 import util
 import os
+import re
+import mdfilters
+import sys
 
 
 class MDfile:
@@ -18,7 +21,8 @@ class MDfile:
     to: html* | pdf | beamer
     template: None* | path/to/pandoc-template-file
     render: None* | path/to/mustache-template-file
-    bibliography: NoneI | path/to/bibfile
+    bibliography: None | path/to/bibfile
+    css: None* | path/to/css-file (used only when converting to html)
     ___
 
     Contents of the MD file.  
@@ -34,7 +38,7 @@ class MDfile:
     template is only used if 'render' key is None.  A value for 'render' key 
     indicates that the generated html will be consumed within a mustache file.  
     """
-    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING):
+    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None):
         self.logger = util.setup_logging('MDfile', dbglevel=dbglevel)
 
         self.filepath = filepath
@@ -45,6 +49,8 @@ class MDfile:
             self.rootdir = self.basepath
         self.yaml = None
         self.buffer = None
+        self.extras = extras
+        self.filters = filters
 
         self.logger.debug('filepath: %s' % self.filepath)
         self.logger.debug('basepath: %s' % self.basepath)
@@ -137,6 +143,16 @@ class MDfile:
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
 
+            css_file = self.get_css()
+            if css_file:
+                pdoc_args.extend(['--css=%s' % css_file])
+
+            try:    
+                for f in self.filters['html']:
+                    self.buffer = f(self.filepath, self.rootdir, self.buffer)
+            except:
+                pass
+
             try:
                 cwd = os.getcwd()
                 os.chdir(self.basepath)
@@ -182,13 +198,40 @@ class MDfile:
 
     def get_output_format(self):
         assert(self.buffer)
+
+        try:
+            if self.extras['format']:
+                return self.extras['format']
+        except:
+            pass
+
         try:
             return self.yaml['to']
         except:
             return 'html'
 
+    def get_css(self):
+        assert(self.buffer)
+
+        try:
+            if self.extras['css']:
+                return self.extras['css']
+        except:
+            pass
+
+        try:
+            return self.yaml['css']
+        except:
+            return None
+
     def get_bibfile(self):
         assert(self.buffer)
+
+        try:
+            if self.extras['bib']:
+                return self.extras['bib']
+        except:
+            pass
 
         try:
             return self.yaml['bibliography']
@@ -226,21 +269,46 @@ class MDfile:
 
     def get_template(self):
         assert(self.buffer)
+
+        try:
+            if self.extras['template']:
+                return self.extras['template']
+        except:
+            pass
+
         try:
             return self.yaml['template']
         except:
             return None
 
 if __name__ == '__main__':
+
+    global prog_name, prog_dir
+    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
+    prog_dir = os.path.dirname(prog_name)
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('mdfile', help='MD file.')
+    parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process')
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages')
+    parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer')
+    parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
+    parser.add_argument('-b','--bib', action='store', default=None, help='Path to bibliography file')
+    parser.add_argument('-c','--css', action='store', default=None, help='Path to css file')
+
     args = parser.parse_args()
 
     dbglevel = logging.INFO
     if args.debug:
       dbglevel = logging.DEBUG
+
+    if dbglevel == logging.DEBUG:
+        print 'format', args.format
+        print 'template', args.template
+        print 'bib', args.bib
+        print 'css', args.css
+
+    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': args.css }
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
@@ -248,7 +316,9 @@ if __name__ == '__main__':
         print 'cwd:', cwd
         print 'filepath', filepath
 
-    m = MDfile(filepath=filepath, rootdir='/', dbglevel=dbglevel)
+    filters = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
+
+    m = MDfile(filepath=filepath, rootdir='/', dbglevel=dbglevel, extras=extras, filters = {'html': [filters.apply]})
     if not m.load():
         print 'Exiting.  Nothing to be done here.'
         exit(0)

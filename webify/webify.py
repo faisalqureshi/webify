@@ -12,6 +12,8 @@ import os
 import codecs
 import datetime
 import copy
+import sys
+import mdfilters
 
 version = '1.7'
 
@@ -23,6 +25,7 @@ class Webify:
         self.ok = True
         self.use_cache = use_cache
         self.destdir = destdir
+        self.filters = {}
         #self.cachedb = None
 
         # Setting up main logger
@@ -138,7 +141,7 @@ class Webify:
 
         for f, p in db.get_files(self.filedb, dirpath='_partials', fileext='.md'):
             self.logger.info('MD file found in _partials %s' % p)
-            md = MDfile(p, self.rootdir, dbglevel=self.debug_lvls['md'])
+            md = MDfile(p, self.rootdir, dbglevel=self.debug_lvls['md'], filters=self.filters)
             md.load()
             format, buffer = md.convert(outputfile=None, use_cache=self.use_cache)
             if not format == 'html':
@@ -208,7 +211,7 @@ class Webify:
                 outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
 
                 if f['ext'] == '.md':
-                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_lvls['md'])
+                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_lvls['md'],filters=self.filters)
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
 
@@ -272,6 +275,9 @@ class Webify:
     #         self.cachedb = db.Filedb(self.destdir, dbglevel=debug_lvls['db'])
     #         self.cachedb.collect()
 
+    def load_filters(self):
+        md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
+        self.filters = { 'html': [md_to_html_media_filter.apply] } 
 
     def write(self, force_save):
         dd = os.path.abspath(self.destdir)
@@ -378,6 +384,15 @@ class FileChanges(FileSystemEventHandler):
         print event
 
 if __name__ == '__main__':
+
+    global prog_name, prog_dir
+    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
+    prog_dir = os.path.dirname(prog_name)
+
+    if len(sys.argv) > 1 and sys.argv[1] == '--ver':
+        print 'Webify version %s' % version
+        exit(0)
+
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('rootdir', help='Root directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
@@ -386,6 +401,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--ver', action='store_true', default=False, help='Print version and exit')
     cmdline_parser.add_argument('--status', action='store_true', default=False, help='Prints helpful information about the folder that you plan to webify')
     cmdline_parser.add_argument('--no-cache', action='store_true', default=False, help='Turn off cache usage')
+    cmdline_parser.add_argument('--media-filters', action='store_true', default=False, help='Turn on media filters (see documentation for details)')
 
     # Logging and verbosity
     cmdline_parser.add_argument('--debug', action='store_true', default=False, help='Log debugging messages (global, use with caution)')
@@ -399,10 +415,10 @@ if __name__ == '__main__':
     # Parsing commandline arguments
     cmdline_args = cmdline_parser.parse_args()
 
+
     # Just checking version
     if cmdline_args.ver:
         print 'Webify version %s' % version
-        exit(0)
 
     # Logging and verbosity
     debug_lvls = { 'main': logging.WARNING, 'md': logging.WARNING, 'yaml': logging.WARNING, 'rc': logging.WARNING, 'db': logging.WARNING, 'mustache': logging.WARNING }
@@ -484,6 +500,8 @@ if __name__ == '__main__':
         webify.create_destination_folder()
         #webify.setup_cache()
 
+        if cmdline_args.media_filters:
+            webify.load_filters()
         webify.load_yamlfiles()
         webify.load_templates()
         webify.compute_partials()
