@@ -35,10 +35,9 @@ class MDfile:
         - path/to/css-file-3
         ...
 
-    files:
-        - include-before-body
-        - include-in-header
-        - include-after-body
+    include-before-body: None* | list or a single file, see css above
+    include-in-header: None* | list or a single file, see css above
+    include-after-body: None* | list or a single file, see css above
     
     bibliography: None* | path/to/bib file
 
@@ -77,6 +76,12 @@ class MDfile:
 
         self.supported = [ 'html', 'beamer', 'pdf' ]
 
+    def check_yaml(self):
+        keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle']
+        for key in self.yaml.keys():
+            if not key in keys:
+                self.logger.debug('Key %s not supported' % key)
+
     def load(self):
         try:
             with codecs.open(self.filepath, 'r') as stream:
@@ -94,6 +99,8 @@ class MDfile:
                 self.yaml = section
                 self.logger.debug('YAML section found in md file: %s' % self.filepath)
                 break # Only the first yaml section is read in
+
+            self.check_yaml()
 
         except:
             self.logger.debug('YAML section not found in md file: %s' % self.filepath)
@@ -141,22 +148,20 @@ class MDfile:
             else:
                 self.logger.error('Template file %s not found.' % template_file)
 
-        pandoc_include_files = self.get_pandoc_include_files()
-        
+        pandoc_include_files = self.get_pandoc_include_files().items()
         self.logger.debug('Pandoc include files:')
-        if self.logger.getEffectiveLevel() == logging.DEBUG:
-            for item in pandoc_include_files:
-                print item
 
         for item in pandoc_include_files:
             if not item[0] in ['include-before-body', 'include-in-header', 'include-after-body']:
                 self.logger.warning('Unrecognized pandoc include file option: %s', item[0])
                 continue
-            f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = item[1])
-            if f and os.path.isfile(f):
-                pdoc_args.append('--%s=%s' % (item[0],f))
-            else:
-                self.logger.error('%s file %s not found.' % (item[0],f))
+            for i1 in item[1]:
+                include_file = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = i1)
+                if include_file and os.path.isfile(include_file):
+                    pdoc_args.append('--%s=%s' % (item[0], include_file))
+                    self.logger.debug('%s: %s' % (item[0], include_file))
+                else:
+                    self.logger.error('%s file %s not found.' % (item[0], include_file))
 
         bibfile = self.get_bibfile()
         if bibfile:
@@ -167,8 +172,10 @@ class MDfile:
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
 
-            css_files = self.get_css()
-            for css_file in css_files:
+            css_files = self.get_css_files()
+            self.logger.debug('css files:')
+            for css_file in css_files:                
+                self.logger.debug('%s' % css_file)
                 pdoc_args.extend(['--css=%s' % css_file])
 
             try:    
@@ -178,6 +185,11 @@ class MDfile:
                 pass
 
             try:
+                if self.logger.getEffectiveLevel() == logging.DEBUG:
+                    print 'Pandoc conversion'
+                    print '\tOutput file:', outputfile
+                    print '\tArgs:', pdoc_args
+
                 cwd = os.getcwd()
                 os.chdir(self.basepath)
                 html = pypandoc.convert_text(self.buffer, to=to_format, format='md', extra_args=pdoc_args)
@@ -200,10 +212,12 @@ class MDfile:
 
             pdoc_args.extend(['--highlight-style=kate','-V graphics:true'])
 
-            if self.logger.getEffectiveLevel() == logging.DEBUG:
-                print 'pdoc_args:', pdoc_args
-
             try:
+                if self.logger.getEffectiveLevel() == logging.DEBUG:
+                    print 'Pandoc conversion'
+                    print '\tOutput file:', outputfile
+                    print '\tArgs:', pdoc_args
+
                 cwd = os.getcwd()
                 os.chdir(self.basepath)
                 pypandoc.convert_text(self.buffer, to=to_format, format='md', outputfile=outputfile, extra_args=pdoc_args)
@@ -234,32 +248,28 @@ class MDfile:
         except:
             return 'html'
 
-    def get_css(self):
+    def add_e_to_list(self, e, l):
+        if isinstance(e, list):
+            l.extend(e)
+        elif e:
+            l.append(e)
+        else:
+            pass
+        return l
+
+
+    def get_css_files(self):
         assert(self.buffer)
 
         css_files = []
 
         try:
-            e = self.yaml['css']
-
-            if isinstance(e, list):
-                css_files.extend(e)
-            elif e:
-                css_files.append(e)
-            else:
-                pass
+            css_files = self.add_e_to_list(self.yaml['css'], css_files)
         except:
             pass
 
         try:
-            e = self.extras['css']
-
-            if isinstance(e, list):
-                css_files.extend(e)
-            elif e:
-                css_files.append(e)
-            else:
-                pass
+            css_files = self.add_e_to_list(self.extras['css'], css_files)
         except:
             pass
 
@@ -290,15 +300,24 @@ class MDfile:
     def get_pandoc_include_files(self):
         assert(self.buffer)
 
-        f = []
+        f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
+        
         try:
-            l = self.yaml['files']
-            for item in l:
-                for key in item.keys():
-                    f.append((key, item[key]))
-            return f
+            f['include-after-body'] = self.add_e_to_list(self.yaml['include-after-body'], [])     
         except:
-            return []
+            pass
+
+        try:
+            f['include-before-body'] = self.add_e_to_list(self.yaml['include-before-body'], [])     
+        except:
+            pass
+
+        try:
+            f['include-in-header'] = self.add_e_to_list(self.yaml['include-in-header'], [])     
+        except:
+            pass
+
+        return f
 
     def get_copy_to_destination(self):
         assert(self.buffer)
