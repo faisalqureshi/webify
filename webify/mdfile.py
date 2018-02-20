@@ -1,3 +1,5 @@
+#!/Users/faisal/anaconda2/bin/python
+
 import logging
 import yaml
 import codecs
@@ -22,7 +24,24 @@ class MDfile:
     template: None* | path/to/pandoc-template-file
     render: None* | path/to/mustache-template-file
     bibliography: None | path/to/bibfile
+
     css: None* | path/to/css-file (used only when converting to html)
+
+    or 
+
+    css:
+        - path/to/css-file-1
+        - path/to/css-file-2
+        - path/to/css-file-3
+        ...
+
+    files:
+        - include-before-body
+        - include-in-header
+        - include-after-body
+    
+    bibliography: None* | path/to/bib file
+
     ___
 
     Contents of the MD file.  
@@ -123,8 +142,14 @@ class MDfile:
                 self.logger.error('Template file %s not found.' % template_file)
 
         pandoc_include_files = self.get_pandoc_include_files()
+        
+        self.logger.debug('Pandoc include files:')
+        if self.logger.getEffectiveLevel() == logging.DEBUG:
+            for item in pandoc_include_files:
+                print item
+
         for item in pandoc_include_files:
-            if not item[0] in ['include-before', 'include-in-header', 'include-after']:
+            if not item[0] in ['include-before-body', 'include-in-header', 'include-after-body']:
                 self.logger.warning('Unrecognized pandoc include file option: %s', item[0])
                 continue
             f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = item[1])
@@ -136,15 +161,14 @@ class MDfile:
         bibfile = self.get_bibfile()
         if bibfile:
             f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = bibfile)            
-
         pdoc_args.extend(['--filter=pandoc-citeproc'])
             
         # if the desired output is html
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
 
-            css_file = self.get_css()
-            if css_file:
+            css_files = self.get_css()
+            for css_file in css_files:
                 pdoc_args.extend(['--css=%s' % css_file])
 
             try:    
@@ -213,16 +237,33 @@ class MDfile:
     def get_css(self):
         assert(self.buffer)
 
+        css_files = []
+
         try:
-            if self.extras['css']:
-                return self.extras['css']
+            e = self.yaml['css']
+
+            if isinstance(e, list):
+                css_files.extend(e)
+            elif e:
+                css_files.append(e)
+            else:
+                pass
         except:
             pass
 
         try:
-            return self.yaml['css']
+            e = self.extras['css']
+
+            if isinstance(e, list):
+                css_files.extend(e)
+            elif e:
+                css_files.append(e)
+            else:
+                pass
         except:
-            return None
+            pass
+
+        return css_files
 
     def get_bibfile(self):
         assert(self.buffer)
