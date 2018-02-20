@@ -350,12 +350,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process')
+    parser.add_argument('-c','--css', nargs='*', action='append', help='Space separated list of css files')
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages')
     parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer')
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
     parser.add_argument('-b','--bib', action='store', default=None, help='Path to bibliography file')
-    parser.add_argument('-c','--css', action='store', default=None, help='Path to css file')
-    parser.add_argument('--media-filters', action='store_true', default=False, help='Media filters (see documentation)')
+    parser.add_argument('--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
 
     args = parser.parse_args()
 
@@ -367,9 +367,9 @@ if __name__ == '__main__':
         print 'format', args.format
         print 'template', args.template
         print 'bib', args.bib
-        print 'css', args.css
+        print 'css', args.css[0]
 
-    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': args.css }
+    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': args.css[0] }
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
