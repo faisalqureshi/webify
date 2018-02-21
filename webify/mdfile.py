@@ -163,9 +163,20 @@ class MDfile:
 
         bibfile = self.get_bibfile()
         if bibfile:
-            f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = bibfile)            
-        pdoc_args.extend(['--filter=pandoc-citeproc'])
-            
+            f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = bibfile)
+            if f and os.path.isfile(f):
+                pdoc_args.extend(['--filter=pandoc-citeproc', '--bibliography=%s' % f])
+            else:
+                self.logger.warning('Cannot find bibliography file: %s' % f)
+
+            csl_file = self.get_cslfile()
+            f = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = csl_file)
+            if f and os.path.isfile(f):
+                pdoc_args.extend(['--csl=%s' % f])
+            else:
+                self.logger.warning('Cannot find csl file: %s' % f)
+                
+                
         # if the desired output is html
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
@@ -287,6 +298,20 @@ class MDfile:
         except:
             return None
 
+    def get_cslfile(self):
+        assert(self.buffer)
+
+        try:
+            if self.extras['csl']:
+                return self.extras['csl']
+        except:
+            pass
+
+        try:
+            return self.yaml['csl']
+        except:
+            return None
+        
     def get_renderfile(self):
         assert(self.buffer)
 
@@ -348,7 +373,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process')
-    parser.add_argument('-c','--css', nargs='*', action='append', help='Space separated list of css files')
+    parser.add_argument('-s','--css', nargs='*', action='append', help='Space separated list of css files')
+    parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages')
     parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer')
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
@@ -361,13 +387,18 @@ if __name__ == '__main__':
     if args.debug:
       dbglevel = logging.DEBUG
 
+    css_files = []
+    if args.css:
+        css_files = args.css[0]
+      
     if dbglevel == logging.DEBUG:
         print 'format', args.format
         print 'template', args.template
         print 'bib', args.bib
-        print 'css', args.css[0]
+        print 'css', css_files
+        print 'csl', args.csl
 
-    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': args.css[0] }
+    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': css_files, 'csl': args.csl }
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
