@@ -1,5 +1,3 @@
-#!/Users/faisal/anaconda2/bin/python
-
 import logging
 import yaml
 import codecs
