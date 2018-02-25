@@ -103,7 +103,7 @@ class MDfile:
                 else: self.rc['additions'].append(k)
                 rc[k] = yaml_block[k]
         except:
-            pass
+            self.rc = {'pushed': None, 'changes': {}, 'additions': []}
 
         rc['this-path'] = self.basepath
         rc['this-file'] = self.filename
