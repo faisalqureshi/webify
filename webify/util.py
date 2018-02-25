@@ -159,15 +159,25 @@ def make_actual_path(rootdir, basepath, filepath):
     be constructed with respect to the root directory or the basepath.
     Specifically a '/' indicates that the path is constructed with
     respect to the root directory.
+
+    Variable $root$ can be used to spacify a different root. 
+    When using webify, this is the source directory.
     
     Returns the new path.
     """
+    
     if not filepath:
         return filepath
-
+    
     if filepath[0] == '/':
-        return os.path.join(rootdir, filepath[1:])
-    return os.path.join(basepath, filepath)
+        fp = filepath                                   
+    elif filepath[0:6] == '$root$':
+        fp = filepath.replace('$root$', rootdir, 1)
+        if fp[0:2] == '//': fp = fp[1:]
+    else:
+        fp = os.path.join(basepath, filepath)
+       
+    return os.path.normpath(os.path.expandvars(fp))
 
 def ancestors(path):
     import os

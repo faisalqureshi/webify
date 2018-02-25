@@ -8,6 +8,7 @@ import os
 import re
 import mdfilters
 import sys
+import uuid
 
 
 class MDfile:
@@ -69,11 +70,11 @@ class MDfile:
     template is only used if 'render' key is None.  A value for 'render' key 
     indicates that the generated html will be consumed within a mustache file.  
     """
-    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None):
+    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None, mtime=None):
         self.logger = util.setup_logging('MDfile', dbglevel=dbglevel)
 
         self.filepath = filepath
-        self.basepath = os.path.split(self.filepath)[0]
+        self.basepath, self.filename = os.path.split(self.filepath)
         if rootdir:
             self.rootdir = rootdir
         else:
@@ -82,13 +83,47 @@ class MDfile:
         self.buffer = None
         self.extras = extras
         self.filters = filters
-
-        self.logger.debug('filepath: %s' % self.filepath)
-        self.logger.debug('basepath: %s' % self.basepath)
-        self.logger.debug('rootdir: %s' % self.rootdir)
+        self.mtime = mtime
+        
+        self.logger.debug('%s -- initializing md file' % filepath)
+        self.logger.debug('\tbasepath: %s' % self.basepath)
+        self.logger.debug('\trootdir: %s' % self.rootdir)
 
         self.supported = [ 'html', 'beamer', 'pdf', 'latex' ]
+        self.extensions = {'html': 'html', 'beamer': 'pdf', 'pdf': 'pdf', 'latex': 'tex'}
 
+        self.rc = {'pushed': None, 'changes': {}, 'additions': []}
+
+    def push_rc(self, rc):
+        self.rc['pushed'] = uuid.uuid4()
+        yaml_block = self.get_yaml()
+        try:
+            for k in yaml_block.keys():
+                if k in rc.keys(): self.rc['changes'][k] = rc[k]
+                else: self.rc['additions'].append(k)
+                rc[k] = yaml_block[k]
+        except:
+            pass
+
+        rc['this-path'] = self.basepath
+        rc['this-file'] = self.filename
+        rc['this-mtime'] = self.mtime
+        
+        return rc
+
+    def pop_rc(self, rc):
+        for k in self.rc['changes'].keys():
+            rc[k] = self.rc['changes'][k]
+        for k in self.rc['additions']:
+            rc.pop(k)
+
+        rc.pop('this-path')
+        rc.pop('this-file')
+        rc.pop('this-mtime')
+            
+        self.rc = {'pushed': None, 'changes': {}, 'additions': []}
+        return rc
+        
     def check_yaml(self):
         keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle']
         for key in self.yaml.keys():
@@ -99,9 +134,9 @@ class MDfile:
         try:
             with codecs.open(self.filepath, 'r') as stream:
                 self.buffer = stream.read().decode('utf-8')
-            self.logger.debug('Loaded MD file: %s' % self.filepath)
+            self.logger.debug('%s -- loaded MD file:' % self.filepath)
         except:
-            self.logger.warning('Error reading MD file: %s' % self.filepath)
+            self.logger.warning('%s -- error reading MD file' % self.filepath)
             self.buffer = ''
             return False
 
@@ -110,13 +145,13 @@ class MDfile:
 
             for section in yamlsections:
                 self.yaml = section
-                self.logger.debug('YAML section found in md file: %s' % self.filepath)
+                self.logger.debug('%s -- YAML section found in md file' % self.filepath)
                 break # Only the first yaml section is read in
 
             self.check_yaml()
 
         except:
-            self.logger.debug('YAML section not found in md file: %s' % self.filepath)
+            self.logger.debug('%s -- YAML section not found in md file' % self.filepath)
 
         if self.logger.getEffectiveLevel() == logging.DEBUG:
             #self.pprint()
@@ -137,17 +172,20 @@ class MDfile:
 
         to_format = self.get_output_format()
         if to_format in self.supported:
-            self.logger.debug('Using Pandoc to convert MD to %s: %s', to_format, self.filepath)
+            self.logger.debug('%s -- Using Pandoc to convert MD to %s' % (self.filepath, to_format))
         else:
-            self.logger.error('Unsupported conversion format: %s', to_format)
+            self.logger.error('%s -- Unsupported conversion format: %s' % (self.filepath, to_format))
             return 'error', 'Error converting %s' % self.filepath 
 
         if not outputfile:
-            outputfile = os.path.splitext(self.filepath)[0]
-        self.logger.debug('MD convert, outputfile: %s' % outputfile)
-
+            outputfile = os.path.splitext(self.filepath)[0] + '.' + self.extensions[to_format]
+        elif os.path.splitext(outputfile)[1] == '':
+            outputfile = outputfile + '.' + self.extensions[to_format]
+        else:
+            pass
+        self.logger.debug('%s -- MD convert, outputfile: %s' % (self.filepath, outputfile))
+        
         pdoc_args = []  # Storing pandoc arguments
-
         if not self.get_renderfile():                   # If no render file (mustache) is specified
             self.logger.debug('Standlone html')         # then md is converted to a standalone file
             pdoc_args.append('--standalone')
@@ -157,27 +195,29 @@ class MDfile:
         if template_file and os.path.isfile(template_file):
             pdoc_args.append('--template=%s' % template_file)
         else:
-            self.logger.error('Cannot find template file: %s' % template_file)
+            if template_file: self.logger.error('%s -- Cannot find template file: %s' % (self.filepath, template_file))
 
         if template_file and self.get_renderfile():
-            self.logger.warning("Render file %s is ignored when template %s specified" % (self.get_renderfile(), template_file))
-            
+            self.logger.warning("%s -- Render file %s is ignored when template %s specified" % (self.filepath, self.get_renderfile(), template_file))
+
+        include_files_specified = False
         pandoc_include_files = self.get_pandoc_include_files().items()
         self.logger.debug('Pandoc include files:')
         for item in pandoc_include_files:
             if not item[0] in ['include-before-body', 'include-in-header', 'include-after-body']:
-                self.logger.warning('Unrecognized pandoc include file option: %s', item[0])
+                self.logger.warning('%s -- Unrecognized pandoc include file option: %s' % (self.filepath, item[0]))
                 continue
             for i1 in item[1]:
                 include_file = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = i1)
                 self.logger.debug('%s: %s' % (item[0], include_file))
                 if include_file and os.path.isfile(include_file):
                     pdoc_args.append('--%s=%s' % (item[0], include_file))
+                    include_files_specified = True
                 else:
-                    self.logger.error('%s file %s not found.' % (item[0], include_file))
+                    if include_file: self.logger.error('%s -- Cannot find %s file: %s' % (self.filepath, item[0], include_file))
 
-        if len(pandoc_include_files) > 0 and self.get_renderfile():
-            self.logger.warning('Render file %s is ignored when include files used' % self.get_render_file())
+        if include_files_specified and self.get_renderfile():
+            self.logger.warning('%s -- Render file %s is ignored when include files used.' % (self.filepath, self.get_renderfile()))
                     
         bibfile = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = self.get_bibfile())
         self.logger.debug('Bibliography file = %s' % bibfile)
@@ -189,18 +229,18 @@ class MDfile:
             if csl_file and os.path.isfile(csl_file):
                 pdoc_args.extend(['--csl=%s' % csl_file])
             else:
-                self.logger.warning('Cannot find CSL file: %s' % csl_file)            
+                if csl_file: self.logger.warning('%s -- Cannot find CSL file: %s' % (self.filpath, csl_file))
         else:
-            self.logger.warning('Cannot find Bibliography file: %s' % bibfile)
-                
+            if bibfile: self.logger.warning('%s -- Cannot find Bibliography file: %s' % (self.filepath, bibfile))
+
         # if the desired output is html
         if to_format == 'html':
             pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
 
             css_files = self.get_css_files()
-            self.logger.debug('css files:')
-            for css_file in css_files:                
-                self.logger.debug('%s' % css_file)
+            self.logger.debug('%s -- CSS files:')
+            for css_file in css_files:
+                self.logger.debug('\t%s' % css_file)
                 pdoc_args.extend(['--css=%s' % css_file])
 
             try:    
@@ -221,22 +261,18 @@ class MDfile:
                 os.chdir(cwd)
                 return 'html', html
             except:
-                self.logger.warning('Error converting %s to html' % self.filepath)
+                self.logger.warning('%s -- Error converting to html' % self.filepath)
                 return 'error', 'Error converting %s' % self.filepath
 
         # if the desired output is a pdf or beamer file.
         elif to_format in ['pdf', 'beamer', 'latex']:
-            if to_format == 'latex':
-                outputfile += '.tex'
-            else:
-                outputfile += '.pdf'
-                
+            
             if use_cache and os.path.isfile(outputfile) and not util.srcs_newer_than_dest([self.filepath, template_file], outputfile):
-                self.logger.info('%s already exists.  Nothing to do.' % outputfile)
+                self.logger.info('%s -- Already exists.  Nothing to do.  Use --no-cache option to discard existing file.' % outputfile)
                 return 'file', outputfile
-
+            
             if self.get_renderfile():
-                self.logger.warning('%s: "render" option in yaml frontmatter unsupported for %s format' % (self.filepath, to_format))
+                self.logger.warning('%s -- Render option in yaml frontmatter unsupported for %s format' % (self.filepath, to_format))
 
             pdoc_args.extend(['--highlight-style=kate','-V graphics:true'])
 
@@ -252,7 +288,7 @@ class MDfile:
                 os.chdir(cwd)
                 return 'file', outputfile
             except:
-                self.logger.warning('Error converting %s to %s' % (self.filepath, to_format))
+                self.logger.warning('%s -- Error converting to %s' % (self.filepath, to_format))
                 return 'error', 'Error converting %s' % self.filepath
 
         else:
