@@ -168,16 +168,18 @@ def make_actual_path(rootdir, basepath, filepath):
     
     if not filepath:
         return filepath
+
+    filepath = os.path.expandvars(filepath)
     
     if filepath[0] == '/':
         fp = filepath                                   
-    elif filepath[0:6] == '$root$':
-        fp = filepath.replace('$root$', rootdir, 1)
+    elif filepath[0:8] == '{{root}}':
+        fp = filepath.replace('{{root}}', rootdir, 1)
         if fp[0:2] == '//': fp = fp[1:]
     else:
         fp = os.path.join(basepath, filepath)
        
-    return os.path.normpath(os.path.expandvars(fp))
+    return os.path.normpath(fp)
 
 def ancestors(path):
     import os
