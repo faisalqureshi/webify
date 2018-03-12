@@ -160,9 +160,9 @@ class MDfile:
         try:
             with codecs.open(self.filepath, 'r') as stream:
                 self.buffer = stream.read().decode('utf-8')
-            self.logger.debug('%s -- loaded MD file:' % self.filepath)
+            self.logger.info('%s -- loaded MD file' % self.filepath)
         except:
-            self.logger.warning('%s -- error reading MD file' % self.filepath)
+            self.logger.warning('%s -- cannot read MD file' % self.filepath)
             self.buffer = ''
             return False
 
@@ -174,10 +174,10 @@ class MDfile:
                 self.logger.debug('%s -- YAML section found in md file' % self.filepath)
                 break # Only the first yaml section is read in
 
-            self.check_yaml()
+            # self.check_yaml()
 
         except:
-            self.logger.debug('%s -- YAML section not found in md file' % self.filepath)
+            self.logger.warning('%s -- YAML section not found in md file' % self.filepath)
 
         if self.logger.getEffectiveLevel() == logging.DEBUG:
             #self.pprint()
@@ -217,12 +217,14 @@ class MDfile:
         cwd = os.getcwd()
         os.chdir(self.basepath)
         try:
+            self.logger.info('%s -- pandoc conversion to %s' % (self.filename, to))
             if to == 'html':
                 html = pypandoc.convert_text(self.buffer, to=to, format='md', extra_args = args)
                 retval = 'html', html
             else:
                 pypandoc.convert_text(self.buffer, to=to, format='md', outputfile=outputfile, extra_args = args)
                 retval = 'file', outputfile
+                self.logger.info('Saved output file %s' % (outputfile))
         except:
             self.logger.error('%s -- pandoc conversion failed to %s' % (self.filename, to))
             print 'pandoc compilation:'
@@ -470,7 +472,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    dbglevel = logging.INFO
+    dbglevel = logging.NOTSET
     if args.debug:
         dbglevel = logging.DEBUG
     elif args.verbose:
@@ -512,27 +514,32 @@ if __name__ == '__main__':
         print 'Data:', data
 
     if fmt == 'html':
-        util.save_to_html(data, util.make_different_extension(args.mdfile, '.html'), logger=None)
+        outputfile = util.make_different_extension(args.mdfile, '.html')
+        util.save_to_html(data, outputfile, logger=m.logger)
+    else:
+        pass # the file is already written at destination
 
-    yamlfiles = []
-    if args.yaml:
-        yamlfiles.extend(args.yaml[0])
+    exit(0)
+        
+    # yamlfiles = []
+    # if args.yaml:
+    #     yamlfiles.extend(args.yaml[0])
 
-    if not len(yamlfiles) > 0:
-        exit(0)
+    # if not len(yamlfiles) > 0:
+    #     exit(0)
 
-    import yamlfile, renderingcontext
-    rc = renderingcontext.RenderingContext()
-    for f in yamlfiles:
-        y = yamlfile.YAMLfile(f)
-        rc.add_yamlfile(y)
-    rc.add_key_val('body', m.get_body())
+    # import yamlfile, renderingcontext
+    # rc = renderingcontext.RenderingContext()
+    # for f in yamlfiles:
+    #     y = yamlfile.YAMLfile(f)
+    #     rc.add_yamlfile(y)
+    # rc.add_key_val('body', m.get_body())
 
-    import mustachefile
-    template_file = util.make_actual_path(rootdir = '/', basepath = m.basepath, template_file = m.get_renderfile())    
-    m1 = mustachefile.Mustachefile(template_file)
-    m1.load()
-    data = m1.render(rc)
-    if fmt == 'html':
-        util.save_to_html(data, util.make_different_extension(args.mdfile, '.html'), logger=None)
+    # import mustachefile
+    # template_file = util.make_actual_path(rootdir = '/', basepath = m.basepath, template_file = m.get_renderfile())    
+    # m1 = mustachefile.Mustachefile(template_file)
+    # m1.load()
+    # data = m1.render(rc)
+    # if fmt == 'html':
+    #     util.save_to_html(data, util.make_different_extension(args.mdfile, '.html'), logger=None)
 

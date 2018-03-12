@@ -117,14 +117,14 @@ def save_to_html(buffer, filepath, logger=None):
         with codecs.open(filepath, 'w') as stream:
             stream.write(buffer.encode('utf-8'))
         if logger:
-            logger.info('Saved html file: %s' % filepath)
+            logger.info('Saved html file %s' % filepath)
         else:
-            print 'Saved html file:', filepath
+            print '[INFO] - Saved html file', filepath
     except:
         if logger:
-            logger.error('Error saving file: %s' % filepath)
+            logger.error('Cannot save html file %s' % filepath)
         else:
-            print 'Error saving file:', filepath
+            print '[ERROR] - Cannot save html file', filepath
 
 def make_different_extension(filepath, new_extension):
     if new_extension[0] == '.':
