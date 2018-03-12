@@ -147,25 +147,61 @@ def srcs_newer_than_dest(srclist, dst):
         pass
     return False
 
-def make_actual_path(rootdir, basepath, filepath):
-    """
-    This routines construct actual paths for template or render
-    files specified in another file.  Recall that MD files routine
-    specify other files in their yaml front matter.  These paths
-    for these "other" files are either constructed with respect to 
-    the rootdir or with respect to the basepath.  Basepath is the
-    path of the MD file in question.  This functions checks the first
-    character of the template_file to decide if the path is to 
-    be constructed with respect to the root directory or the basepath.
-    Specifically a '/' indicates that the path is constructed with
-    respect to the root directory.
+def is_valid_file(filepath):
+    if not filepath:
+        return False
+    else:
+        return os.path.isfile(filepath)
 
-    Variable $root$ can be used to spacify a different root. 
-    When using webify, this is the source directory.
-    
-    Returns the new path.
+def make_rel_path(rootdir, basepath, filepath):
     """
+    Typically used for file path processing for files specified within the yaml frontmatter
+    in markdown files:
+
+    Case 1:
+    /paths/starting/with/a/slash are seen as absolute paths and are not changed.
     
+    Case 2:
+    {{root}}/paths/start/at/the/rootdir
+
+    Case 3:
+    paths/that/donot/start/with/a/slash start at the basepath
+
+    In all three cases the returned path is relative to the basepath.  This routine
+    is used to compute relative paths for css files.
+    """    
+    if not filepath:
+        return filepath
+
+    filepath = os.path.expandvars(filepath)
+
+    if filepath[0] == '/':
+        fp = filepath
+    elif filepath[0:8] == '{{root}}':
+        fp = filepath.replace('{{root}}', rootdir, 1)
+        if fp[0:2] == '//': fp = fp[1:]
+    else:
+        fp = os.path.join(basepath, filepath)
+
+    return os.path.relpath(fp, basepath)
+
+def make_abs_path(rootdir, basepath, filepath):    
+    """
+    Typically used for file path processing for files specified within the yaml frontmatter
+    in markdown files:
+
+    Case 1:
+    /paths/starting/with/a/slash are seen as absolute paths and are not changed.
+    
+    Case 2:
+    {{root}}/paths/start/at/the/rootdir
+
+    Case 3:
+    paths/that/donot/start/with/a/slash start at the basepath
+
+    In all three cases the returned path is the absolute path, which
+    makes it easy to check for file existence, etc.
+    """
     if not filepath:
         return filepath
 

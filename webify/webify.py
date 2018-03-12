@@ -1,7 +1,6 @@
 import argparse
 import logging
 import filedb as db
-#from filedb import Filedb, get_files, get_directories, search, filepath
 from yamlfile import YAMLfile
 from renderingcontext import RenderingContext
 import mustachefile
@@ -84,6 +83,10 @@ class Webify:
         return mustachefile.mustache_render(buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_lvls['mustache']))
 
     def render_md(self, mdfile, html, templatefile, rc):
+
+        # print mdfile
+        # print templatefile
+        
         if not templatefile:
             return html
 
@@ -92,26 +95,40 @@ class Webify:
         # print 'dirpath', mdfile['path']
         # print 'rootdir', self.rootdir
         filepath, filename = os.path.split(templatefile)
-
-        if not filepath:
-            filepath = mdfile['path']
-        elif filepath[0] == '/':
-            if len(filepath) == 1:
-                filepath = '.'
-            else:
-                filepath = filepath[1:]
-        else:
-            os.path.join(mdfile['path'], filepath)
-        #print 'filepath', filepath
         filename, fileext = os.path.splitext(filename)
-        #print 'filename', filename
-        #print 'fileext', fileext
+
+        #print 'xxx', filepath
+        #print 'vvv', filepath.replace(self.rootdir,'.')
+
+        filepath = filepath.replace(self.rootdir,'.')
+
+        if len(filepath) > 1:
+            filepath = filepath[2:]
+        
+        # if not filepath:
+        #     filepath = mdfile['path']
+        # elif filepath[0] == '/':
+        #     if len(filepath) == 1:
+        #         filepath = '.'
+        #     else:
+        #         filepath = filepath[1:]
+        # else:
+        #     os.path.join(mdfile['path'], filepath)
+        # #print 'filepath', filepath
+        # filename, fileext = os.path.splitext(filename)
+
+        # print 'templatefile', templatefile
+        # print 'filename', filename
+        # print 'fileext', fileext
+        # print 'filepath', filepath
 
         if not fileext == '.mustache':
             self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, os.path.join(mdfile['path'], mdfile['name']+mdfile['ext']))
             return html 
 
         tf, p = db.search(self.filedb, filename=filename, dirpath=filepath, fileext=fileext)
+        # print self.filedb.files
+        # print tf, p
         if tf:
             mustache_file = tf['handler']
             rc['body'] = html

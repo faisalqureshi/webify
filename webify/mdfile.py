@@ -11,6 +11,30 @@ import sys
 import uuid
 
 
+class PandocArguments:
+    def __init__(self):
+        self._pdoc_args = []
+
+    def add_var(self, var, val):
+        self._pdoc_args.append("-V %s:%s" % (var, val))
+        
+    def add_flag(self, options):
+        if isinstance(options, list):
+            for o in options:
+                self._pdoc_args.append("--%s" % o)
+        else:
+            self._pdoc_args.append("--%s" % options)
+        
+    def add(self, option, vals):
+        if isinstance(vals, list):
+            for v in vals:
+                self._pdoc_args.append("--%s=%s" % (option, v))
+        else:
+            self._pdoc_args.append("--%s=%s" % (option, vals))
+
+    def get(self):
+        return self._pdoc_args
+
 class MDfile:
     """
     Class that implements MD file conversion to other formats.  
@@ -94,6 +118,8 @@ class MDfile:
 
         self.rc = {'pushed': None, 'changes': {}, 'additions': []}
 
+        self.files = {}
+        
     def push_rc(self, rc):
         self.rc['pushed'] = uuid.uuid4()
         yaml_block = self.get_yaml()
@@ -167,6 +193,42 @@ class MDfile:
         print self.yaml
         print '---------------------------------------------'
 
+    def apply_filters(self):
+        try:    
+            for f in self.filters['html']:
+                self.buffer = f(self.filepath, self.rootdir, self.buffer)
+        except:
+            pass
+
+    def get_rel_path(self, filepath):
+        return util.make_rel_path(rootdir = self.rootdir, basepath = self.basepath, filepath = filepath)
+        
+    def get_abs_path(self, filepath):
+        return util.make_abs_path(rootdir = self.rootdir, basepath = self.basepath, filepath = filepath)
+
+    def compile(self, to, args, outputfile=None):
+
+        if self.logger.getEffectiveLevel() == logging.DEBUG:
+            print 'pandoc compilation:'
+            print '\tto:', to
+            print '\targs:', args
+            print '\toutputfile:', outputfile
+        
+        cwd = os.getcwd()
+        os.chdir(self.basepath)
+        try:
+            if to == 'html':
+                html = pypandoc.convert_text(self.buffer, to=to, format='md', extra_args = args)
+                retval = 'html', html
+            else:
+                pypandoc.convert_text(self.buffer, to=to, format='md', outputfile=outputfile, extra_args = args)
+                retval = 'file', outputfile
+        except:
+            retval = 'error', 'Error converting %s' % self.filepath
+        os.chdir(cwd)
+                
+        return retval
+    
     def convert(self, outputfile, use_cache=False):
         assert self.buffer
 
@@ -184,112 +246,51 @@ class MDfile:
         else:
             pass
         self.logger.debug('%s -- MD convert, outputfile: %s' % (self.filepath, outputfile))
+
+        pdoc_args = PandocArguments()
+
+        render_file = self.get_renderfile()
+        if render_file: pdoc_args.add_flag('standalone')
         
-        pdoc_args = []  # Storing pandoc arguments
-        if not self.get_renderfile():                   # If no render file (mustache) is specified
-            self.logger.debug('Standlone html')         # then md is converted to a standalone file
-            pdoc_args.append('--standalone')
+        template_file = self.get_template()
+        pdoc_args.add('template', template_file)
 
-        template_file = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = self.get_template())
-        self.logger.debug('Template file: %s' % template_file )
-        if template_file and os.path.isfile(template_file):
-            pdoc_args.append('--template=%s' % template_file)
-        else:
-            if template_file: self.logger.error('%s -- Cannot find template file: %s' % (self.filepath, template_file))
+        include_files = self.get_pandoc_include_files()
+        pdoc_args.add('include-in-header', include_files['include-in-header'])
+        pdoc_args.add('include-before-body', include_files['include-before-body'])
+        pdoc_args.add('include-after-body', include_files['include-after-body'])
 
-        if template_file and self.get_renderfile():
-            self.logger.warning("%s -- Render file %s is ignored when template %s specified" % (self.filepath, self.get_renderfile(), template_file))
-
-        include_files_specified = False
-        pandoc_include_files = self.get_pandoc_include_files().items()
-        self.logger.debug('Pandoc include files:')
-        for item in pandoc_include_files:
-            if not item[0] in ['include-before-body', 'include-in-header', 'include-after-body']:
-                self.logger.warning('%s -- Unrecognized pandoc include file option: %s' % (self.filepath, item[0]))
-                continue
-            for i1 in item[1]:
-                include_file = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = i1)
-                self.logger.debug('%s: %s' % (item[0], include_file))
-                if include_file and os.path.isfile(include_file):
-                    pdoc_args.append('--%s=%s' % (item[0], include_file))
-                    include_files_specified = True
-                else:
-                    if include_file: self.logger.error('%s -- Cannot find %s file: %s' % (self.filepath, item[0], include_file))
-
-        if include_files_specified and self.get_renderfile():
-            self.logger.warning('%s -- Render file %s is ignored when include files used.' % (self.filepath, self.get_renderfile()))
-                    
-        bibfile = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = self.get_bibfile())
-        self.logger.debug('Bibliography file = %s' % bibfile)
-        if bibfile and os.path.isfile(bibfile):
-            pdoc_args.extend(['--filter=pandoc-citeproc', '--bibliography=%s' % bibfile])
-
-            csl_file = util.make_actual_path(rootdir = self.rootdir, basepath = self.basepath, filepath = self.get_cslfile())
-            self.logger.debug('CSL file = %s' % csl_file)
-            if csl_file and os.path.isfile(csl_file):
-                pdoc_args.extend(['--csl=%s' % csl_file])
-            else:
-                if csl_file: self.logger.warning('%s -- Cannot find CSL file: %s' % (self.filpath, csl_file))
-        else:
-            if bibfile: self.logger.warning('%s -- Cannot find Bibliography file: %s' % (self.filepath, bibfile))
-
-        # if the desired output is html
+        bib_file = self.get_bibfile()
+        pdoc_args.add('bibiography', bib_file)
+        
+        csl_file = self.get_cslfile()
+        pdoc_args.add('csl', csl_file)
+        
         if to_format == 'html':
-            pdoc_args.extend(['--mathjax','--highlight-style=pygments'])
+            pdoc_args.add_flag('mathjax')
+            pdoc_args.add('highlight-style','pygments')
+            
+            css_files = self.get_cssfiles()
+            pdoc_args.add('css', css_files)
 
-            css_files = self.get_css_files()
-            self.logger.debug('%s -- CSS files:')
-            for css_file in css_files:
-                self.logger.debug('\t%s' % css_file)
-                pdoc_args.extend(['--css=%s' % css_file])
+            self.apply_filters()
 
-            try:    
-                for f in self.filters['html']:
-                    self.buffer = f(self.filepath, self.rootdir, self.buffer)
-            except:
-                pass
-
-            try:
-                if self.logger.getEffectiveLevel() == logging.DEBUG:
-                    print 'Pandoc conversion'
-                    print '\tOutput file:', outputfile
-                    print '\tArgs:', pdoc_args
-
-                cwd = os.getcwd()
-                os.chdir(self.basepath)
-                html = pypandoc.convert_text(self.buffer, to=to_format, format='md', extra_args=pdoc_args)
-                os.chdir(cwd)
-                return 'html', html
-            except:
-                self.logger.warning('%s -- Error converting to html' % self.filepath)
-                return 'error', 'Error converting %s' % self.filepath
+            return self.compile(to=to_format, args=pdoc_args.get())
 
         # if the desired output is a pdf or beamer file.
         elif to_format in ['pdf', 'beamer', 'latex']:
             
-            if use_cache and os.path.isfile(outputfile) and not util.srcs_newer_than_dest([self.filepath, template_file], outputfile):
-                self.logger.info('%s -- Already exists.  Nothing to do.  Use --no-cache option to discard existing file.' % outputfile)
-                return 'file', outputfile
+            # if use_cache and os.path.isfile(outputfile) and not util.srcs_newer_than_dest([self.filepath, template_file], outputfile):
+            #     self.logger.info('%s -- Already exists.  Nothing to do.  Use --no-cache option to discard existing file.' % outputfile)
+            #     return 'file', outputfile
             
-            if self.get_renderfile():
+            if render_file:
                 self.logger.warning('%s -- Render option in yaml frontmatter unsupported for %s format' % (self.filepath, to_format))
 
-            pdoc_args.extend(['--highlight-style=kate','-V graphics:true'])
+            pdoc_args.add('highlight-style','kate')
+            pdoc_args.add_var('graphics','true')
 
-            try:
-                if self.logger.getEffectiveLevel() == logging.DEBUG:
-                    print 'Pandoc conversion'
-                    print '\tOutput file:', outputfile
-                    print '\tArgs:', pdoc_args
-
-                cwd = os.getcwd()
-                os.chdir(self.basepath)
-                pypandoc.convert_text(self.buffer, to=to_format, format='md', outputfile=outputfile, extra_args=pdoc_args)
-                os.chdir(cwd)
-                return 'file', outputfile
-            except:
-                self.logger.warning('%s -- Error converting to %s' % (self.filepath, to_format))
-                return 'error', 'Error converting %s' % self.filepath
+            return self.compile(to=to_format, args=pdoc_args.get(), outputfile=outputfile)
 
         else:
             return 'error', 'Error converting %s' % self.filepath
@@ -311,7 +312,7 @@ class MDfile:
             return self.yaml['to']
         except:
             return 'html'
-
+        
     def add_e_to_list(self, e, l):
         if isinstance(e, list):
             l.extend(e)
@@ -321,82 +322,106 @@ class MDfile:
             pass
         return l
 
-
-    def get_css_files(self):
+    def get_files(self, key):
         assert(self.buffer)
 
-        css_files = []
+        files = []
 
         try:
-            css_files = self.add_e_to_list(self.yaml['css'], css_files)
+            files = self.add_e_to_list(self.yaml[key], files)
         except:
             pass
 
         try:
-            css_files = self.add_e_to_list(self.extras['css'], css_files)
+            files = self.add_e_to_list(self.extras[key], files)
         except:
             pass
 
-        return css_files
+        return files
 
-    def get_bibfile(self):
-        assert(self.buffer)
+    def make_rel_path(self, files, key=None):
+        paths = []
+        for f in files:
+            paths.append(self.get_rel_path(f))
+        return paths
+            
+    def make_abs_path(self, files, key):
+        paths = []
+        for f in files:
+            p = self.get_abs_path(f)
+            if not os.path.isfile(p):
+                self.logger.warning('%s -- Cannot find "%s" file: %s' % (self.filepath, key, p))
+            else:
+                paths.append(p)
+        return paths
 
-        try:
-            if self.extras['bib']:
-                return self.extras['bib']
-        except:
-            pass
+    def pick_last(self, key, pathfunc):
+        files = self.get_files(key)
 
-        try:
-            return self.yaml['bibliography']
-        except:
-            return None
+        if len(files) == 0:
+            self.files[key] = []
+        else:
+            self.files[key] = pathfunc([files[-1]], key)
 
-    def get_cslfile(self):
-        assert(self.buffer)
+        return self.files[key]
 
-        try:
-            if self.extras['csl']:
-                return self.extras['csl']
-        except:
-            pass
-
-        try:
-            return self.yaml['csl']
-        except:
-            return None
-        
+    def pick_all(self, key, pathfunc):
+        files = self.get_files(key)
+        self.files[key] = pathfunc(files, key)
+        return self.files[key]
+    
     def get_renderfile(self):
         assert(self.buffer)
 
-        try:
-            return self.yaml['render']
-        except:
-            return None
+        key = 'render'
+        if key in self.files.keys(): return self.files[key]
+            
+        files = self.make_abs_path(self.get_files(key), key)
+        if len(files) > 0: self.files[key] = files[0]
+        else: self.files[key] = None
+            
+        return self.files[key]
 
+    def get_template(self):
+        assert(self.buffer)
+
+        key = 'template'
+        if key in self.files.keys():
+            return self.files[key]
+        return self.pick_last(key, self.make_abs_path)
+        
+    def get_cssfiles(self):
+        assert(self.buffer)
+
+        key = 'css'
+        if key in self.files.keys():
+            return self.files[key]
+        return self.pick_all(key, self.make_rel_path)
+        
+    def get_bibfile(self):
+        assert(self.buffer)
+
+        key = 'bibliography'
+        if key in self.files.keys():
+            return self.files[key]
+        return self.pick_last(key, self.make_abs_path)
+        
+    def get_cslfile(self):
+        assert(self.buffer)
+
+        key = 'csl'
+        if key in self.files.keys():
+            return self.files[key]
+        return self.pick_last(key, self.make_abs_path)
+            
     def get_pandoc_include_files(self):
         assert(self.buffer)
 
         f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
-        
-        try:
-            f['include-after-body'] = self.add_e_to_list(self.yaml['include-after-body'], [])     
-        except:
-            pass
-
-        try:
-            f['include-before-body'] = self.add_e_to_list(self.yaml['include-before-body'], [])     
-        except:
-            pass
-
-        try:
-            f['include-in-header'] = self.add_e_to_list(self.yaml['include-in-header'], [])     
-        except:
-            pass
-
+        for i in f.keys():
+            f[i] = self.make_abs_path(self.get_files(i), i)
         return f
-
+    
     def get_copy_to_destination(self):
         assert(self.buffer)
 
@@ -404,21 +429,7 @@ class MDfile:
             return self.yaml['copy-to-destination']
         except:
             return False
-
-    def get_template(self):
-        assert(self.buffer)
-
-        try:
-            if self.extras['template']:
-                return self.extras['template']
-        except:
-            pass
-
-        try:
-            return self.yaml['template']
-        except:
-            return None
-        
+                
 if __name__ == '__main__':
 
     global prog_name, prog_dir
@@ -434,7 +445,7 @@ if __name__ == '__main__':
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages')
     parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex')
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
-    parser.add_argument('-b','--bib', action='store', default=None, help='Path to bibliography file')
+    parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file')
     parser.add_argument('--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
     parser.add_argument('--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
 
@@ -454,11 +465,11 @@ if __name__ == '__main__':
         print 'Commandline arguments:'
         print '\tformat', args.format
         print '\ttemplate', args.template
-        print '\tbib', args.bib
+        print '\tbibliography', args.bibliography
         print '\tcss', css_files
         print '\tcsl', args.csl
 
-    extras = { 'format': args.format, 'template': args.template, 'bib': args.bib, 'css': css_files, 'csl': args.csl }
+    extras = { 'format': args.format, 'template': args.template, 'bibliography': args.bibliography, 'css': css_files, 'csl': args.csl }
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
