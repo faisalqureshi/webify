@@ -137,7 +137,7 @@ def srcs_newer_than_dest(srclist, dst):
     try:
         d = os.stat(dst)
         for src in srclist:
-            if not src:
+            if not is_valid_file(src):
                 continue
             s = os.stat(src)
             if s.st_mtime > d.st_mtime: # Source was modified after destination

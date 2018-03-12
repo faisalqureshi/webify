@@ -213,7 +213,7 @@ class MDfile:
             print '\tto:', to
             print '\targs:', args
             print '\toutputfile:', outputfile
-        
+
         cwd = os.getcwd()
         os.chdir(self.basepath)
         try:
@@ -224,6 +224,11 @@ class MDfile:
                 pypandoc.convert_text(self.buffer, to=to, format='md', outputfile=outputfile, extra_args = args)
                 retval = 'file', outputfile
         except:
+            self.logger.error('%s -- pandoc conversion failed to %s' % (self.filename, to))
+            print 'pandoc compilation:'
+            print '  to:', to
+            print '  args:', args
+            print '  outputfile:', outputfile            
             retval = 'error', 'Error converting %s' % self.filepath
         os.chdir(cwd)
                 
@@ -261,7 +266,7 @@ class MDfile:
         pdoc_args.add('include-after-body', include_files['include-after-body'])
 
         bib_file = self.get_bibfile()
-        pdoc_args.add('bibiography', bib_file)
+        pdoc_args.add('bibliography', bib_file)
         
         csl_file = self.get_cslfile()
         pdoc_args.add('csl', csl_file)
@@ -279,11 +284,11 @@ class MDfile:
 
         # if the desired output is a pdf or beamer file.
         elif to_format in ['pdf', 'beamer', 'latex']:
-            
-            # if use_cache and os.path.isfile(outputfile) and not util.srcs_newer_than_dest([self.filepath, template_file], outputfile):
-            #     self.logger.info('%s -- Already exists.  Nothing to do.  Use --no-cache option to discard existing file.' % outputfile)
-            #     return 'file', outputfile
-            
+
+            if not self.needs_compilation(use_cache, outputfile):
+                self.logger.info('%s - output already exists.  Nothing to do here.' % self.filepath)
+                return 'file', outputfile
+
             if render_file:
                 self.logger.warning('%s -- Render option in yaml frontmatter unsupported for %s format' % (self.filepath, to_format))
 
@@ -295,6 +300,19 @@ class MDfile:
         else:
             return 'error', 'Error converting %s' % self.filepath
 
+    def needs_compilation(self, use_cache, outputfile):
+        if not use_cache:
+            return True
+
+        if not util.is_valid_file(outputfile):
+            return True
+
+        srcs = []
+        for k in ['template', 'csl', 'bibliography', 'template']:
+            for f in self.files[k]:
+                srcs.append(f)
+        return util.srcs_newer_than_dest(srcs, outputfile)
+        
     def get_yaml(self):
         assert(self.buffer)
         return self.yaml
@@ -374,7 +392,8 @@ class MDfile:
         assert(self.buffer)
 
         key = 'render'
-        if key in self.files.keys(): return self.files[key]
+        if key in self.files.keys():
+            return self.files[key]
             
         files = self.make_abs_path(self.get_files(key), key)
         if len(files) > 0: self.files[key] = files[0]
