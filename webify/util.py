@@ -147,6 +147,12 @@ def srcs_newer_than_dest(srclist, dst):
         pass
     return False
 
+def is_valid_dir(dirpath):
+    if not dirpath:
+        return False
+    else:
+        return os.path.isdir(dirpath)
+
 def is_valid_file(filepath):
     if not filepath:
         return False
@@ -184,6 +190,10 @@ def make_rel_path(rootdir, basepath, filepath):
         fp = os.path.join(basepath, filepath)
 
     return os.path.relpath(fp, basepath)
+
+def make_extension(filepath, extension):
+    f, e = os.path.splitext(filepath)
+    return f + '.' + extension
 
 def make_abs_path(rootdir, basepath, filepath):    
     """
