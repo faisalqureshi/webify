@@ -495,9 +495,12 @@ if __name__ == '__main__':
         # Exit if only checking status or if webify encountered
         # an error.  This error typically is the result of
         # specify an invalid (say non-existent) folder to webify.
-        if not webify.ok or cmdline_args.status:
+        if not webify.ok:
             print 'Error.  Cannot webify %s' % cmdline_args.rootdir
             exit(-1)
+
+        if cmdline_args.status:
+            exit(0)        
 
         webify.create_destination_folder()
         #webify.setup_cache()

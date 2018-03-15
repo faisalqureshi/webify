@@ -117,7 +117,7 @@ def save_to_html(buffer, filepath, logger=None):
         with codecs.open(filepath, 'w') as stream:
             stream.write(buffer.encode('utf-8'))
         if logger:
-            logger.info('Saved html file %s' % filepath)
+            logger.info('%s\n -- Saved html file' % filepath)
         else:
             print '[INFO] - Saved html file', filepath
     except:

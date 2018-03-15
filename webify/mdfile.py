@@ -109,7 +109,7 @@ class MDfile:
         self.filters = filters
         self.mtime = mtime
         
-        self.logger.debug('%s -- initializing md file' % filepath)
+        self.logger.debug('%s\n -- initializing md file' % filepath)
         self.logger.debug('\tbasepath: %s' % self.basepath)
         self.logger.debug('\trootdir: %s' % self.rootdir)
 
@@ -160,9 +160,9 @@ class MDfile:
         try:
             with codecs.open(self.filepath, 'r') as stream:
                 self.buffer = stream.read().decode('utf-8')
-            self.logger.info('%s -- loaded MD file' % self.filepath)
+            self.logger.info('%s\n -- loaded MD file' % self.filepath)
         except:
-            self.logger.warning('%s -- cannot read MD file' % self.filepath)
+            self.logger.warning('%s\n -- cannot read MD file' % self.filepath)
             self.buffer = ''
             return False
 
@@ -171,13 +171,13 @@ class MDfile:
 
             for section in yamlsections:
                 self.yaml = section
-                self.logger.debug('%s -- YAML section found in md file' % self.filepath)
+                self.logger.debug('%s\n -- YAML section found in md file' % self.filepath)
                 break # Only the first yaml section is read in
 
             # self.check_yaml()
 
         except:
-            self.logger.warning('%s -- YAML section not found in md file' % self.filepath)
+            self.logger.warning('%s\n -- YAML section not found in md file' % self.filepath)
 
         if self.logger.getEffectiveLevel() == logging.DEBUG:
             #self.pprint()
@@ -217,7 +217,7 @@ class MDfile:
         cwd = os.getcwd()
         os.chdir(self.basepath)
         try:
-            self.logger.info('%s -- pandoc conversion to %s' % (self.filename, to))
+            self.logger.debug('%s\n -- pandoc conversion to %s' % (self.filename, to))
             if to == 'html':
                 html = pypandoc.convert_text(self.buffer, to=to, format='md', extra_args = args)
                 retval = 'html', html
@@ -226,7 +226,7 @@ class MDfile:
                 retval = 'file', outputfile
                 self.logger.info('Saved output file %s' % (outputfile))
         except:
-            self.logger.error('%s -- pandoc conversion failed to %s' % (self.filename, to))
+            self.logger.error('%s\n -- pandoc conversion failed to %s' % (self.filename, to))
             print 'pandoc compilation:'
             print '  to:', to
             print '  args:', args
@@ -237,33 +237,34 @@ class MDfile:
         return retval
 
     def make_output_filename(self, outputfile, to_format):
-        print outputfile, to_format, self
-        
-        if outputfile:
-            oname, oextension =  os.path.splitext(outputfile)
-            if oextension == '':
-                outputfile = oname + '.' + self.extensions[to_format]
-            else:
-                if oextension[1:] != self.extensions[to_format]:
-                    self.logger.error('Unable to create output file "%s" with this extension "%s"' % (oname, oextension))
-                    return 'MDFILE_ERROR_INTERNAL__#'
-            self.logger.debug('Outputfile is %s' % outputfile)
+        #print outputfile, to_format, self
+
+        if not outputfile:
+            outputfile = os.path.splitext(outputfile)[0]
+
+        oname, oextension = os.path.splitext(outputfile)
+        if oextension == '':
+            outputfile = oname + '.' + self.extensions[to_format]
+        elif oextension[1:] != self.extensions[to_format]:
+            self.logger.warning('%s\n -- Incorrect outputfile extension "%s" for conversion format.' % (self.filepath, oextension))
+            outputfile = None
         else:
-            self.logger.debug('No output file specified')
+            self.logger.debug('%s\n -- output file %s' % (self.filepath, outputfile))
+        
         return outputfile
         
     def convert(self, outputfile, use_cache=False):
         assert self.buffer
         
         to_format = self.get_output_format()
-        self.logger.info('%s -- Converting to %s' % (self.filepath, to_format))
-
+        self.logger.info('%s\n -- Converting to %s' % (self.filepath, to_format))
         if not to_format in self.supported:
-            self.logger.error('Unsupported conversion format: %s' % to_format)
+            self.logger.error('%s\n -- Unsupported conversion format: %s' % (self.filepath, to_format))
             return 'error', 'Error converting %s' % self.filepath 
 
         outputfile = self.make_output_filename(outputfile, to_format)
-        if outputfile == 'MDFILE_ERROR_INTERNAL__#': return 'error', 'Invalid output file extension'
+        if not outputfile:
+            return 'error', 'Error creating outputfile %s' % self.filepath
         
         pdoc_args = PandocArguments()
 
@@ -285,6 +286,10 @@ class MDfile:
         pdoc_args.add('csl', csl_file)
         
         if to_format == 'html':
+            if not self.needs_compilation(use_cache, outputfile):
+                self.logger.warning('%s\n -- Output already exists.  Nothing to do here.' % self.filepath)
+                return 'file', outputfile
+            
             pdoc_args.add_flag('mathjax')
             pdoc_args.add('highlight-style', self.get_highlighter())
             
@@ -299,15 +304,15 @@ class MDfile:
         elif to_format in ['pdf', 'beamer', 'latex']:
 
             if not outputfile:
-                self.logger.error('No output file specified.  Conversion failed.')
+                self.logger.error('%s\n -- No output file specified.  Conversion failed.' % self.filepath)
                 return 'error', 'No output file'
             
             if not self.needs_compilation(use_cache, outputfile):
-                self.logger.warning('Output already exists.  Nothing to do here.')
+                self.logger.warning('%s\n -- Output already exists.  Nothing to do here.' % self.filepath)
                 return 'file', outputfile
 
             if render_file:
-                self.logger.warning('Render option in yaml frontmatter unsupported for %s format' % to_format)
+                self.logger.warning('%s\n -- Render option in yaml frontmatter unsupported for %s format' % (self.filepath, to_format))
 
             pdoc_args.add('highlight-style', self.get_highlighter())
             pdoc_args.add_var('graphics','true')
@@ -324,7 +329,7 @@ class MDfile:
         if not util.is_valid_file(outputfile):
             return True
 
-        srcs = []
+        srcs = [ self.filepath ]
         for k in ['template', 'csl', 'bibliography', 'template']:
             for f in self.files[k]:
                 srcs.append(f)
@@ -494,10 +499,10 @@ if __name__ == '__main__':
     parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex')
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file')
     parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file')
-    parser.add_argument('--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
-    parser.add_argument('--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
+    parser.add_argument('-n','--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
+    parser.add_argument('-m','--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
     parser.add_argument('--highlighter', action='store', default=None, help='Specify a highlighter - pygments, tango, espresso, zenburn, kate, monocrhome, haddock.  See pandoc --list-highlight-styles')
-    parser.add_argument('--output', action='store', default=None, help='Output path')
+    parser.add_argument('-o','--output', action='store', default=None, help='Output path')
     
     args = parser.parse_args()
 
@@ -539,6 +544,7 @@ if __name__ == '__main__':
         html_media = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
         filters = {'html': [html_media.apply]}
 
+    print filepath
     m = MDfile(filepath=filepath, rootdir='/', dbglevel=dbglevel, extras=extras, filters=filters)
     if not m.load():
         print 'Exiting.  Nothing to be done here.'
@@ -546,7 +552,10 @@ if __name__ == '__main__':
 
     outputfile = os.path.splitext(filepath)[0]
     if args.output:
-        outputfile = args.output
+        if util.is_valid_dir(args.output):
+            outputfile = os.path.normpath(os.path.join(args.output, os.path.splitext(args.mdfile)[0]))
+        else:
+            outputfile = os.path.normpath(args.output)
     if dbglevel == logging.DEBUG:
         print 'Output file:', outputfile
 
