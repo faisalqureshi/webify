@@ -7,8 +7,9 @@ from mustachefile import mustache_render
 
 class HTML_Media:
 
-    def __init__(self, filterdir, dbglevel=logging.WARNING):
-        self.logger = util.setup_logging('MDfilter', dbglevel=dbglevel)
+    def __init__(self, filterdir, dbglevel, logfile):
+        self.filterdir = filterdir
+        self.logger = util.setup_logger('MDfilter', dbglevel=dbglevel, logfile=logfile)
 
         try:
             with codecs.open(os.path.join(filterdir,'img.mustache'), 'r') as stream:

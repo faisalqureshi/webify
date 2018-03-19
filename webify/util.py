@@ -3,6 +3,7 @@ import codecs
 import pprint
 import os
 import shutil
+import filecmp        
 
 def copy_file(src, dest, force_save):
     """
@@ -14,11 +15,11 @@ def copy_file(src, dest, force_save):
         - 2: skipped
     """
     if not force_save and os.path.exists(dest):
-        s = os.stat(src)
-        d = os.stat(dest)
-        if s.st_size == d.st_size and s.st_mtime == d.st_mtime:
+        if filecmp.cmp(src, dest):
             return 2 # Skipped
-
+        else:
+            print ';XXXX'
+        
     try:
         shutil.copy2(src, dest)
         return 1 # Copied
@@ -36,9 +37,7 @@ def move_file(src, dest, force_save):
         - 2: skipped
     """
     if not force_save and os._exists(dest):
-        s = os.stat(src)
-        d = os.stat(dest)
-        if s.st_size == d.st_size and s.st_mtime == d.st_m_time:
+        if filecmp.cmp(src, dest):
             return 2 # Skipped
 
     try:

@@ -210,9 +210,8 @@ class Webify:
                     f['__rendered__'] = self.render_html(h.get_buffer(), rc)
                     continue
 
-                outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
-
                 if f['ext'] == '.md':
+                    outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
                     md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
@@ -281,7 +280,7 @@ class Webify:
     #         self.cachedb.collect()
 
     def load_filters(self):
-        md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
+        md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'), dbglevel=logging.NOTSET, logfile=self.logfile)
         self.filters = { 'html': [md_to_html_media_filter.apply] } 
 
     def write(self, force_save):
