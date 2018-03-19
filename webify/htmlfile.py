@@ -13,9 +13,9 @@ class HTMLfile:
         try:
             with codecs.open(self.filepath, 'r') as stream:
                 self.buffer = stream.read().decode('utf-8')
-            self.logger.debug('Loaded html file: %s' % self.filepath)
+            self.logger.debug('Loaded html file:\n\t - %s' % self.filepath)
         except:
-            self.logger.error('Error loading file: %s' % self.filepath)
+            self.logger.error('Error loading file:\n\t - %s' % self.filepath)
             self.buffer = ''
 
     def get_buffer(self):

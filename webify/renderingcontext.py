@@ -1,5 +1,5 @@
 import logging
-from util import ancestors, setup_logging
+import util
 import pprint
 
 class RenderingContext:
@@ -37,10 +37,11 @@ class RenderingContext:
     Rendering context is stored in the disk as a yaml file.
     """
 
-    def __init__(self, rootdir, dbglevel=logging.INFO):
+    def __init__(self, rootdir, dbglevel, logfile):
+        self.logger = util.setup_logger('RenderingContext', dbglevel=dbglevel, logfile=logfile)        
         self.rootdir = rootdir
         self.context = {}
-        self.logger = setup_logging('RenderingContext', dbglevel=dbglevel)
+        self.logger.info('Initializing rendering context with root %s' % self.rootdir)
 
     def add(self, path, rc):
         """
@@ -48,6 +49,7 @@ class RenderingContext:
         rc: rendering context stored a python dictionary
         """
         self.context[path] = rc
+        self.logger.info('Adding path %s to rendering context' % path)
 
     def clear_cache(self, path):
         try:
@@ -76,7 +78,7 @@ class RenderingContext:
             pass
 
         parents = [ path ]
-        parents[1:] = ancestors(path)
+        parents[1:] = util.ancestors(path)
         rc = {}
 
         for i in reversed(parents):

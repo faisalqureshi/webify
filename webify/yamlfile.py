@@ -13,8 +13,8 @@ class YAMLfile:
 
     """
 
-    def __init__(self, filepath, dbglevel=logging.INFO):
-        self.logger = util.setup_logging('YAMLfile', dbglevel=dbglevel)
+    def __init__(self, filepath, dbglevel, logfile):
+        self.logger = util.setup_logger('YAMLfile', dbglevel=dbglevel, logfile=logfile)
         self.filepath = filepath
         self.data = None
 

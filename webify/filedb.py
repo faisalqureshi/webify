@@ -8,8 +8,7 @@ import util
 
 
 def filepath(fileitem):
-    print os.path.join(fileitem['path'],fileitem['name'] + fileitem['ext'])
-
+    #print os.path.join(fileitem['path'],fileitem['name'] + fileitem['ext'])
     return os.path.join(fileitem['path'],fileitem['name'] + fileitem['ext'])
 
 def get_directories(filedb, dirpath=None):
@@ -58,8 +57,8 @@ class Filedb:
     """
 
 
-    def __init__(self, rootdir, dbglevel, ignorefile='.webifyignore'):
-        self.logger = util.setup_logging('Filedb', dbglevel=dbglevel)
+    def __init__(self, rootdir, dbglevel, logfile, ignorefile='.webifyignore'):
+        self.logger = util.setup_logger('Filedb', dbglevel=dbglevel, logfile=logfile)
         self.rootdir = os.path.realpath(rootdir)
         # print 'rootdir', self.rootdir
 
@@ -178,7 +177,7 @@ class Filedb:
             self.logger.error('Cannot find directory: %s', self.rootdir)
             return False
 
-        self.logger.info('Collecting files in %s' % self.rootdir)
+        self.logger.debug('collect() - Collecting files/folders')
         ignore_paths = []
 
         idx = 0
@@ -205,15 +204,15 @@ class Filedb:
                     continue
 
                 try:
-                    mtime = None
                     mtime = time.ctime(os.path.getmtime(os.path.join(self.rootdir,filepath)))
                 except:
+                    mtime = None
                     self.logger.warning('Can not get modification time for %s' % filepath)
 
                 name, ext = os.path.splitext(file)
                 fileitem = {'idx': idx, 'type': 'file', 'path': relpath, 'name': name, 'ext': ext, 'mtime': mtime}
                 self.files.append(fileitem)
-                self.logger.debug('Adding file: %s' % filepath)
+                self.logger.info('Adding file: %s' % filepath)
 
             for directory in directories:
                 self.logger.debug('collect(), directory - %s, %s' % (relpath, directory))
@@ -226,9 +225,7 @@ class Filedb:
                     continue
 
                 self.files.append({'idx': idx, 'path': relpath, 'type': 'dir', 'name': directory})
-                self.logger.debug('Adding directory: %s' % dirpath)
-
-
+                self.logger.info('Adding directory: %s' % dirpath)
 
                 # if path in ignore_paths:
                 #     self.logger.debug('Ignoring directory: %s' % dirpath)
@@ -243,9 +240,7 @@ class Filedb:
                 #     ignore_paths.append(os.path.join(self.rootdir, dirpath))
 
         if self.logger.getEffectiveLevel() <= logging.DEBUG:
-            print '[DEBUG] - files:'
-            for i in self.files:
-                print i
+            self.pprint()
 
     def pprint(self):
         print 'Rootdir:', self.rootdir
@@ -259,35 +254,32 @@ class Filedb:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('rootdir', help='Root directory.')
-    parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages')
+    parser.add_argument('--verbose', action='store_true', default=False, help='Verbose')
+    parser.add_argument('--debug', action='store_true', default=False, help='Debugging messages')
+    parser.add_argument('--log', action='store_true', default=False, help='Logfile')
+
     args = parser.parse_args()
 
-    dbglevel = logging.INFO
+    dbglevel = logging.WARNING
+    if args.verbose:
+        dbglevel = logging.INFO
     if args.debug:
         dbglevel = logging.DEBUG
 
-    filedb = Filedb(args.rootdir, dbglevel=dbglevel)
+    logfile = None
+    if args.log:
+        logfile = 'filedb.log'
+        
+    filedb = Filedb(args.rootdir, dbglevel=dbglevel, logfile=logfile)
     filedb.collect()
 
     print '\nAll items:'
     for f, p in get_files(filedb):
         print f
-        print p, '\n'
+        print '\t', p
 
     print '\nAll directories'
     for d, p, r in get_directories(filedb):
         print d
-        print r, '\n'
-        print p, '\n'
-
-    #
-    # print '\nOnly yaml files in _partials:'
-    # for fileitem in get_files(filedb, dirpath='_partials', fileext='.yaml'):
-    #     print fileitem
-    #
-    # print '\nOnly _partials directory:'
-    # for diritem in get_directories(filedb, dirpath='_partials'):
-    #     print diritem
-    #
-    # print '\n-------------------------------------'
-    # filedb.pprint()
+        print '\t',p
+        print '\t',r

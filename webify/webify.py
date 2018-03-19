@@ -14,38 +14,36 @@ import copy
 import sys
 import mdfilters
 
+global version
 version = '1.7'
 
 class Webify:
-    def __init__(self, rootdir, destdir, debug_lvls, use_cache):
+    def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
+
+        self.debug_levels = debug_levels
+        self.logfile = logfile
+        self.logger = util.setup_logger('Webify', dbglevel=self.debug_levels['main'], logfile=logfile)
+        
         self.time_now = datetime.datetime.now()
         self.rootdir = rootdir
-        self.debug_lvls = debug_lvls
+        self.destdir = destdir
+        self.debug_levels = debug_levels
         self.ok = True
         self.use_cache = use_cache
-        self.destdir = destdir
         self.filters = {}
-        #self.cachedb = None
 
-        # Setting up main logger
-        self.logger = util.setup_logging('Webify', dbglevel=self.debug_lvls['main'])
-        self.logger.info('Webifying (version: %s) folder %s' % (version, self.rootdir))        
-        if self.use_cache:
-            self.logger.info('Using cache')        
-        else:
-            self.logger.info('Not using cache')
+    def collect_files(self):
+        self.logger.info('\n*** Collecting files/folder ***\n')
 
-        # Collecting files
-        self.filedb = db.Filedb(rootdir, dbglevel=debug_lvls['db'])
+        self.filedb = db.Filedb(rootdir, dbglevel=self.debug_levels['db'], logfile=logfile)
         self.filedb.collect()
-        if self.filedb.get_size() == 0:
-            self.ok = False
+        return self.filedb.get_size()
         
-        # Setting up rendering context
-        self.rendering_context = RenderingContext(rootdir, debug_lvls['rc'])
-
+    def setup_rendering_context(self):
+        self.rendering_context = RenderingContext(rootdir, self.debug_levels['rc'], logfile=logfile)
+        
     def load_yamlfiles(self):
-        self.logger.info('Loading YAML files')
+        self.logger.info('\n*** Loading YAML files ***\n')
 
         for d, _, r in db.get_directories(self.filedb):
             self.logger.debug('Directory: %s' % d)
@@ -53,7 +51,7 @@ class Webify:
             rc = {}
             for f, p in db.get_files(self.filedb, dirpath=r, fileext='.yaml'):
                 self.logger.debug('Yaml file found: %s' % p)
-                y = YAMLfile(p, dbglevel=self.debug_lvls['yaml'])
+                y = YAMLfile(p, dbglevel=self.debug_levels['yaml'], logfile=self.logfile)
                 y.load()
                 rc[p] = y.get_data()
                 f['handler'] = y
@@ -64,23 +62,23 @@ class Webify:
                 
             self.rendering_context.add(r, rc)
 
-        if self.debug_lvls['main'] == logging.DEBUG:
+        if self.debug_levels['main'] == logging.DEBUG:
             print '---------------------------------------'
             print 'Rendering context after loading yaml files:'
             self.rendering_context.pprint()
             print '---------------------------------------'
 
     def load_templates(self):
-        self.logger.info('Loading templates')
+        self.logger.info('\n*** Loading templates ***\n')
 
         for f, p in db.get_files(self.filedb, fileext='.mustache'):
             self.logger.debug('Mustache file found: %s' % p)
-            m = mustachefile.Mustachefile(p, dbglevel=debug_lvls['mustache'])
+            m = mustachefile.Mustachefile(p, dbglevel=debug_levels['mustache'], logfile=self.logfile)
             m.load()
             f['handler'] = m
 
     def render_html(self, buffer, rc):
-        return mustachefile.mustache_render(buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_lvls['mustache']))
+        return mustachefile.mustache_render(buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
 
     def render_md(self, mdfile, html, templatefile, rc):
 
@@ -132,7 +130,7 @@ class Webify:
         if tf:
             mustache_file = tf['handler']
             rc['body'] = html
-            rendered_md = mustachefile.mustache_render(mustache_file.get_template(), rc, util.setup_logging('Mustachefile', dbglevel=debug_lvls['mustache']))
+            rendered_md = mustachefile.mustache_render(mustache_file.get_template(), rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
             rc['body'] = None
             return rendered_md
         else:
@@ -141,7 +139,7 @@ class Webify:
         return html
 
     def compute_partials(self):
-        self.logger.info('Computing partials')
+        self.logger.info('\n*** Computing partials ***\n')
         try:
             rc = self.rendering_context.get('_partials')
             self.logger.info('Rendering context for _partials set')
@@ -158,7 +156,7 @@ class Webify:
 
         for f, p in db.get_files(self.filedb, dirpath='_partials', fileext='.md'):
             self.logger.info('MD file found in _partials %s' % p)
-            md = MDfile(p, self.rootdir, dbglevel=self.debug_lvls['md'], filters=self.filters, mtime=f['mtime'])
+            md = MDfile(p, self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'])
             md.load()
             format, buffer = md.convert(outputfile=None, use_cache=self.use_cache)
             if not format == 'html':
@@ -178,8 +176,9 @@ class Webify:
             util.debug_rendering_context(self.rendering_context.context)
 
     def render_all_files(self):
-        self.logger.info('Rendering all files')
+        self.logger.info('\n*** Rendering all files ***')
 
+        num_rendered = 0
         for d, _, r in db.get_directories(self.filedb):
             a = [r]
             a[1:] = util.ancestors(r)
@@ -189,7 +188,7 @@ class Webify:
 
             # rc = self.rendering_context.get(r)
 
-            # if self.debug_lvls['rc'] == logging.DEBUG:
+            # if self.debug_levels['rc'] == logging.DEBUG:
             #     print '\n-------------------------------------------------'
             #     print 'render_all_files()'
             #     print 'Directory: ', d, r
@@ -197,10 +196,11 @@ class Webify:
             #     print '\n-------------------------------------------------'
 
             for f, p in db.get_files(self.filedb, dirpath=r, fileext=['.md', '.html']):
-                self.logger.info('Rendering file: %s' % p)
+                num_rendered += 1
+                self.logger.info('\n>>> Rendering file: %s' % p)
 
                 rc = self.rendering_context.get(r)
-                if self.debug_lvls['rc'] == logging.DEBUG:
+                if self.debug_levels['rc'] == logging.DEBUG:
                     print '\nFolder specific rc: %s' % r
                     print rc
 
@@ -213,14 +213,14 @@ class Webify:
                 outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
 
                 if f['ext'] == '.md':
-                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_lvls['md'],filters=self.filters, mtime=f['mtime'])
+                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
 
                     if format == 'html':
                         rc = md.push_rc(rc)
                         
-                        if self.debug_lvls['rc'] == logging.DEBUG:
+                        if self.debug_levels['rc'] == logging.DEBUG:
                             print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
                             print rc
                             print '\nrc_changes:'
@@ -232,7 +232,7 @@ class Webify:
 
                         rc = md.pop_rc(rc)
                         
-                        if self.debug_lvls['rc'] == logging.DEBUG:
+                        if self.debug_levels['rc'] == logging.DEBUG:
                             print '\nFolder specific rc (after file processing if finished): %s' % r
                             print rc
                             print '-------------------------------------------------'
@@ -244,9 +244,12 @@ class Webify:
                         self.logger.warning('Pandoc conversion failed: %s' % p)
                     f['copy-to-destination'] = md.get_copy_to_destination()
 
+        self.logger.info('\n>>> Rendered %s files\n' % num_rendered)
+
+        
     def create_destination_folder(self):
         dd = os.path.abspath(self.destdir)
-        self.logger.info('Creating destination: %s' % dd)
+        self.logger.info('Creating destination folder: %s' % dd)
 
         dir_creation = util.make_directory(dd)
         if not dir_creation:
@@ -263,7 +266,7 @@ class Webify:
                 continue
 
             dirpath = os.path.normpath(os.path.join(dd,r))
-            self.logger.debug('Creating directory: %s' % dirpath)
+            self.logger.debug('Creating directory %s' % dirpath)
             dir_creation = util.make_directory(dirpath)
             if not dir_creation:
                 self.logger.error('Error creating directory: %s.  Ignoring its contents.' % dirpath)
@@ -274,7 +277,7 @@ class Webify:
     # def setup_cache(self):
     #     if self.use_cache:
     #         self.logger.info('Setting up cache')
-    #         self.cachedb = db.Filedb(self.destdir, dbglevel=debug_lvls['db'])
+    #         self.cachedb = db.Filedb(self.destdir, dbglevel=debug_levels['db'])
     #         self.cachedb.collect()
 
     def load_filters(self):
@@ -283,7 +286,7 @@ class Webify:
 
     def write(self, force_save):
         dd = os.path.abspath(self.destdir)
-        self.logger.info('Writing to destination: %s' % dd)
+        self.logger.info('*** Writing to destination: %s ***\n' % dd)
 
         # If we don't have a desitnation directory, we are in trouble
         # Since we create the destination folder structure right in the beginning
@@ -366,8 +369,6 @@ class Webify:
                     else:
                         self.logger.warning('Failed saving %s at destination' % filepath)
 
-        self.logger.info('Webifying completed.')
-
 
 # class EventHandler(pyinotify.ProcessEvent):
 #     def process_IN_CREATE(self, event):
@@ -385,22 +386,13 @@ class FileChanges(FileSystemEventHandler):
     def on_any_event(self, event):
         print event
 
-if __name__ == '__main__':
-
-    global prog_name, prog_dir
-    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
-    prog_dir = os.path.dirname(prog_name)
-
-    if len(sys.argv) > 1 and sys.argv[1] == '--ver':
-        print 'Webify version %s' % version
-        exit(0)
-
+def handle_commandline_arguments():
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('rootdir', help='Root directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
     cmdline_parser.add_argument('--monitor', action='store_true', default=False, help='Monitor root folder for changes')
     cmdline_parser.add_argument('--force-save', action='store_true', default=False, help='Force saving to destination')
-    cmdline_parser.add_argument('--ver', action='store_true', default=False, help='Print version and exit')
+    cmdline_parser.add_argument('--version', action='store_true', default=False, help='Print version and exit')
     cmdline_parser.add_argument('--status', action='store_true', default=False, help='Prints helpful information about the folder that you plan to webify')
     cmdline_parser.add_argument('--no-cache', action='store_true', default=False, help='Turn off cache usage')
     cmdline_parser.add_argument('--media-filters', action='store_true', default=False, help='Turn on media filters (see documentation for details)')
@@ -413,41 +405,58 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug logger for RC files.')
     cmdline_parser.add_argument('--debug-db', action='store_true', default=False, help='Debug logger for Filedb files.')
     cmdline_parser.add_argument('--debug-mustache', action='store_true', default=False, help='Debug logger for Mustachefile files.')
-
+    cmdline_parser.add_argument('--log', action='store_true', default=False, help='Use log file.')
+    
     # Parsing commandline arguments
     cmdline_args = cmdline_parser.parse_args()
 
+    return cmdline_args
+    
+if __name__ == '__main__':
 
-    # Just checking version
-    if cmdline_args.ver:
-        print 'Webify version %s' % version
+    global prog_name, prog_dir
+    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
+    prog_dir = os.path.dirname(prog_name)
 
-    # Logging and verbosity
-    debug_lvls = { 'main': logging.WARNING, 'md': logging.WARNING, 'yaml': logging.WARNING, 'rc': logging.WARNING, 'db': logging.WARNING, 'mustache': logging.WARNING }
+    if '--ver' in sys.argv:
+        print('Webify version %s' % version)
+        exit(0)
 
+    cmdline_args = handle_commandline_arguments()
+
+    dbg_level = logging.WARNING
     if cmdline_args.verbose:
-        for k in debug_lvls.keys():
-            debug_lvls[k] = logging.INFO
-
+        dbg_level = logging.INFO
     if cmdline_args.debug:
-        for k in debug_lvls.keys():
-            debug_lvls[k] = logging.DEBUG
+        dbg_level = logging.DEBUG
+    
+    # Logging and verbosity
+    debug_levels = { 'main': dbg_level,
+                   'md': dbg_level,
+                   'yaml': dbg_level,
+                   'rc': dbg_level,
+                   'db': dbg_level,
+                   'mustache': dbg_level }
 
     # And now selective logging
     if cmdline_args.debug_md:
-        debug_lvls['md'] = logging.DEBUG
+        debug_levels['md'] = logging.DEBUG
     if cmdline_args.debug_yaml:
-        debug_lvls['yaml'] = logging.DEBUG
+        debug_levels['yaml'] = logging.DEBUG
     if cmdline_args.debug_rc:
-        debug_lvls['rc'] = logging.DEBUG
+        debug_levels['rc'] = logging.DEBUG
     if cmdline_args.debug_db:
-        debug_lvls['db'] = logging.DEBUG
+        debug_levels['db'] = logging.DEBUG
     if cmdline_args.debug_mustache:
-        debug_lvls['mustache'] = logging.DEBUG
+        debug_levels['mustache'] = logging.DEBUG
 
+    logfile = None
+    if cmdline_args.log:
+        logfile = 'webify.log'
+        
     # The following is not yet implemented
     if cmdline_args.monitor:
-        print 'Feature not implemented.'
+        print('Feature not yet implemented.')
         exit(-1)
         # import time
         # from watchdog.observers import Observer
@@ -473,17 +482,26 @@ if __name__ == '__main__':
         # wdd = wm.add_watch(cmdline_args.rootdir, mask, rec=True)
         # notifier.loop()
     else:
-        if cmdline_args.status:
-            print('Webify version: %s' % version)
-            print('Webifying %s' % cmdline_args.rootdir)
-
         rootdir = os.path.realpath(cmdline_args.rootdir)
         destdir = os.path.realpath(cmdline_args.destdir)
 
-        webify = Webify(rootdir=rootdir, destdir=destdir, debug_lvls=debug_lvls, use_cache=not cmdline_args.no_cache)
+        webify = Webify(rootdir=rootdir, destdir=destdir, debug_levels=debug_levels, use_cache=not cmdline_args.no_cache, logfile=logfile)        
+        print('Webify version %s' % version)
+        #webify.logger.log(30,'Webify version %s' % version)
+        print('Webifying %s' % rootdir)
+        #webify.logger.info('Webifying %s' % rootdir)
 
-        # Get some statistics from the webify folder
-        if cmdline_args.status:
+        num_items_found = webify.collect_files()
+        webify.logger.info('Collected %s files/folders' % num_items_found)
+
+        if num_items_found == 0:
+            webify.logger.error('Cannot webify.  Webification failed.')
+            exit(-1)
+        
+        if not cmdline_args.status:
+            print('Saving to %s' % destdir)
+            #webify.logger.info('Saving to %s' % destdir)
+        else:
             _, ignorelist, files = webify.filedb.get_stats()
             print('Ignorelist:')
             for (i,j) in ignorelist:
@@ -492,13 +510,8 @@ if __name__ == '__main__':
             for i in files.keys():
                 print('\t %s: %s' % (i, files[i]))
 
-        # Exit if only checking status or if webify encountered
-        # an error.  This error typically is the result of
-        # specify an invalid (say non-existent) folder to webify.
-        if not webify.ok:
-            print 'Error.  Cannot webify %s' % cmdline_args.rootdir
-            exit(-1)
-
+        webify.setup_rendering_context()
+                
         if cmdline_args.status:
             exit(0)        
 
@@ -512,4 +525,6 @@ if __name__ == '__main__':
         webify.compute_partials()
         webify.render_all_files()
         webify.write(force_save=cmdline_args.force_save)
+
+        webify.logger.info('\nWebifying done.')
         exit(0)

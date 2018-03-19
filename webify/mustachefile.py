@@ -19,8 +19,8 @@ def mustache_render(template, context, logger):
 
 class Mustachefile:
 
-    def __init__(self, filepath, dbglevel):
-        self.logger = util.setup_logging('Mustachefile', dbglevel=dbglevel)
+    def __init__(self, filepath, dbglevel, logfile):
+        self.logger = util.setup_logger('Mustachefile', dbglevel=dbglevel, logfile=logfile)
         self.filepath = filepath
         self.template = None
 

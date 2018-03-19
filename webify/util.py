@@ -81,6 +81,32 @@ def get_logging_levels(dbglevel):
     
     return dbgfile, dbgconsole    
 
+
+def setup_logger(name, dbglevel, logfile):
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(dbglevel)
+
+    fmtstr = '%(levelname)-8s %(message)s'
+    formatter = logging.Formatter(fmtstr)
+    console_log = logging.StreamHandler()
+    console_log.setLevel(dbglevel)
+    console_log.setFormatter(formatter)
+    logger.addHandler(console_log)
+    
+    if logfile:
+        fmtstr = '%(name)-8s \t %(levelname)-8s \t [%(asctime)s] \t %(message)s'
+        formatter = logging.Formatter(fmtstr)
+        file_log = logging.FileHandler(logfile)
+        file_log.setLevel(dbglevel)
+        file_log.setFormatter(formatter)
+        logger.addHandler(file_log)
+
+    return logger
+
+
 def setup_logging(name,
                   dbglevel,
                   logfile='webify.log',
@@ -117,14 +143,14 @@ def save_to_html(buffer, filepath, logger=None):
         with codecs.open(filepath, 'w') as stream:
             stream.write(buffer.encode('utf-8'))
         if logger:
-            logger.info('%s\n -- Saved html file' % filepath)
+            logger.info('Saved html file: %s' % filepath)
         else:
-            print '[INFO] - Saved html file', filepath
+            print 'Saved html file: %s', filepath
     except:
         if logger:
-            logger.error('Cannot save html file %s' % filepath)
+            logger.error('Cannot save html file: %s' % filepath)
         else:
-            print '[ERROR] - Cannot save html file', filepath
+            print 'Cannot save html file: %s', filepath
 
 def make_different_extension(filepath, new_extension):
     if new_extension[0] == '.':
