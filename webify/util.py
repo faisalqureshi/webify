@@ -17,8 +17,6 @@ def copy_file(src, dest, force_save):
     if not force_save and os.path.exists(dest):
         if filecmp.cmp(src, dest):
             return 2 # Skipped
-        else:
-            print ';XXXX'
         
     try:
         shutil.copy2(src, dest)

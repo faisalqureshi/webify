@@ -15,7 +15,7 @@ import sys
 import mdfilters
 
 global version
-version = '1.7'
+version = '1.71'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
@@ -77,65 +77,57 @@ class Webify:
             m.load()
             f['handler'] = m
 
-    def render_html(self, buffer, rc):
-        return mustachefile.mustache_render(buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
+    def render_html(self, htmlfile, buffer, rc):
+        '''
+        htmlfile: filedb object containing the (current) html file
+        buffer: contents of the html file
+        rc: rendering context
+
+        Returns: html + rc is rendered using mustache. 
+        '''
+        htmlfile = db.filepath(htmlfile)        
+        return mustachefile.mustache_render2(htmlfile, htmlfile, buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))        
 
     def render_md(self, mdfile, html, templatefile, rc):
+        '''
+        mdfile: filedb object containing the current mdfile
+        html: rendered html, we use pandoc to render md to html
+        templatefile: templatefile that will be used as mustache template.  html will be available
+                      during mustache rendering as 'body' key
+        rc: rendering context.  Yaml frontmatter in this mdfile is also available during mustache rendering.
 
-        # print mdfile
-        # print templatefile
+        Returns: This function returns html that is ready to be written to the disk
+        '''
+
+        mdfile_name = db.filepath(mdfile)
         
         if not templatefile:
             return html
 
-        # print 'mdfile: ', mdfile
-        # print 'templatefile: ', templatefile
-        # print 'dirpath', mdfile['path']
-        # print 'rootdir', self.rootdir
+        # Getting template file that will be used for rendering
         filepath, filename = os.path.split(templatefile)
         filename, fileext = os.path.splitext(filename)
-
-        #print 'xxx', filepath
-        #print 'vvv', filepath.replace(self.rootdir,'.')
-
         filepath = filepath.replace(self.rootdir,'.')
-
         if len(filepath) > 1:
             filepath = filepath[2:]
         
-        # if not filepath:
-        #     filepath = mdfile['path']
-        # elif filepath[0] == '/':
-        #     if len(filepath) == 1:
-        #         filepath = '.'
-        #     else:
-        #         filepath = filepath[1:]
-        # else:
-        #     os.path.join(mdfile['path'], filepath)
-        # #print 'filepath', filepath
-        # filename, fileext = os.path.splitext(filename)
-
-        # print 'templatefile', templatefile
-        # print 'filename', filename
-        # print 'fileext', fileext
-        # print 'filepath', filepath
-
         if not fileext == '.mustache':
-            self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, os.path.join(mdfile['path'], mdfile['name']+mdfile['ext']))
+            self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, mdfile_name)
             return html 
 
         tf, p = db.search(self.filedb, filename=filename, dirpath=filepath, fileext=fileext)
-        # print self.filedb.files
-        # print tf, p
         if tf:
             mustache_file = tf['handler']
-            rc['body'] = html
-            rendered_md = mustachefile.mustache_render(mustache_file.get_template(), rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
+            rc['body'] = html.encode('utf-8')
+            rendered_md = mustachefile.mustache_render2(mdfile_name, templatefile, mustache_file.get_template(), rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
             rc['body'] = None
             return rendered_md
         else:
             self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, os.path.join(mdfile['path'], mdfile['name']+mdfile['ext']))
 
+        # It seems something didn't work as expected.
+        # Perhaps the mustache template was not available.
+        # We simply return the html that was passed as argument to this function.
         return html
 
     def compute_partials(self):
@@ -151,7 +143,7 @@ class Webify:
             self.logger.info('HTML file found in _partials %s' % p)
             h = HTMLfile(p)
             h.load()
-            rc[f['name']+'_html'] = self.render_html(h.get_buffer(), rc)
+            rc[f['name']+'_html'] = self.render_html(f, h.get_buffer(), rc)
             f['handler'] = h
 
         for f, p in db.get_files(self.filedb, dirpath='_partials', fileext='.md'):
@@ -207,7 +199,7 @@ class Webify:
                 if f['ext'] == '.html':
                     h = HTMLfile(p)
                     h.load()
-                    f['__rendered__'] = self.render_html(h.get_buffer(), rc)
+                    f['__rendered__'] = self.render_html(f, h.get_buffer(), rc)
                     continue
 
                 if f['ext'] == '.md':
@@ -215,7 +207,7 @@ class Webify:
                     md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
-
+                    
                     if format == 'html':
                         rc = md.push_rc(rc)
                         
@@ -228,7 +220,7 @@ class Webify:
                             print md.rc['additions']
                             
                         f['__rendered__'] = self.render_md(f, buffer, md.get_renderfile(), rc)
-
+                        
                         rc = md.pop_rc(rc)
                         
                         if self.debug_levels['rc'] == logging.DEBUG:
@@ -236,7 +228,6 @@ class Webify:
                             print rc
                             print '-------------------------------------------------'
                             
-
                     elif format == 'file':
                         f['__generated_file__'] = buffer
                     else:
@@ -273,12 +264,6 @@ class Webify:
             else:
                 self.logger.debug('%s %s' % (dirpath, dir_creation))            
 
-    # def setup_cache(self):
-    #     if self.use_cache:
-    #         self.logger.info('Setting up cache')
-    #         self.cachedb = db.Filedb(self.destdir, dbglevel=debug_levels['db'])
-    #         self.cachedb.collect()
-
     def load_filters(self):
         md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'), dbglevel=logging.NOTSET, logfile=self.logfile)
         self.filters = { 'html': [md_to_html_media_filter.apply] } 
@@ -290,13 +275,6 @@ class Webify:
         # If we don't have a desitnation directory, we are in trouble
         # Since we create the destination folder structure right in the beginning
         assert os.path.isdir(dd)
-
-        # dir_creation = util.make_directory(dd)
-        # if not dir_creation:
-        #     self.logger.error('Cannot make destination directory.  Nothing more to do.  Aborting.')
-        #     exit(-1)
-        # else:
-        #     self.logger.debug('%s %s' % (dd, dir_creation))
 
         for d, _, r in db.get_directories(self.filedb):
             a = [r]
@@ -310,14 +288,6 @@ class Webify:
             # If we don't have a desitnation directory, we are in trouble
             # Since we create the destination folder structure right in the beginning
             assert os.path.isdir(dirpath)
-
-            # self.logger.info('Directory: %s' % dirpath)
-            # dir_creation = util.make_directory(dirpath)
-            # if not dir_creation:
-            #     self.logger.error('Error creating directory: %s.  Ignoring its contents.' % dirpath)
-            #     continue
-            # else:
-            #     self.logger.debug('%s %s' % (dirpath, dir_creation))            
 
             for f, p in db.get_files(self.filedb, dirpath=r):
                 if f['ext'] in ['.yaml', '.mustache']:                  # YAML and Mustache files are not copied over to  
@@ -337,12 +307,11 @@ class Webify:
                         try:
                             self.logger.info('Saving rendered content to html file: %s' % filepath)
                             with codecs.open(filepath, 'w') as stream:
-                                stream.write(f['__rendered__'].encode('utf-8'))
+                                stream.write(f['__rendered__'])
                         except:
                             self.logger.warning('Failed saving rendered content to html file: %s' % filepath)
-
+                            
                     elif '__generated_file__' in f.keys():
-                        # The generated file is already copied to the destination
                         pass 
 
                     else:
@@ -377,13 +346,13 @@ class Webify:
 #         print "Removing:", event.pathname
 
 
-from watchdog.events import FileSystemEventHandler
-class FileChanges(FileSystemEventHandler):
-    def __init__(self):
-        pass
+# from watchdog.events import FileSystemEventHandler
+# class FileChanges(FileSystemEventHandler):
+#     def __init__(self):
+#         pass
 
-    def on_any_event(self, event):
-        print event
+#     def on_any_event(self, event):
+#         print event
 
 def handle_commandline_arguments():
     cmdline_parser = argparse.ArgumentParser()

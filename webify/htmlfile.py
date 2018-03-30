@@ -11,8 +11,8 @@ class HTMLfile:
 
     def load(self):
         try:
-            with codecs.open(self.filepath, 'r') as stream:
-                self.buffer = stream.read().decode('utf-8')
+            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+                self.buffer = stream.read()
             self.logger.debug('Loaded html file:\n\t - %s' % self.filepath)
         except:
             self.logger.error('Error loading file:\n\t - %s' % self.filepath)

@@ -166,8 +166,8 @@ class MDfile:
 
     def load(self):
         try:
-            with codecs.open(self.filepath, 'r') as stream:
-                self.buffer = stream.read().decode('utf-8')
+            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+                self.buffer = stream.read()
             self.logger.info('Loaded file')
         except:
             self.logger.warning('Cannot read MD file\n\t - %s' % self.filepath)

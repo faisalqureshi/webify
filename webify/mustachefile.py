@@ -5,15 +5,19 @@ import argparse
 import util
 import renderingcontext
 
-
-def mustache_render(template, context, logger):
-    import pystache
+def mustache_render2(sourcefile, templatefile, template, context, logger):
+    
     try:
-        logger.debug('Rendering mustache template using pystache')
+        logger.info('Rendering mustache template using pystache')
+
+        if type(template) is unicode:
+            template = template.encode('utf-8')
+            
         rendered_buf = pystache.render(template, context)
     except:
-        logger.debug('Error rendering mustache template using pystache')
+        logger.warning('Error rendering mustache template using pystache\n\t - %s\n\t - %s' % (sourcefile, templatefile))
         rendered_buf = template
+
     return rendered_buf
 
 
@@ -25,14 +29,14 @@ class Mustachefile:
         self.template = None
 
     def load(self):
-      try:
-          with codecs.open(self.filepath, 'r') as stream:
-              buf = stream.read().decode('utf-8')
-              self.template = pystache.parse(buf)
-          self.logger.info('Loaded mustache file: %s' % self.filepath)
-      except:
-          self.logger.error('Error loading mustache file: %s' % self.filepath)
-          self.template = ''
+        try:
+            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+                buf = stream.read()
+                self.template = pystache.parse(buf.encode('utf-8'))
+                self.logger.info('Loaded mustache file: %s' % self.filepath)
+        except:
+            self.logger.error('Error loading mustache file: %s' % self.filepath)
+            self.template = ''
 
     def get_template(self):
         if not self.template:

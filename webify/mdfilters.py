@@ -3,7 +3,7 @@ import codecs
 import util
 import os
 import re
-from mustachefile import mustache_render
+from mustachefile import mustache_render2
 
 class HTML_Media:
 
@@ -92,7 +92,7 @@ class HTML_Media:
                     pass
 
             try:
-                r = mustache_render(template, context, self.logger)
+                r = mustache_render2(None, None, template, context, self.logger)
                 self.logger.debug('Applying HTML Media Filter to object %s' % buffer[s:img.end()])
             except:
                 self.logger.warning('Cannot apply HTML Media Filter to object %s' % buffer[s:img.end()])
