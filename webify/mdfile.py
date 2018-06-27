@@ -18,14 +18,14 @@ class PandocArguments:
 
     def add_var(self, var, val):
         self._pdoc_args.append("-V %s:%s" % (var, val))
-        
+
     def add_flag(self, options):
         if isinstance(options, list):
             for o in options:
                 self._pdoc_args.append("--%s" % o)
         else:
             self._pdoc_args.append("--%s" % options)
-        
+
     def add(self, option, vals):
         if isinstance(vals, list):
             for v in vals:
@@ -38,9 +38,9 @@ class PandocArguments:
 
 class MDfile:
     """
-    Class that implements MD file conversion to other formats.  
-    'pandoc' is used to convert MD file to other formats.   
-    Yaml front matter is used to control how an MD file is converted. 
+    Class that implements MD file conversion to other formats.
+    'pandoc' is used to convert MD file to other formats.
+    Yaml front matter is used to control how an MD file is converted.
 
     Example MD file:
 
@@ -51,7 +51,7 @@ class MDfile:
 
     css: None* | path/to/css-file (used only when converting to html)
 
-    or 
+    or
 
     css:
         - path/to/css-file-1
@@ -76,24 +76,24 @@ class MDfile:
         - path/to/file-2
         - path/to/file-3
         ...
-    
+
     bibliography: None* | path/to/bib file
 
     csl: None* | path/to/csl file
     ___
 
-    Contents of the MD file.  
+    Contents of the MD file.
 
-    Default mode is to convert an MD file to a standalone html.  Otherwise 'to' key 
-    can be used to specify other conversion modes, e.g., pdf or beamer slides.  
+    Default mode is to convert an MD file to a standalone html.  Otherwise 'to' key
+    can be used to specify other conversion modes, e.g., pdf or beamer slides.
     'template' key is used to specify the pandoc template used during the conversion.
-    If no 'template' key is specified the default pandoc template is used.  
-    Check out the 'pandoc -D html ...' command to see the default template.  
-    'render' key is used to specify the mustache template.  'render' key is only used if 
+    If no 'template' key is specified the default pandoc template is used.
+    Check out the 'pandoc -D html ...' command to see the default template.
+    'render' key is used to specify the mustache template.  'render' key is only used if
     html is generated from the MD file.  'body' tag in the mustache template is replaced
-    by the html generated from this MD file.  Note that when converting MD file to html, 
-    template is only used if 'render' key is None.  A value for 'render' key 
-    indicates that the generated html will be consumed within a mustache file.  
+    by the html generated from this MD file.  Note that when converting MD file to html,
+    template is only used if 'render' key is None.  A value for 'render' key
+    indicates that the generated html will be consumed within a mustache file.
     """
     def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None, mtime=None, logger=None, logfile=None):
 
@@ -113,7 +113,7 @@ class MDfile:
         self.extras = extras
         self.filters = filters
         self.mtime = mtime
-        
+
         self.logger.debug('Initializing md file\n\t - filename: %s' % self.filename)
         self.logger.debug('\t - basepath: %s' % self.basepath)
         self.logger.debug('\t - rootdir: %s' % self.rootdir)
@@ -127,7 +127,7 @@ class MDfile:
 
     def log_msg(self, msg):
         pass
-        
+
     def push_rc(self, rc):
         self.rc['pushed'] = uuid.uuid4()
         yaml_block = self.get_yaml()
@@ -142,7 +142,7 @@ class MDfile:
         rc['this-path'] = self.basepath
         rc['this-file'] = self.filename
         rc['this-mtime'] = self.mtime
-        
+
         return rc
 
     def pop_rc(self, rc):
@@ -154,10 +154,10 @@ class MDfile:
         rc.pop('this-path')
         rc.pop('this-file')
         rc.pop('this-mtime')
-            
+
         self.rc = {'pushed': None, 'changes': {}, 'additions': []}
         return rc
-        
+
     def check_yaml(self):
         keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle']
         for key in self.yaml.keys():
@@ -168,6 +168,8 @@ class MDfile:
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
+                if not isinstance(self.buffer, unicode):
+                    self.buffer = self.buffer.decode('utf-8')
             self.logger.info('Loaded file')
         except:
             self.logger.warning('Cannot read MD file\n\t - %s' % self.filepath)
@@ -179,7 +181,7 @@ class MDfile:
 
             for section in yamlsections:
                 self.yaml = section
-                self.logger.info('YAML section found')                
+                self.logger.info('YAML section found')
                 if self.logger.getEffectiveLevel() == logging.DEBUG:
                     pp.pprint(self.yaml)
                 break # Only the first yaml section is read in
@@ -204,7 +206,7 @@ class MDfile:
         print '---------------------------------------------'
 
     def apply_filters(self):
-        try:    
+        try:
             for f in self.filters['html']:
                 self.buffer = f(self.filepath, self.rootdir, self.buffer)
         except:
@@ -212,7 +214,7 @@ class MDfile:
 
     def get_rel_path(self, filepath):
         return util.make_rel_path(rootdir = self.rootdir, basepath = self.basepath, filepath = filepath)
-        
+
     def get_abs_path(self, filepath):
         return util.make_abs_path(rootdir = self.rootdir, basepath = self.basepath, filepath = filepath)
 
@@ -237,10 +239,10 @@ class MDfile:
             self.logger.error('Pandoc conversion failed\n\t - filename: %s' % self.filepath)
             self.logger.error('\t - to: %s' % to)
             self.logger.error('\t - args: %s' % args)
-            self.logger.error('\t - outputfile: %s' % outputfile)  
+            self.logger.error('\t - outputfile: %s' % outputfile)
             retval = 'error', 'Error converting %s' % self.filepath
         os.chdir(cwd)
-                
+
         return retval
 
     def make_output_filename(self, outputfile, to_format):
@@ -257,30 +259,30 @@ class MDfile:
             outputfile = None
         else:
             pass
-        
+
         return outputfile
-        
+
     def convert(self, outputfile, use_cache=False):
         assert self.buffer
-        
+
         to_format = self.get_output_format()
         self.logger.info('Converting to %s' % to_format)
         if not to_format in self.supported:
             self.logger.error('Unsupported conversion format %s\n\t - %s' % (to_format, self.filepath))
-            return 'error', 'Error converting %s' % self.filepath 
+            return 'error', 'Error converting %s' % self.filepath
 
         outputfile = self.make_output_filename(outputfile, to_format)
         self.logger.debug('Output file: %s' % outputfile)
         if not outputfile:
             return 'error', 'Error creating outputfile %s' % self.filepath
-        
+
         pdoc_args = PandocArguments()
 
         render_file = self.get_renderfile()
         if not render_file:
             pdoc_args.add_flag('standalone')
             self.logger.info('Standalone mode')
-        
+
         template_file = self.get_template()
         pdoc_args.add('template', template_file)
         self.logger.debug('Template file: ' % template_file)
@@ -292,18 +294,18 @@ class MDfile:
 
         bib_file = self.get_bibfile()
         pdoc_args.add('bibliography', bib_file)
-        
+
         csl_file = self.get_cslfile()
         pdoc_args.add('csl', csl_file)
-        
+
         if to_format == 'html':
             if not self.needs_compilation(use_cache, outputfile):
                 self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
                 return 'file', outputfile
-            
+
             pdoc_args.add_flag('mathjax')
             pdoc_args.add('highlight-style', self.get_highlighter())
-            
+
             css_files = self.get_cssfiles()
             pdoc_args.add('css', css_files)
 
@@ -317,7 +319,7 @@ class MDfile:
             if not outputfile:
                 self.logger.error('No output file specified.  Conversion failed. \n\t - %s' % self.filepath)
                 return 'error', 'No output file'
-            
+
             if not self.needs_compilation(use_cache, outputfile):
                 self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
                 return 'file', outputfile
@@ -357,7 +359,7 @@ class MDfile:
             return self.yaml['highlighter']
         except:
             return 'pygments'
-        
+
     def get_yaml(self):
         assert(self.buffer)
         return self.yaml
@@ -375,7 +377,7 @@ class MDfile:
             return self.yaml['to']
         except:
             return 'html'
-        
+
     def add_e_to_list(self, e, l):
         if isinstance(e, list):
             l.extend(e)
@@ -407,7 +409,7 @@ class MDfile:
         for f in files:
             paths.append(self.get_rel_path(f))
         return paths
-            
+
     def make_abs_path(self, files, key):
         paths = []
         for f in files:
@@ -432,18 +434,18 @@ class MDfile:
         files = self.get_files(key)
         self.files[key] = pathfunc(files, key)
         return self.files[key]
-    
+
     def get_renderfile(self):
         assert(self.buffer)
 
         key = 'render'
         if key in self.files.keys():
             return self.files[key]
-            
+
         files = self.make_abs_path(self.get_files(key), key)
         if len(files) > 0: self.files[key] = files[0]
         else: self.files[key] = None
-            
+
         return self.files[key]
 
     def get_template(self):
@@ -453,7 +455,7 @@ class MDfile:
         if key in self.files.keys():
             return self.files[key]
         return self.pick_last(key, self.make_abs_path)
-        
+
     def get_cssfiles(self):
         assert(self.buffer)
 
@@ -461,7 +463,7 @@ class MDfile:
         if key in self.files.keys():
             return self.files[key]
         return self.pick_all(key, self.make_rel_path)
-        
+
     def get_bibfile(self):
         assert(self.buffer)
 
@@ -469,7 +471,7 @@ class MDfile:
         if key in self.files.keys():
             return self.files[key]
         return self.pick_last(key, self.make_abs_path)
-        
+
     def get_cslfile(self):
         assert(self.buffer)
 
@@ -477,7 +479,7 @@ class MDfile:
         if key in self.files.keys():
             return self.files[key]
         return self.pick_last(key, self.make_abs_path)
-            
+
     def get_pandoc_include_files(self):
         assert(self.buffer)
 
@@ -485,7 +487,7 @@ class MDfile:
         for i in f.keys():
             f[i] = self.make_abs_path(self.get_files(i), i)
         return f
-    
+
     def get_copy_to_destination(self):
         assert(self.buffer)
 
@@ -507,7 +509,7 @@ def setup_mdfile_logger(dbglevel, logfile):
     console_log.setLevel(dbglevel)
     console_log.setFormatter(formatter)
     logger.addHandler(console_log)
-    
+
     if logfile:
         fmtstr = '%(name)-8s \t %(levelname)-8s \t [%(asctime)s] \t %(message)s'
         formatter = logging.Formatter(fmtstr)
@@ -517,7 +519,7 @@ def setup_mdfile_logger(dbglevel, logfile):
         logger.addHandler(file_log)
 
     return logger
-                
+
 if __name__ == '__main__':
 
     global prog_name, prog_dir
@@ -539,7 +541,7 @@ if __name__ == '__main__':
     parser.add_argument('-m','--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
     parser.add_argument('-k','--highlighter', action='store', default=None, help='Specify a highlighter.  See pandoc --list-highlight-styles.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
-    
+
     args = parser.parse_args()
 
     log_level = logging.NOTSET
@@ -553,11 +555,11 @@ if __name__ == '__main__':
         logfile = 'mdfile.log'
 
     logger = setup_mdfile_logger(log_level, logfile)
-        
+
     css_files = []
     if args.css:
         css_files = args.css[0]
-      
+
     if logger.getEffectiveLevel() == logging.DEBUG:
         print 'prog_name', prog_name
         print 'prog_dir', prog_dir
@@ -604,14 +606,14 @@ if __name__ == '__main__':
     if fmt == 'error':
         logger.error('Failed')
         exit(-1)
-    
+
     if fmt == 'html':
         util.save_to_html(data, util.make_extension(outputfile, 'html'), logger=m.logger)
     else:
         pass # the file is already written at destination
 
     exit(0)
-        
+
     # yamlfiles = []
     # if args.yaml:
     #     yamlfiles.extend(args.yaml[0])
@@ -627,10 +629,9 @@ if __name__ == '__main__':
     # rc.add_key_val('body', m.get_body())
 
     # import mustachefile
-    # template_file = util.make_actual_path(rootdir = '/', basepath = m.basepath, template_file = m.get_renderfile())    
+    # template_file = util.make_actual_path(rootdir = '/', basepath = m.basepath, template_file = m.get_renderfile())
     # m1 = mustachefile.Mustachefile(template_file)
     # m1.load()
     # data = m1.render(rc)
     # if fmt == 'html':
     #     util.save_to_html(data, util.make_different_extension(args.mdfile, '.html'), logger=None)
-

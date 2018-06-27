@@ -1,27 +1,67 @@
-The following command will run an interactive shell, where you will be able to run
-webify as follows:
+# Webify
 
-	Inside-Docker$ python /webify/webify.py /src /dest
+## Setting up docker image
 
-Any changes to /dest will be visible in the host at /path-to/dest folder.
+Use the provide Dockerfile to construct the webify image.
 
-Command:	
-	Host$ docker run -it -v /path-to/webify:/webify -v /path-to/src:/src -v /path-to/dest:/dest webify
+~~~
+FROM ubuntu:16.04
 
-Other useful commands:
+RUN apt-get update
+RUN apt-get install -y texlive-full
+RUN apt-get upgrade -y
+RUN apt-get install -y python-pip python-dev build-essential
+RUN pip install --upgrade pip
 
-1. Check if webify docker image is available
+RUN apt-get install -y haskell-platform
+RUN apt-get install  -y pandoc
+RUN pip install numpy
+RUN pip install pyyaml
+RUN pip install pystache
+RUN pip install pypandoc
+RUN pip install watchdog
+~~~
 
-	Host$ docker image ls
+The following command can be used to construct the webify
+docker image.
 
-2. If not available, you have two choices, either get the Docker file and use
+~~~bash
+$ docker build -t webify .
+~~~
 
-	Host$ docker build .
+You can confirm that webify image is available as follows
 
-   to build the image.  Or get the docker image tar file and load it as follows
+~~~bash
+$ docker image ls
+~~~
 
-	Host$ docker load webify-docker-image.tar
+If needed you can remove the image as follows
 
+~~~bash
+$ docker rmi webify
+~~~
 
+## Using webify docker image to run webify
 
+Use the following command to create an interactive bash shell.  We also mount the three folders needed to run webify.
 
+~~~bash
+$ docker run -it -v /path-to/webify:/webify -v /path-to/src:/src -v /path-to/dest:/dest webify
+~~~
+
+Check out the `webify-docker-shell-osx.sh` and `webify-docker-shell-windows.bat` files that I use for my windows and osx machines.
+
+## Loading pre-build webify docker image
+
+It is also possible to get the pre-build webify docker image and load it as follows
+
+~~~bash
+$ docker load webify-docker-image.tar
+~~~
+
+It is possible to create this tar file as follows
+
+~~~bash
+$ docker image ls
+$ docker save webify > webify-docker-image.tar
+~~~

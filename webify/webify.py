@@ -15,7 +15,7 @@ import sys
 import mdfilters
 
 global version
-version = '1.71'
+version = '1.72'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
@@ -23,7 +23,7 @@ class Webify:
         self.debug_levels = debug_levels
         self.logfile = logfile
         self.logger = util.setup_logger('Webify', dbglevel=self.debug_levels['main'], logfile=logfile)
-        
+
         self.time_now = datetime.datetime.now()
         self.rootdir = rootdir
         self.destdir = destdir
@@ -38,10 +38,10 @@ class Webify:
         self.filedb = db.Filedb(rootdir, dbglevel=self.debug_levels['db'], logfile=logfile)
         self.filedb.collect()
         return self.filedb.get_size()
-        
+
     def setup_rendering_context(self):
         self.rendering_context = RenderingContext(rootdir, self.debug_levels['rc'], logfile=logfile)
-        
+
     def load_yamlfiles(self):
         self.logger.info('\n*** Loading YAML files ***\n')
 
@@ -56,10 +56,10 @@ class Webify:
                 rc[p] = y.get_data()
                 f['handler'] = y
 
-            # Adding webify internal context to the root    
+            # Adding webify internal context to the root
             if r == '.':
                 rc['__webify_internal__'] = {'auto-last-updated': self.time_now.strftime('%Y-%m-%d %H:%M')}
-                
+
             self.rendering_context.add(r, rc)
 
         if self.debug_levels['main'] == logging.DEBUG:
@@ -83,10 +83,10 @@ class Webify:
         buffer: contents of the html file
         rc: rendering context
 
-        Returns: html + rc is rendered using mustache. 
+        Returns: html + rc is rendered using mustache.
         '''
-        htmlfile = db.filepath(htmlfile)        
-        return mustachefile.mustache_render2(htmlfile, htmlfile, buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))        
+        htmlfile = db.filepath(htmlfile)
+        return mustachefile.mustache_render2(htmlfile, htmlfile, buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
 
     def render_md(self, mdfile, html, templatefile, rc):
         '''
@@ -100,7 +100,7 @@ class Webify:
         '''
 
         mdfile_name = db.filepath(mdfile)
-        
+
         if not templatefile:
             return html
 
@@ -110,17 +110,23 @@ class Webify:
         filepath = filepath.replace(self.rootdir,'.')
         if len(filepath) > 1:
             filepath = filepath[2:]
-        
+
         if not fileext == '.mustache':
             self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, mdfile_name)
-            return html 
+            return html
 
         tf, p = db.search(self.filedb, filename=filename, dirpath=filepath, fileext=fileext)
         if tf:
             mustache_file = tf['handler']
-            rc['body'] = html.encode('utf-8')
+
+            if not isinstance(html, unicode):
+                rc['body'] = html.decode('utf-8')
+            else:
+                rc['body'] = html
+
             rendered_md = mustachefile.mustache_render2(mdfile_name, templatefile, mustache_file.get_template(), rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
             rc['body'] = None
+
             return rendered_md
         else:
             self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, os.path.join(mdfile['path'], mdfile['name']+mdfile['ext']))
@@ -176,7 +182,7 @@ class Webify:
             a[1:] = util.ancestors(r)
             c = [i for i in a if i in ['_partials', '_templates']]
             if len(c) > 0:
-                continue 
+                continue
 
             # rc = self.rendering_context.get(r)
 
@@ -207,10 +213,10 @@ class Webify:
                     md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
                     md.load()
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
-                    
+
                     if format == 'html':
                         rc = md.push_rc(rc)
-                        
+
                         if self.debug_levels['rc'] == logging.DEBUG:
                             print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
                             print rc
@@ -218,16 +224,17 @@ class Webify:
                             print md.rc['changes']
                             print '\nrc_additions:'
                             print md.rc['additions']
-                            
+
                         f['__rendered__'] = self.render_md(f, buffer, md.get_renderfile(), rc)
-                        
+                        #print 'XES', len(f['__rendered__'])
+
                         rc = md.pop_rc(rc)
-                        
+
                         if self.debug_levels['rc'] == logging.DEBUG:
                             print '\nFolder specific rc (after file processing if finished): %s' % r
                             print rc
                             print '-------------------------------------------------'
-                            
+
                     elif format == 'file':
                         f['__generated_file__'] = buffer
                     else:
@@ -236,7 +243,7 @@ class Webify:
 
         self.logger.info('\n>>> Rendered %s files\n' % num_rendered)
 
-        
+
     def create_destination_folder(self):
         dd = os.path.abspath(self.destdir)
         self.logger.info('Creating destination folder: %s' % dd)
@@ -246,7 +253,7 @@ class Webify:
             self.logger.error('Cannot make destination directory.  Nothing more to do.  Aborting.')
             exit(-1)
         else:
-            self.logger.debug('%s %s' % (dd, dir_creation))            
+            self.logger.debug('%s %s' % (dd, dir_creation))
 
         for d, _, r in db.get_directories(self.filedb):
             a = [r]
@@ -262,11 +269,11 @@ class Webify:
                 self.logger.error('Error creating directory: %s.  Ignoring its contents.' % dirpath)
                 continue
             else:
-                self.logger.debug('%s %s' % (dirpath, dir_creation))            
+                self.logger.debug('%s %s' % (dirpath, dir_creation))
 
     def load_filters(self):
         md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'), dbglevel=logging.NOTSET, logfile=self.logfile)
-        self.filters = { 'html': [md_to_html_media_filter.apply] } 
+        self.filters = { 'html': [md_to_html_media_filter.apply] }
 
     def write(self, force_save):
         dd = os.path.abspath(self.destdir)
@@ -279,7 +286,7 @@ class Webify:
         for d, _, r in db.get_directories(self.filedb):
             a = [r]
             a[1:] = util.ancestors(r)
-            c = [i for i in a if i in ['_partials', '_templates']]     # Folders _partials and _templates and their 
+            c = [i for i in a if i in ['_partials', '_templates']]     # Folders _partials and _templates and their
             if len(c) > 0:                                             # children are not copied over to destination folder
                 continue
 
@@ -290,8 +297,8 @@ class Webify:
             assert os.path.isdir(dirpath)
 
             for f, p in db.get_files(self.filedb, dirpath=r):
-                if f['ext'] in ['.yaml', '.mustache']:                  # YAML and Mustache files are not copied over to  
-                    continue                                            # the destination folder 
+                if f['ext'] in ['.yaml', '.mustache']:                  # YAML and Mustache files are not copied over to
+                    continue                                            # the destination folder
 
                 if self.logger.getEffectiveLevel() == logging.DEBUG:
                     print 'File path', p
@@ -306,13 +313,13 @@ class Webify:
 
                         try:
                             self.logger.info('Saving rendered content to html file: %s' % filepath)
-                            with codecs.open(filepath, 'w') as stream:
+                            with codecs.open(filepath, 'w', encoding='utf-8') as stream:
                                 stream.write(f['__rendered__'])
                         except:
                             self.logger.warning('Failed saving rendered content to html file: %s' % filepath)
-                            
+                            exit(0)
                     elif '__generated_file__' in f.keys():
-                        pass 
+                        pass
 
                     else:
                         assert True
@@ -374,12 +381,12 @@ def handle_commandline_arguments():
     cmdline_parser.add_argument('--debug-db', action='store_true', default=False, help='Debug logger for Filedb files.')
     cmdline_parser.add_argument('--debug-mustache', action='store_true', default=False, help='Debug logger for Mustachefile files.')
     cmdline_parser.add_argument('--log', action='store_true', default=False, help='Use log file.')
-    
+
     # Parsing commandline arguments
     cmdline_args = cmdline_parser.parse_args()
 
     return cmdline_args
-    
+
 if __name__ == '__main__':
 
     global prog_name, prog_dir
@@ -397,7 +404,7 @@ if __name__ == '__main__':
         dbg_level = logging.INFO
     if cmdline_args.debug:
         dbg_level = logging.DEBUG
-    
+
     # Logging and verbosity
     debug_levels = { 'main': dbg_level,
                    'md': dbg_level,
@@ -421,7 +428,7 @@ if __name__ == '__main__':
     logfile = None
     if cmdline_args.log:
         logfile = 'webify.log'
-        
+
     # The following is not yet implemented
     if cmdline_args.monitor:
         print('Feature not yet implemented.')
@@ -453,7 +460,7 @@ if __name__ == '__main__':
         rootdir = os.path.realpath(cmdline_args.rootdir)
         destdir = os.path.realpath(cmdline_args.destdir)
 
-        webify = Webify(rootdir=rootdir, destdir=destdir, debug_levels=debug_levels, use_cache=not cmdline_args.no_cache, logfile=logfile)        
+        webify = Webify(rootdir=rootdir, destdir=destdir, debug_levels=debug_levels, use_cache=not cmdline_args.no_cache, logfile=logfile)
         print('Webify version %s' % version)
         #webify.logger.log(30,'Webify version %s' % version)
         print('Webifying %s' % rootdir)
@@ -465,7 +472,7 @@ if __name__ == '__main__':
         if num_items_found == 0:
             webify.logger.error('Cannot webify.  Webification failed.')
             exit(-1)
-        
+
         if not cmdline_args.status:
             print('Saving to %s' % destdir)
             #webify.logger.info('Saving to %s' % destdir)
@@ -473,15 +480,15 @@ if __name__ == '__main__':
             _, ignorelist, files = webify.filedb.get_stats()
             print('Ignorelist:')
             for (i,j) in ignorelist:
-                print('\t (%s, %s)' % (i,j)) 
+                print('\t (%s, %s)' % (i,j))
             print('Files:')
             for i in files.keys():
                 print('\t %s: %s' % (i, files[i]))
 
         webify.setup_rendering_context()
-                
+
         if cmdline_args.status:
-            exit(0)        
+            exit(0)
 
         webify.create_destination_folder()
         #webify.setup_cache()

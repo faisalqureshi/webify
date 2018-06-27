@@ -1,12 +1,14 @@
-This file is decpreceted.  Since we now
-use docker.
+# Installation instructions
 
-
-
-On a clean mac:
+## Using Anaconda Python Distribution
 
 1. Install anaconda python (2.7)
 2. conda install yaml
-3. conda install -c conda-forge pystache
+3. conda install -c conda-forge
 4. conda install -c bjornfjohansson pypandoc
 5. conda install -c ecpy watchdog
+6. pip install pystache (**Not that we don't use conda to install pystache.  For details check mustachefile.py**)
+
+## Using docker
+
+The preferred way of using webify is through docker.  This allows us to use webify in any environment that supports docker.  Check out the instructions available in the docker/ folder.

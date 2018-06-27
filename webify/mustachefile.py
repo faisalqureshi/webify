@@ -5,15 +5,18 @@ import argparse
 import util
 import renderingcontext
 
-def mustache_render2(sourcefile, templatefile, template, context, logger):
-    
-    try:
-        logger.info('Rendering mustache template using pystache')
+# I found a mismatch in pystache installed via pip and via conda
+# It turns out pystache installed via conda assumes that templates
+# are type str.  However, pystache installed via pip assumes that
+# templates are type unicode.  I have set the following code such
+# it assumes that templates are of type unicode.  I decided to make
+# this choice since it works with webify-docker-image, which uses pip
+# for installing pystache.  The pystache version is pystache-0.5.4.
 
-        if type(template) is unicode:
-            template = template.encode('utf-8')
-            
+def mustache_render2(sourcefile, templatefile, template, context, logger):
+    try:
         rendered_buf = pystache.render(template, context)
+        logger.info('Rendered mustache template using pystache\n\t - %s\n\t - %s' % (sourcefile, templatefile))
     except:
         logger.warning('Error rendering mustache template using pystache\n\t - %s\n\t - %s' % (sourcefile, templatefile))
         rendered_buf = template
@@ -30,12 +33,24 @@ class Mustachefile:
 
     def load(self):
         try:
+#            print self.filepath
+#            with codecs.open(self.filepath, 'r') as stream:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 buf = stream.read()
-                self.template = pystache.parse(buf.encode('utf-8'))
+                if not isinstance(buf, unicode):
+                    buf = buf.decode('utf-8')
                 self.logger.info('Loaded mustache file: %s' % self.filepath)
         except:
             self.logger.error('Error loading mustache file: %s' % self.filepath)
+            self.template = ''
+
+        self.template = pystache.parse(buf)
+
+        try:
+            self.template = pystache.parse(buf)
+            self.logger.info('Parsed mustache file: %s' % self.filepath)
+        except:
+            self.logger.error('Error parsing mustache file: %s' % self.filepath)
             self.template = ''
 
     def get_template(self):
