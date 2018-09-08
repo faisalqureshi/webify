@@ -21,5 +21,7 @@ class HTMLfile:
             self.buffer = ''
 
     def get_buffer(self):
+#       print self.filepath
+#       I need to fix this a bug here.  The following assertion failes if an empty html file is read
         assert self.buffer
         return self.buffer

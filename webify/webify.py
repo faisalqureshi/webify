@@ -317,7 +317,7 @@ class Webify:
                                 stream.write(f['__rendered__'])
                         except:
                             self.logger.warning('Failed saving rendered content to html file: %s' % filepath)
-                            exit(0)
+                            
                     elif '__generated_file__' in f.keys():
                         pass
 
