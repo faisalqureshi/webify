@@ -3,7 +3,7 @@ import codecs
 import pprint
 import os
 import shutil
-import filecmp        
+import filecmp
 
 def copy_file(src, dest, force_save):
     """
@@ -17,7 +17,7 @@ def copy_file(src, dest, force_save):
     if not force_save and os.path.exists(dest):
         if filecmp.cmp(src, dest):
             return 2 # Skipped
-        
+
     try:
         shutil.copy2(src, dest)
         return 1 # Copied
@@ -75,8 +75,8 @@ def get_logging_levels(dbglevel):
         dbgconsole = logging.DEBUG
     else:
         dbgfile = dbgconsole = dbglevel
-    
-    return dbgfile, dbgconsole    
+
+    return dbgfile, dbgconsole
 
 
 def setup_logger(name, dbglevel, logfile):
@@ -92,7 +92,7 @@ def setup_logger(name, dbglevel, logfile):
     console_log.setLevel(dbglevel)
     console_log.setFormatter(formatter)
     logger.addHandler(console_log)
-    
+
     if logfile:
         fmtstr = '%(name)-8s \t %(levelname)-8s \t [%(asctime)s] \t %(message)s'
         formatter = logging.Formatter(fmtstr)
@@ -132,7 +132,7 @@ def setup_logging(name,
     ch.setLevel(dbgconsole)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    
+
     return logger
 
 def save_to_html(buffer, filepath, logger=None):
@@ -184,12 +184,12 @@ def is_valid_file(filepath):
 
 def make_rel_path(rootdir, basepath, filepath):
     """
-    Typically used for file path processing for files specified within the yaml frontmatter
+    Typically used for css files specified within the yaml frontmatter
     in markdown files:
 
     Case 1:
     /paths/starting/with/a/slash are seen as absolute paths and are not changed.
-    
+
     Case 2:
     {{root}}/paths/start/at/the/rootdir
 
@@ -198,7 +198,7 @@ def make_rel_path(rootdir, basepath, filepath):
 
     In all three cases the returned path is relative to the basepath.  This routine
     is used to compute relative paths for css files.
-    """    
+    """
     if not filepath:
         return filepath
 
@@ -218,19 +218,22 @@ def make_extension(filepath, extension):
     f, e = os.path.splitext(filepath)
     return f + '.' + extension
 
-def make_abs_path(rootdir, basepath, filepath):    
+def make_abs_path(rootdir, basepath, filepath):
     """
     Typically used for file path processing for files specified within the yaml frontmatter
     in markdown files:
 
     Case 1:
     /paths/starting/with/a/slash are seen as absolute paths and are not changed.
-    
+
     Case 2:
     {{root}}/paths/start/at/the/rootdir
 
     Case 3:
-    paths/that/donot/start/with/a/slash start at the basepath
+    paths/that/donot/start/with/a/slash start at the basepath.  These paths
+    are first searched within the basepath and if these files are not found
+    and if PANDOC_TEMPLATE environment variable is set then these paths are
+    searched for within PANDOC_TEMPLATE environment variable.
 
     In all three cases the returned path is the absolute path, which
     makes it easy to check for file existence, etc.
@@ -239,15 +242,32 @@ def make_abs_path(rootdir, basepath, filepath):
         return filepath
 
     filepath = os.path.expandvars(filepath)
-    
+
     if filepath[0] == '/':
-        fp = filepath                                   
+        # Absolute path
+        fp = filepath
     elif filepath[0:8] == '{{root}}':
+        # {{root}} is replaced by the rootdir
+        # in case of webify, rootdir is the directory being webified
+        # in case of mdfile, this is the location of the md file
         fp = filepath.replace('{{root}}', rootdir, 1)
         if fp[0:2] == '//': fp = fp[1:]
+
     else:
-        fp = os.path.join(basepath, filepath)
-       
+        # we will first look in base path
+        # if the file doesn't exist in the basepath then we will attempt
+        # to find it using the PANDOC_TEMPLATE environmental variable
+        # if we can't find PANDOC_TEMPLATE variable then we will
+        # simply return the path assuming base path
+        local_fp = os.path.join(basepath, filepath)
+        template_dir_fp = os.path.join(os.getenv('PANDOC_TEMPLATES', ''), filepath)
+        if is_valid_file(local_fp):
+            fp = local_fp
+        elif is_valid_file(template_dir_fp):
+            fp = template_dir_fp
+        else:
+            fp = local_fp
+
     return os.path.normpath(fp)
 
 def ancestors(path):

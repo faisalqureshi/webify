@@ -93,7 +93,8 @@ class Webify:
         mdfile: filedb object containing the current mdfile
         html: rendered html, we use pandoc to render md to html
         templatefile: templatefile that will be used as mustache template.  html will be available
-                      during mustache rendering as 'body' key
+                      during mustache rendering as 'body' key.  we use the "render" key within
+                      the mdfile yaml frontmatter to specify this template file.
         rc: rendering context.  Yaml frontmatter in this mdfile is also available during mustache rendering.
 
         Returns: This function returns html that is ready to be written to the disk
@@ -115,6 +116,7 @@ class Webify:
             self.logger.warning('Cannot load template "%s" when rendering %s', templatefile, mdfile_name)
             return html
 
+        # Lets get the entry for this specific md file within the filedb structure
         tf, p = db.search(self.filedb, filename=filename, dirpath=filepath, fileext=fileext)
         if tf:
             mustache_file = tf['handler']
@@ -212,33 +214,30 @@ class Webify:
                     outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
                     md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
                     md.load()
-                    format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache)
 
+                    rc = md.push_rc(rc)
+                    if self.debug_levels['rc'] == logging.DEBUG:
+                        print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
+                        print rc
+                        print '\nrc_changes:'
+                        print md.rc['changes']
+                        print '\nrc_additions:'
+                        print md.rc['additions']
+
+                    format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache, rc=rc)
                     if format == 'html':
-                        rc = md.push_rc(rc)
-
-                        if self.debug_levels['rc'] == logging.DEBUG:
-                            print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
-                            print rc
-                            print '\nrc_changes:'
-                            print md.rc['changes']
-                            print '\nrc_additions:'
-                            print md.rc['additions']
-
                         f['__rendered__'] = self.render_md(f, buffer, md.get_renderfile(), rc)
-                        #print 'XES', len(f['__rendered__'])
-
-                        rc = md.pop_rc(rc)
-
-                        if self.debug_levels['rc'] == logging.DEBUG:
-                            print '\nFolder specific rc (after file processing if finished): %s' % r
-                            print rc
-                            print '-------------------------------------------------'
-
                     elif format == 'file':
                         f['__generated_file__'] = buffer
                     else:
                         self.logger.warning('Pandoc conversion failed: %s' % p)
+
+                    rc = md.pop_rc(rc)
+                    if self.debug_levels['rc'] == logging.DEBUG:
+                        print '\nFolder specific rc (after file processing if finished): %s' % r
+                        print rc
+                        print '-------------------------------------------------'
+
                     f['copy-to-destination'] = md.get_copy_to_destination()
 
         self.logger.info('\n>>> Rendered %s files\n' % num_rendered)
@@ -317,7 +316,7 @@ class Webify:
                                 stream.write(f['__rendered__'])
                         except:
                             self.logger.warning('Failed saving rendered content to html file: %s' % filepath)
-                            
+
                     elif '__generated_file__' in f.keys():
                         pass
 

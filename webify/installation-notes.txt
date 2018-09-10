@@ -1,22 +1,19 @@
 # Installation instructions
 
-## Using Anaconda Python Distribution
+## Without Docker
 
-*If your platform doesn't support docker.*
+Install Anaconda python distribution.
 
-1. Install anaconda python (2.7)
-	1a. If you already have conda, you can create a webify environment as follows
-		conda create -n webify python=2.7 anaconda
-2. conda install yaml
-3. conda install -c conda-forge
-4. conda install -c bjornfjohansson pypandoc
-5. conda install -c ecpy watchdog
-6. pip install pystache (**Not that we don't use conda to install pystache.  For details check mustachefile.py**)
+conda create -n webify python=2.7
+activate webify
+conda install -c conda-forge pypandoc=1.4
+conda install pyyaml=3.13
+pip install pystache==0.5.4
 
-**After activate the webify environment, you can do the following**
-
-conda install -y yaml && conda install -y -c conda-forge && conda install -y -c bjornfjohansson pypandoc && pip install pystache
+You can use webify within the webify environment.
 
 ## Using docker
 
-The preferred way of using webify is through docker.  This allows us to use webify in any environment that supports docker.  Check out the instructions available in the docker/ folder.
+The preferred way of using webify is through docker.
+This allows us to use webify in any environment that supports docker.
+Check out the instructions available in the docker/ folder.

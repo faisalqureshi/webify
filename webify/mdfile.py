@@ -10,7 +10,7 @@ import mdfilters
 import sys
 import uuid
 import pprint as pp
-
+import mustachefile
 
 class PandocArguments:
     def __init__(self):
@@ -44,10 +44,9 @@ class MDfile:
 
     Example MD file:
 
-    to: html* | pdf | beamer
+    to: html* | pdf | beamer | latex (very useful during debugging)
     template: None* | path/to/pandoc-template-file
     render: None* | path/to/mustache-template-file
-    bibliography: None | path/to/bibfile
 
     css: None* | path/to/css-file (used only when converting to html)
 
@@ -80,6 +79,8 @@ class MDfile:
     bibliography: None* | path/to/bib file
 
     csl: None* | path/to/csl file
+
+    preprocess-mustache: None* | true or false
     ___
 
     Contents of the MD file.
@@ -94,6 +95,10 @@ class MDfile:
     by the html generated from this MD file.  Note that when converting MD file to html,
     template is only used if 'render' key is None.  A value for 'render' key
     indicates that the generated html will be consumed within a mustache file.
+
+    It is possible to pass the contents of the mdfile through mustache before the
+    mdfile is passed on to pandoc for conversion.  If this behavior is desired
+    set preprocess-mustache to true.  The default is false.
     """
     def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None, mtime=None, logger=None, logfile=None):
 
@@ -120,6 +125,8 @@ class MDfile:
 
         self.supported = [ 'html', 'beamer', 'pdf', 'latex' ]
         self.extensions = {'html': 'html', 'beamer': 'pdf', 'pdf': 'pdf', 'latex': 'tex'}
+
+        self.supported_keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle', 'preprocess-mustache']
 
         self.rc = {'pushed': None, 'changes': {}, 'additions': []}
 
@@ -159,9 +166,9 @@ class MDfile:
         return rc
 
     def check_yaml(self):
-        keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle']
+        #keys = ['to', 'template', 'render', 'bibliography', 'css', 'include-after-body', 'include-before-body', 'include-in-header', 'title', 'author', 'date', 'institute', 'titlegraphics', 'subtitle']
         for key in self.yaml.keys():
-            if not key in keys:
+            if not key in self.supported_keys:
                 self.logger.debug('Key %s not supported' % key)
 
     def load(self):
@@ -262,7 +269,7 @@ class MDfile:
 
         return outputfile
 
-    def convert(self, outputfile, use_cache=False):
+    def convert(self, outputfile, use_cache=False, rc=None):
         assert self.buffer
 
         to_format = self.get_output_format()
@@ -297,6 +304,13 @@ class MDfile:
 
         csl_file = self.get_cslfile()
         pdoc_args.add('csl', csl_file)
+
+        if self.get_preprocess_mustache():
+            assert(rc)
+            self.logger.debug('Preprocess mustache: %s' % self.filepath)
+            self.buffer = mustachefile.mustache_render2(self.filepath, self.filepath, self.buffer, rc, self.logger)
+        else:
+            self.logger.debug('Do not preprocess mustache: %s' % self.filepath)
 
         if to_format == 'html':
             if not self.needs_compilation(use_cache, outputfile):
@@ -377,6 +391,20 @@ class MDfile:
             return self.yaml['to']
         except:
             return 'html'
+
+    def get_preprocess_mustache(self):
+        assert(self.buffer)
+
+        try:
+            if self.extras['preprocess-mustache']:
+                return self.extras['preprocess-mustache']
+        except:
+            pass
+
+        try:
+            return self.yaml['preprocess-mustache']
+        except:
+            return False
 
     def add_e_to_list(self, e, l):
         if isinstance(e, list):
@@ -536,11 +564,13 @@ if __name__ == '__main__':
     parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file.')
     parser.add_argument('-s','--css', nargs='*', action='append', help='Space separated list of css files.')
     parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
-    parser.add_argument('-n','--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
+#    parser.add_argument('-n','--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
     parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
     parser.add_argument('-m','--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
     parser.add_argument('-k','--highlighter', action='store', default=None, help='Specify a highlighter.  See pandoc --list-highlight-styles.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
+    parser.add_argument('-p', '--preprocess-mustache', action='store_true', default=False, help='Pre-processes md file using mustache before converting via pandoc.')
+    parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
 
     args = parser.parse_args()
 
@@ -570,6 +600,8 @@ if __name__ == '__main__':
         print '\tcss', css_files
         print '\tcsl', args.csl
         print '\thighlighter', args.highlighter
+        print '\tpreprocess-mustache', args.preprocess_mustache
+        print '\tignore-times', args.ignore_times
         print '\toutput', args.output, '\n'
 
     extras = { 'format': args.format,
@@ -577,7 +609,9 @@ if __name__ == '__main__':
                'bibliography': args.bibliography,
                'css': css_files,
                'csl': args.csl,
-               'highlighter': args.highlighter }
+               'highlighter': args.highlighter,
+               'ignore-times': args.ignore_times,
+               'preprocess-mustache': args.preprocess_mustache }
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
@@ -600,7 +634,7 @@ if __name__ == '__main__':
         else:
             outputfile = os.path.normpath(args.output)
 
-    fmt, data = m.convert(outputfile=outputfile, use_cache=not args.no_cache)
+    fmt, data = m.convert(outputfile=outputfile, use_cache=not args.ignore_times, rc=m.get_yaml())
     logger.debug('Mdfile convert return fmt: %s' % fmt)
 
     if fmt == 'error':

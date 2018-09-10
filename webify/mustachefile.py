@@ -14,6 +14,12 @@ import renderingcontext
 # for installing pystache.  The pystache version is pystache-0.5.4.
 
 def mustache_render2(sourcefile, templatefile, template, context, logger):
+    '''
+        sourcefile = name of the source file.  we use it for logging purposes.
+        templatefile = name of the mustache template file.  again used only for logging purposesself.
+        template = this contains mustache template, so any string that contains zero or more mustache keys.
+        context = this is the context that is used during rendering
+    '''
     try:
         rendered_buf = pystache.render(template, context)
         logger.info('Rendered mustache template using pystache\n\t - %s\n\t - %s' % (sourcefile, templatefile))
