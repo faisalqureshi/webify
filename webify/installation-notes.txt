@@ -5,7 +5,8 @@
 Install Anaconda python distribution.
 
 conda create -n webify python=2.7
-activate webify
+activate webify OR source activate webify (depending upon your OS)
+Confirm that you are in the correct environment, use "python --version" command
 conda install -c conda-forge pypandoc=1.4
 conda install pyyaml=3.13
 pip install pystache==0.5.4

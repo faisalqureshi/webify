@@ -14,8 +14,8 @@ import copy
 import sys
 import mdfilters
 
-global version
-version = '1.72'
+global __version__
+__version__ = '1.8.1'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
@@ -365,21 +365,21 @@ def handle_commandline_arguments():
     cmdline_parser.add_argument('rootdir', help='Root directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
     cmdline_parser.add_argument('--monitor', action='store_true', default=False, help='Monitor root folder for changes')
-    cmdline_parser.add_argument('--force-save', action='store_true', default=False, help='Force saving to destination')
-    cmdline_parser.add_argument('--version', action='store_true', default=False, help='Print version and exit')
-    cmdline_parser.add_argument('--status', action='store_true', default=False, help='Prints helpful information about the folder that you plan to webify')
-    cmdline_parser.add_argument('--no-cache', action='store_true', default=False, help='Turn off cache usage')
-    cmdline_parser.add_argument('--media-filters', action='store_true', default=False, help='Turn on media filters (see documentation for details)')
+    cmdline_parser.add_argument('-w','--force-save', action='store_true', default=False, help='Force saving to destination')
+    cmdline_parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
+    cmdline_parser.add_argument('-s','--status', action='store_true', default=False, help='Prints helpful information about the folder that you plan to webify')
+    cmdline_parser.add_argument('-i','--no-cache', action='store_true', default=False, help='Turn off cache usage')
+    cmdline_parser.add_argument('-f','--media-filters', action='store_true', default=False, help='Turn on media filters (see documentation for details)')
 
     # Logging and verbosity
     cmdline_parser.add_argument('--debug', action='store_true', default=False, help='Log debugging messages (global, use with caution)')
-    cmdline_parser.add_argument('--verbose', action='store_true', default=False, help='More verbose')
+    cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='More verbose')
     cmdline_parser.add_argument('--debug-md', action='store_true', default=False, help='Debug logger for MD files.')
     cmdline_parser.add_argument('--debug-yaml', action='store_true', default=False, help='Debug logger for Yaml files.')
     cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug logger for RC files.')
     cmdline_parser.add_argument('--debug-db', action='store_true', default=False, help='Debug logger for Filedb files.')
     cmdline_parser.add_argument('--debug-mustache', action='store_true', default=False, help='Debug logger for Mustachefile files.')
-    cmdline_parser.add_argument('--log', action='store_true', default=False, help='Use log file.')
+    cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
 
     # Parsing commandline arguments
     cmdline_args = cmdline_parser.parse_args()
@@ -460,10 +460,10 @@ if __name__ == '__main__':
         destdir = os.path.realpath(cmdline_args.destdir)
 
         webify = Webify(rootdir=rootdir, destdir=destdir, debug_levels=debug_levels, use_cache=not cmdline_args.no_cache, logfile=logfile)
-        print('Webify version %s' % version)
-        #webify.logger.log(30,'Webify version %s' % version)
+        print('Webify version %s' % __version__)
+        webify.logger.info('Webify version %s' % __version__)
         print('Webifying %s' % rootdir)
-        #webify.logger.info('Webifying %s' % rootdir)
+        webify.logger.info('Webifying %s' % rootdir)
 
         num_items_found = webify.collect_files()
         webify.logger.info('Collected %s files/folders' % num_items_found)

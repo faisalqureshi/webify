@@ -514,6 +514,7 @@ class MDfile:
         f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
         for i in f.keys():
             f[i] = self.make_abs_path(self.get_files(i), i)
+
         return f
 
     def get_copy_to_destination(self):
@@ -550,12 +551,15 @@ def setup_mdfile_logger(dbglevel, logfile):
 
 if __name__ == '__main__':
 
+    from webify import __version__
+
     global prog_name, prog_dir
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
     prog_dir = os.path.dirname(prog_name)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
+    parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
     parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
     parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
