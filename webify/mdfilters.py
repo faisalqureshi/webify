@@ -68,10 +68,15 @@ class HTML_Media:
             s = img.start()
             caption = img.group(1)[2:-1]
             mediafile = img.group(2)[1:-1]
-            
+
             mm = mediafile.split('|')
             if len(mm) == 1:
-                context = {'file': mm[0], 'caption': caption}
+                context = {'file': mm[0]}
+
+                if len(caption) > 0:
+                    print caption
+                    print 'caption added?'
+                    context['caption'] = caption
 
                 if self.is_image(mm[0]):
                     template = self.img_template

@@ -7,11 +7,11 @@ then
     echo $WEBIFY_PYTHON
     echo "---------------------------------------------------------------"
     echo 
-    exec "$WEBIFY_PYTHON" "$0.py" "$@"
+    exec "$WEBIFY_PYTHON" "$WEBIFY_DIR/mdfile.py" "$@"
 else
     echo "---------------------------------------------------------------"
     echo "Using default python"
     echo "---------------------------------------------------------------"
     echo 
-    exec python "$0.py" "$@"
+    exec python "$WEBIFY_DIR/mdfile.py" "$@"
 fi
