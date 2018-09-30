@@ -1,5 +1,16 @@
 # Installation instructions
 
+## Minimal Installation using Miniconda
+
+Install miniconda with Python 2.7.  Take a look here [https://conda.io/miniconda.html](https://conda.io/miniconda.html).
+
+Miniconda is usually installed in ~/miniconda2 folder.  Restart the terminal and ensure your default python environment is miniconda2.
+
+conda install -c conda-forge pypandoc=1.4
+conda install pyyaml=3.13
+pip install pystache==0.5.4
+
+
 ## Without Docker
 
 Install Anaconda python distribution.

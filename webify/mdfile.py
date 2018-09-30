@@ -81,6 +81,8 @@ class MDfile:
     html-vid: None* | file
     html-vids: None* | file
 
+    templating: jinja | mustache*
+
     bibliography: None* | path/to/bib file
 
     csl: None* | path/to/csl file
@@ -565,6 +567,18 @@ class MDfile:
             f[i] = self.make_abs_path(self.get_files(i), i)
 
         return f
+
+    def get_templating(self):
+        assert(self.buffer)
+
+        try:
+            value = self.yaml['templating']
+            if not value in ['mustache', 'jinja']:
+                self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (value, self.filepath))
+                return 'mustache'
+            return value
+        except:
+            return 'mustache'
 
     def get_copy_to_destination(self):
         assert(self.buffer)
