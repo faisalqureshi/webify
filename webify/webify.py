@@ -12,10 +12,9 @@ import codecs
 import datetime
 import copy
 import sys
-import mdfilters
 
 global __version__
-__version__ = '1.8.1'
+__version__ = '1.8.2'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
@@ -30,7 +29,6 @@ class Webify:
         self.debug_levels = debug_levels
         self.ok = True
         self.use_cache = use_cache
-        self.filters = {}
 
     def collect_files(self):
         self.logger.info('\n*** Collecting files/folder ***\n')
@@ -156,7 +154,7 @@ class Webify:
 
         for f, p in db.get_files(self.filedb, dirpath='_partials', fileext='.md'):
             self.logger.info('MD file found in _partials %s' % p)
-            md = MDfile(p, self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'])
+            md = MDfile(p, self.rootdir, dbglevel=self.debug_levels['md'], mtime=f['mtime'])
             md.load()
             format, buffer = md.convert(outputfile=None, use_cache=self.use_cache)
             if not format == 'html':
@@ -212,7 +210,7 @@ class Webify:
 
                 if f['ext'] == '.md':
                     outputfile = os.path.normpath(os.path.join(self.destdir, f['path'], f['name']))
-                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], filters=self.filters, mtime=f['mtime'], logfile=self.logfile)
+                    md = MDfile(filepath=p, rootdir=self.rootdir, dbglevel=self.debug_levels['md'], mtime=f['mtime'], logfile=self.logfile)
                     md.load()
 
                     rc = md.push_rc(rc)
@@ -269,10 +267,6 @@ class Webify:
                 continue
             else:
                 self.logger.debug('%s %s' % (dirpath, dir_creation))
-
-    def load_filters(self):
-        md_to_html_media_filter = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'), dbglevel=logging.NOTSET, logfile=self.logfile)
-        self.filters = { 'html': [md_to_html_media_filter.apply] }
 
     def write(self, force_save):
         dd = os.path.abspath(self.destdir)
@@ -369,7 +363,6 @@ def handle_commandline_arguments():
     cmdline_parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
     cmdline_parser.add_argument('-s','--status', action='store_true', default=False, help='Prints helpful information about the folder that you plan to webify')
     cmdline_parser.add_argument('-i','--no-cache', action='store_true', default=False, help='Turn off cache usage')
-    cmdline_parser.add_argument('-f','--media-filters', action='store_true', default=False, help='Turn on media filters (see documentation for details)')
 
     # Logging and verbosity
     cmdline_parser.add_argument('--debug', action='store_true', default=False, help='Log debugging messages (global, use with caution)')
@@ -492,8 +485,6 @@ if __name__ == '__main__':
         webify.create_destination_folder()
         #webify.setup_cache()
 
-        if cmdline_args.media_filters:
-            webify.load_filters()
         webify.load_yamlfiles()
         webify.load_templates()
         webify.compute_partials()

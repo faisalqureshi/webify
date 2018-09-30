@@ -76,6 +76,11 @@ class MDfile:
         - path/to/file-3
         ...
 
+    html-img: None* | file
+    html-imgs: None* | file
+    html-vid: None* | file
+    html-vids: None* | file
+
     bibliography: None* | path/to/bib file
 
     csl: None* | path/to/csl file
@@ -100,7 +105,10 @@ class MDfile:
     mdfile is passed on to pandoc for conversion.  If this behavior is desired
     set preprocess-mustache to true.  The default is false.
     """
-    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, filters=None, mtime=None, logger=None, logfile=None):
+    def __init__(self, filepath, rootdir=None, dbglevel=logging.WARNING, extras=None, mtime=None, logger=None, logfile=None):
+
+        self.dbglevel = dbglevel
+        self.logfile = logfile
 
         if not logger:
             self.logger = util.setup_logger('MDfile', dbglevel=dbglevel, logfile=logfile)
@@ -116,7 +124,6 @@ class MDfile:
         self.yaml = None
         self.buffer = None
         self.extras = extras
-        self.filters = filters
         self.mtime = mtime
 
         self.logger.debug('Initializing md file\n\t - filename: %s' % self.filename)
@@ -212,13 +219,6 @@ class MDfile:
         print self.yaml
         print '---------------------------------------------'
 
-    def apply_filters(self):
-        try:
-            for f in self.filters['html']:
-                self.buffer = f(self.filepath, self.rootdir, self.buffer)
-        except:
-            pass
-
     def get_rel_path(self, filepath):
         return util.make_rel_path(rootdir = self.rootdir, basepath = self.basepath, filepath = filepath)
 
@@ -313,17 +313,30 @@ class MDfile:
             self.logger.debug('Do not preprocess mustache: %s' % self.filepath)
 
         if to_format == 'html':
+            apply_hf, hf = self.get_html_filter()
+            if apply_hf:
+                for k in hf.keys():
+                    if hf[k]:
+                        self.files[k] = hf[k]
+
             if not self.needs_compilation(use_cache, outputfile):
                 self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
                 return 'file', outputfile
+
+            if apply_hf:
+                f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile)
+                try:
+                    self.buffer = f.apply(self.filepath, self.rootdir, self.buffer)
+                except:
+                    print self.buffer
+                    print f.img_template
+                    self.logger.warning('HTML filters failed. \n\t - %s' % self.filepath)
 
             pdoc_args.add_flag('mathjax')
             pdoc_args.add('highlight-style', self.get_highlighter())
 
             css_files = self.get_cssfiles()
             pdoc_args.add('css', css_files)
-
-            self.apply_filters()
 
             return self.compile(to=to_format, args=pdoc_args.get())
 
@@ -377,6 +390,42 @@ class MDfile:
     def get_yaml(self):
         assert(self.buffer)
         return self.yaml
+
+    def get_html_filter(self):
+        assert(self.buffer)
+
+        hf = {'html-img': None, 'html-imgs': None, 'html-vid': None, 'html-vids': None}
+
+        try:
+            hf['html-img'] = self.yaml['html-img']
+            if hf['html-img'] != None:
+                hf['html-img'] = self.get_abs_path(hf['html-img'])
+        except:
+            pass
+
+        try:
+            hf['html-imgs'] = self.yaml['html-imgs']
+            if hf['html-imgs'] != None:
+                hf['html-imgs'] = self.get_abs_path(hf['html-imgs'])
+        except:
+            pass
+
+        try:
+            hf['html-vid'] = self.yaml['html-vid']
+            if hf['html-vid'] != None:
+                hf['html-vid'] = self.get_abs_path(hf['html-vid'])
+        except:
+            pass
+
+        try:
+            hf['html-vids'] = self.yaml['html-vids']
+            if hf['html-vids'] != None:
+                hf['html-vids'] = self.get_abs_path(hf['html-vids'])
+        except:
+            pass
+
+        use = not (hf['html-img']==None and hf['html-imgs']==None and hf['html-vid']==None and hf['html-vids']==None)
+        return use, hf
 
     def get_output_format(self):
         assert(self.buffer)
@@ -570,7 +619,6 @@ if __name__ == '__main__':
     parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
 #    parser.add_argument('-n','--no-cache', action='store_true', default=False, help='Forces to generated a new pdf file even if md files in not changed.')
     parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
-    parser.add_argument('-m','--media-filters', action='store_true', default=False, help='Sets media filters flag to true.  Check source code.')
     parser.add_argument('-k','--highlighter', action='store', default=None, help='Specify a highlighter.  See pandoc --list-highlight-styles.')
     parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
     parser.add_argument('-p', '--preprocess-mustache', action='store_true', default=False, help='Pre-processes md file using mustache before converting via pandoc.')
@@ -621,12 +669,7 @@ if __name__ == '__main__':
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
     logger.info('Processing: %s' % filepath)
 
-    filters = None
-    if args.media_filters:
-        html_media = mdfilters.HTML_Media(filterdir=os.path.join(prog_dir,'filters'))
-        filters = {'html': [html_media.apply]}
-
-    m = MDfile(filepath=filepath, rootdir='/', dbglevel=None, extras=extras, filters=filters, logger=logger)
+    m = MDfile(filepath=filepath, rootdir='/', dbglevel=None, extras=extras, logger=logger)
     if not m.load():
         logger.error('Error creating mdfile object.  Nothing to be done here.')
         exit(-1)
