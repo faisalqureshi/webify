@@ -326,12 +326,13 @@ class MDfile:
                 return 'file', outputfile
 
             if apply_hf:
-                f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile)
+                f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile, self.filepath)
                 try:
                     self.buffer = f.apply(self.filepath, self.rootdir, self.buffer)
                 except:
-                    print self.buffer
-                    print f.img_template
+                    # print self.buffer
+                    # print f.img_template
+                    # print f.vid_template
                     self.logger.warning('HTML filters failed. \n\t - %s' % self.filepath)
 
             pdoc_args.add_flag('mathjax')

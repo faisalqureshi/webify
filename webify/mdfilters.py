@@ -7,8 +7,9 @@ from mustachefile import mustache_render2
 
 class HTML_Filter:
 
-    def __init__(self, files, dbglevel, logfile):
+    def __init__(self, files, dbglevel, logfile, mdfile):
         self.logger = util.setup_logger('HTML_Filter', dbglevel=dbglevel, logfile=logfile)
+        self.mdfile = mdfile
 
         try:
             if files['html-img']:
@@ -16,34 +17,34 @@ class HTML_Filter:
                     self.img_template = stream.read().decode('utf-8')
         except:
             self.img_template = None
-            self.logger.warning('Cannot load %s' % files['html-img'])
+            self.logger.warning('Cannot load %s - %s' % (files['html-img'], self.mdfile))
 
         try:
             if files['html-imgs']:
                 with codecs.open(files['html-imgs'], 'r') as stream:
-                    self.img_template = stream.read().decode('utf-8')
+                    self.img_grid_template = stream.read().decode('utf-8')
         except:
-            self.img_template = None
-            self.logger.warning('Cannot load %s' % files['html-imgs'])
+            self.img_grid_template = None
+            self.logger.warning('Cannot load %s - %s' % (files['html-imgs'], self.mdfile))
 
         try:
             if files['html-vid']:
                 with codecs.open(files['html-vid'], 'r') as stream:
-                    self.img_template = stream.read().decode('utf-8')
+                    self.vid_template = stream.read().decode('utf-8')
         except:
-            self.img_template = None
-            self.logger.warning('Cannot load %s' % files['html-vid'])
+            self.vid_template = None
+            self.logger.warning('Cannot load %s - %s' % (files['html-vid'], self.mdfile))
 
         try:
             if files['html-vids']:
                 with codecs.open(files['html-vids'], 'r') as stream:
-                    self.img_template = stream.read().decode('utf-8')
+                    self.vid_grid_template = stream.read().decode('utf-8')
         except:
-            self.img_template = None
-            self.logger.warning('Cannot load %s' % files['html-vids'])
+            self.vid__template = None
+            self.logger.warning('Cannot load %s - %s' % (files['html-vids'], self.mdfile))
 
         self.img_ext = ('.gif','.png','.jpg','.jpeg')
-        self.mov_ext = ('.mp4')
+        self.vid_ext = ('.mp4')
 
     # def __init__(self, filterdir, dbglevel, logfile):
     #     self.filterdir = filterdir
@@ -91,8 +92,8 @@ class HTML_Filter:
     def is_image(self, filename):
         return filename.lower().endswith(self.img_ext)
 
-    def is_movie(self, filename):
-        return filename.lower().endswith(self.mov_ext)
+    def is_video(self, filename):
+        return filename.lower().endswith(self.vid_ext)
 
     def apply(self, filepath, rootdir, buffer):
         assert(buffer)
@@ -113,16 +114,14 @@ class HTML_Filter:
                 context = {'file': mm[0]}
 
                 if len(caption) > 0:
-                    print caption
-                    print 'caption added?'
                     context['caption'] = caption
 
                 if self.is_image(mm[0]):
                     template = self.img_template
-                elif self.is_movie(mm[0]):
-                    template = self.mov_template
+                elif self.is_video(mm[0]):
+                    template = self.vid_template
                 else:
-                    pass
+                    self.logger.warning('Invalid image or video file %s - %s' % (context['file'], self.mdfile))
             else:
                 context = { 'files': [] }
                 for item in mm:
@@ -130,17 +129,17 @@ class HTML_Filter:
 
                 if self.is_image(mm[0]):
                     template = self.img_grid_template
-                elif self.is_movie(mm[0]):
-                    template = self.mov_grid_template
+                elif self.is_video(mm[0]):
+                    template = self.vid_grid_template
                 else:
-                    pass
+                    self.logger.warning('Invalid image or video file %s - %s' % (context['file'], self.mdfile))
 
             if template:
                 try:
                     r = mustache_render2(None, None, template, context, self.logger)
-                    self.logger.debug('Applying HTML Media Filter to object %s' % buffer[s:img.end()])
+                    self.logger.debug('Applying HTML Media Filter to object %s - %s' % (buffer[s:e], self.mdfile))
                 except:
-                    self.logger.warning('Cannot apply HTML Media Filter to object %s' % buffer[s:img.end()])
+                    self.logger.warning('Cannot apply HTML Media Filter to object %s - %s' % (buffer[s:e], self.mdfile))
                     r = buffer[s:img.end()]
 
                 tmp_buffer += buffer[i:s]

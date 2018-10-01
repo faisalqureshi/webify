@@ -57,6 +57,8 @@ class Webify:
             # Adding webify internal context to the root
             if r == '.':
                 rc['__webify_internal__'] = {'auto-last-updated': self.time_now.strftime('%Y-%m-%d %H:%M')}
+                # Need the following for jinja2 support
+                rc['__webify_internal__'] = {'autolastupdated': rc['__webify_internal__']['auto-last-updated']}
 
             self.rendering_context.add(r, rc)
 
@@ -84,7 +86,24 @@ class Webify:
         Returns: html + rc is rendered using mustache.
         '''
         htmlfile = db.filepath(htmlfile)
-        return mustachefile.mustache_render2(htmlfile, htmlfile, buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
+        use_jinja = False
+        if use_jinja:
+            print 'Using jinja2 with %s' % htmlfile
+            import jinja2
+            print
+            print buffer
+            print
+            print rc
+            print
+
+            t = jinja2.Template(buffer)
+            print t
+
+            return t.render(rc)
+        else:
+            return mustachefile.mustache_render2(htmlfile, htmlfile, buffer, rc, util.setup_logging('Mustachefile', dbglevel=debug_levels['mustache']))
+
+
 
     def render_md(self, mdfile, html, templatefile, rc):
         '''
