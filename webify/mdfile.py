@@ -297,10 +297,15 @@ class MDfile:
         self.logger.debug('Template file: ' % template_file)
 
         include_files = self.get_pandoc_include_files()
+        
         pdoc_args.add('include-in-header', include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
         pdoc_args.add('include-after-body', include_files['include-after-body'])
 
+        if self.logger.getEffectiveLevel() == logging.DEBUG:
+            print 'Pandoc include files:'
+            pp.pprint(include_files)
+        
         bib_file = self.get_bibfile()
         pdoc_args.add('bibliography', bib_file)
 
@@ -309,7 +314,7 @@ class MDfile:
 
         if self.get_preprocess_mustache():
             assert(rc)
-            self.logger.debug('Preprocess mustache: %s' % self.filepath)
+            self.logger.debug('Preprocess mustache: %s\n' % self.filepath)
             self.buffer = mustachefile.mustache_render2(self.filepath, self.filepath, self.buffer, rc, self.logger)
         else:
             self.logger.debug('Do not preprocess mustache: %s' % self.filepath)
@@ -535,7 +540,7 @@ class MDfile:
         if key in self.files.keys():
             return self.files[key]
         return self.pick_last(key, self.make_abs_path)
-
+    
     def get_cssfiles(self):
         assert(self.buffer)
 
@@ -629,6 +634,7 @@ if __name__ == '__main__':
     parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
     parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
     parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file.')
+    parser.add_argument('-H','--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
     parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file.')
     parser.add_argument('-s','--css', nargs='*', action='append', help='Space separated list of css files.')
     parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
@@ -657,19 +663,24 @@ if __name__ == '__main__':
     if args.css:
         css_files = args.css[0]
 
+    include_in_header = []
+    if args.include_in_header:
+        include_in_header = args.include_in_header[0]      
+        
     if logger.getEffectiveLevel() == logging.DEBUG:
         print 'prog_name', prog_name
         print 'prog_dir', prog_dir
         print 'Commandline arguments:'
         print '\tformat', args.format
         print '\ttemplate', args.template
+        print '\tinclude-in-header', include_in_header
         print '\tbibliography', args.bibliography
         print '\tcss', css_files
         print '\tcsl', args.csl
         print '\thighlighter', args.highlighter
         print '\tpreprocess-mustache', args.preprocess_mustache
         print '\tignore-times', args.ignore_times
-        print '\toutput', args.output, '\n'
+        print '\toutput', args.output, '\n\n'
 
     extras = { 'format': args.format,
                'template': args.template,
@@ -678,7 +689,8 @@ if __name__ == '__main__':
                'csl': args.csl,
                'highlighter': args.highlighter,
                'ignore-times': args.ignore_times,
-               'preprocess-mustache': args.preprocess_mustache }
+               'preprocess-mustache': args.preprocess_mustache,
+               'include-in-header': include_in_header}
 
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
