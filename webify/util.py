@@ -196,6 +196,9 @@ def make_rel_path(rootdir, basepath, filepath):
     Case 3:
     paths/that/donot/start/with/a/slash start at the basepath
 
+    Case 4:
+    paths that start at http:// are left alone.
+
     In all three cases the returned path is relative to the basepath.  This routine
     is used to compute relative paths for css files.
     """
@@ -204,9 +207,12 @@ def make_rel_path(rootdir, basepath, filepath):
 
     filepath = os.path.expandvars(filepath)
 
+    if filepath.startswith('http'):
+        return filepath
+    
     if filepath[0] == '/':
         fp = filepath
-    elif filepath[0:8] == '{{root}}':
+    elif filepath.startswith('{{root}}'):
         fp = filepath.replace('{{root}}', rootdir, 1)
         if fp[0:2] == '//': fp = fp[1:]
     else:
@@ -246,7 +252,7 @@ def make_abs_path(rootdir, basepath, filepath):
     if filepath[0] == '/':
         # Absolute path
         fp = filepath
-    elif filepath[0:8] == '{{root}}':
+    elif filepath.startswith('{{root}}'):
         # {{root}} is replaced by the rootdir
         # in case of webify, rootdir is the directory being webified
         # in case of mdfile, this is the location of the md file

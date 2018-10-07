@@ -146,6 +146,16 @@ class MDfile:
 
     def push_rc(self, rc):
         self.rc['pushed'] = uuid.uuid4()
+        rc['root'] = os.path.relpath(self.rootdir, self.basepath)
+        
+        if self.get_preprocess_mustache():
+            try:
+                import json
+                s = mustachefile.mustache_render2(self.filepath, self.filepath, json.dumps(self.get_yaml()), rc, self.logger)
+                self.set_yaml(yaml.load(s))
+            except:
+                self.logger('Error pre-processing yaml frontmatter via mustache: %s\n' % self.filepath)
+            
         yaml_block = self.get_yaml()
         try:
             for k in yaml_block.keys():
@@ -170,6 +180,7 @@ class MDfile:
         rc.pop('this-path')
         rc.pop('this-file')
         rc.pop('this-mtime')
+        rc.pop('root')
 
         self.rc = {'pushed': None, 'changes': {}, 'additions': []}
         return rc
@@ -273,6 +284,7 @@ class MDfile:
 
     def convert(self, outputfile, use_cache=False, rc=None):
         assert self.buffer
+        assert rc
 
         to_format = self.get_output_format()
         self.logger.info('Converting to %s' % to_format)
@@ -399,6 +411,9 @@ class MDfile:
         assert(self.buffer)
         return self.yaml
 
+    def set_yaml(self, data):
+        self.yaml = data
+    
     def get_html_filter(self):
         assert(self.buffer)
 
@@ -708,7 +723,19 @@ if __name__ == '__main__':
         else:
             outputfile = os.path.normpath(args.output)
 
-    fmt, data = m.convert(outputfile=outputfile, use_cache=not args.ignore_times, rc=m.get_yaml())
+    import datetime
+    time_now = datetime.datetime.now()
+    rc = {
+        'auto-last-updated': time_now.strftime('%Y-%m-%d %H:%M'),
+        'autolastupdated': time_now.strftime('%Y-%m-%d %H:%M') # For jinja
+    }
+    rc = m.push_rc(rc)
+    if logger.getEffectiveLevel() == logging.DEBUG:
+        print 'File rc:'
+        pp.pprint(rc)
+    
+    fmt, data = m.convert(outputfile=outputfile, use_cache=not args.ignore_times, rc=rc)
+    m.pop_rc(rc)
     logger.debug('Mdfile convert return fmt: %s' % fmt)
 
     if fmt == 'error':

@@ -12,6 +12,7 @@ import codecs
 import datetime
 import copy
 import sys
+import pprint as pp
 
 global __version__
 __version__ = '1.8.2'
@@ -56,10 +57,12 @@ class Webify:
 
             # Adding webify internal context to the root
             if r == '.':
-                rc['__webify_internal__'] = {'auto-last-updated': self.time_now.strftime('%Y-%m-%d %H:%M')}
-                # Need the following for jinja2 support
-                rc['__webify_internal__'] = {'autolastupdated': rc['__webify_internal__']['auto-last-updated']}
-
+                rc['__webify_internal__'] = {
+                    'auto-last-updated': self.time_now.strftime('%Y-%m-%d %H:%M'),
+                    'autolastupdated': self.time_now.strftime('%Y-%m-%d %H:%M'),  # for jinja support
+                    'root-folder': self.rootdir,
+                    'dest-folder': self.destdir
+                }
             self.rendering_context.add(r, rc)
 
         if self.debug_levels['main'] == logging.DEBUG:
@@ -175,15 +178,29 @@ class Webify:
             self.logger.info('MD file found in _partials %s' % p)
             md = MDfile(p, self.rootdir, dbglevel=self.debug_levels['md'], mtime=f['mtime'])
             md.load()
-            format, buffer = md.convert(outputfile=None, use_cache=self.use_cache)
+
+            rc = md.push_rc(rc)
+            if self.debug_levels['rc'] == logging.DEBUG:
+                print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
+                pp.pprint(rc)
+                print '\nrc_changes:'
+                pp.pprint(md.rc['changes'])
+                print '\nrc_additions:'
+                pp.pprint(md.rc['additions'])
+            
+            format, buffer = md.convert(outputfile=None, use_cache=self.use_cache, rc=rc)
             if not format == 'html':
                 self.logger.warning('Error converting file %s in _partials' % f)
                 continue
 
-            rc = md.push_rc(rc)
-            rc[f['name'] + '_md'] = self.render_md(f, buffer, md.get_renderfile(), rc)
             rc = md.pop_rc(rc)
+            if self.debug_levels['rc'] == logging.DEBUG:
+                print '\nFolder specific rc (after file processing if finished): %s' % r
+                pp.pprint(rc)
+                print '-------------------------------------------------'
 
+            rc[f['name'] + '_md'] = self.render_md(f, buffer, md.get_renderfile(), rc)
+            
             #f['handler'] = md
             f['copy-to-destination'] = False # Because files in _partial are never copied over
 
@@ -220,7 +237,7 @@ class Webify:
                 if self.debug_levels['rc'] == logging.DEBUG:
                     print '\nFolder specific rc: %s' % r
                     print rc
-
+                   
                 if f['ext'] == '.html':
                     h = HTMLfile(p)
                     h.load()
@@ -235,11 +252,11 @@ class Webify:
                     rc = md.push_rc(rc)
                     if self.debug_levels['rc'] == logging.DEBUG:
                         print '\nFile specific rc: %s%s' % (f['name'], f['ext'])
-                        print rc
+                        pp.pprint(rc)
                         print '\nrc_changes:'
-                        print md.rc['changes']
+                        pp.pprint(md.rc['changes'])
                         print '\nrc_additions:'
-                        print md.rc['additions']
+                        pp.pprint(md.rc['additions'])
 
                     format, buffer = md.convert(outputfile=outputfile, use_cache=self.use_cache, rc=rc)
                     if format == 'html':
@@ -252,7 +269,7 @@ class Webify:
                     rc = md.pop_rc(rc)
                     if self.debug_levels['rc'] == logging.DEBUG:
                         print '\nFolder specific rc (after file processing if finished): %s' % r
-                        print rc
+                        pp.pprint(rc)
                         print '-------------------------------------------------'
 
                     f['copy-to-destination'] = md.get_copy_to_destination()
