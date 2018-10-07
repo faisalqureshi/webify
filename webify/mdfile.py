@@ -5,12 +5,14 @@ import argparse
 import pypandoc
 import util
 import os
+import inspect
 import re
 import mdfilters
 import sys
 import uuid
 import pprint as pp
 import mustachefile
+import subprocess
 
 class PandocArguments:
     def __init__(self):
@@ -633,14 +635,20 @@ def setup_mdfile_logger(dbglevel, logfile):
 
     return logger
 
-if __name__ == '__main__':
-
-    from webify import __version__
-
+if __name__ == '__main__':    
     global prog_name, prog_dir
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
     prog_dir = os.path.dirname(prog_name)
 
+    from webify import __version__
+    from webify import __gitinfo__
+    if not __gitinfo__:
+        webifydir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        try:
+            __gitinfo__ = subprocess.check_output(["git", "describe"], cwd=webifydir).strip()
+        except:
+            print('Failed to get git info.')
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
@@ -673,7 +681,7 @@ if __name__ == '__main__':
         logfile = 'mdfile.log'
 
     logger = setup_mdfile_logger(log_level, logfile)
-
+    
     css_files = []
     if args.css:
         css_files = args.css[0]
@@ -707,6 +715,9 @@ if __name__ == '__main__':
                'preprocess-mustache': args.preprocess_mustache,
                'include-in-header': include_in_header}
 
+    logger.info('Webify version %s' % __version__)
+    logger.info('Webify gitinfo %s' % __gitinfo__)
+    
     cwd = os.getcwd()
     filepath = os.path.normpath(os.path.join(cwd, args.mdfile))
     logger.info('Processing: %s' % filepath)
@@ -727,7 +738,9 @@ if __name__ == '__main__':
     time_now = datetime.datetime.now()
     rc = {
         'auto-last-updated': time_now.strftime('%Y-%m-%d %H:%M'),
-        'autolastupdated': time_now.strftime('%Y-%m-%d %H:%M') # For jinja
+        'autolastupdated': time_now.strftime('%Y-%m-%d %H:%M'), # For jinja
+        'version': __version__,
+        'gitinfo': __gitinfo__
     }
     rc = m.push_rc(rc)
     if logger.getEffectiveLevel() == logging.DEBUG:

@@ -13,9 +13,14 @@ import datetime
 import copy
 import sys
 import pprint as pp
+import inspect
+import subprocess
 
 global __version__
 __version__ = '1.8.3'
+
+global __gitinfo__
+__gitinfo__ = None
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
@@ -30,7 +35,13 @@ class Webify:
         self.debug_levels = debug_levels
         self.ok = True
         self.use_cache = use_cache
-
+        self.webifydir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        try:
+            global __gitinfo__
+            __gitinfo__ = subprocess.check_output(["git", "describe"], cwd=self.webifydir).strip()
+        except:
+            self.logger.warning('Failed to get git info.')
+        
     def collect_files(self):
         self.logger.info('\n*** Collecting files/folder ***\n')
 
@@ -61,7 +72,9 @@ class Webify:
                     'auto-last-updated': self.time_now.strftime('%Y-%m-%d %H:%M'),
                     'autolastupdated': self.time_now.strftime('%Y-%m-%d %H:%M'),  # for jinja support
                     'root-folder': self.rootdir,
-                    'dest-folder': self.destdir
+                    'dest-folder': self.destdir,
+                    'version': __version__,
+                    'gitinfo': __gitinfo__
                 }
             self.rendering_context.add(r, rc)
 
@@ -491,6 +504,8 @@ if __name__ == '__main__':
         webify = Webify(rootdir=rootdir, destdir=destdir, debug_levels=debug_levels, use_cache=not cmdline_args.no_cache, logfile=logfile)
         print('Webify version %s' % __version__)
         webify.logger.info('Webify version %s' % __version__)
+        print('Webify gitinfo %s' % __gitinfo__)
+        webify.logger.info('Webify gitinfo %s' % __gitinfo__)
         print('Webifying %s' % rootdir)
         webify.logger.info('Webifying %s' % rootdir)
 
