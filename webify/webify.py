@@ -15,7 +15,7 @@ import sys
 import pprint as pp
 
 global __version__
-__version__ = '1.8.2'
+__version__ = '1.8.3'
 
 class Webify:
     def __init__(self, rootdir, destdir, debug_levels, use_cache, logfile):
