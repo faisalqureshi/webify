@@ -8,6 +8,8 @@ import pathspec
 import pprint as pp
 import yaml
 import copy
+import pystache
+from mdfile2 import MDfile
 
 global prog_name, prog_dir, cur_dir, __version__, __logfile__, terminal, __ignore_file__
 __version__ = '2.0'
@@ -23,6 +25,18 @@ def make_directory(dirpath):
         else:
             return None
     return 'Created'
+
+def mustache_render(template, context):
+    logger = WebifyLogger.get('render')
+
+    try:
+        logger.debug('Success pystache render')        
+        rendered_buf = pystache.render(template, context)
+    except:
+        logger.warning('Error pystache render')
+        rendered_buf = template
+
+    return rendered_buf
 
 class WebifyLogger:
     @staticmethod
@@ -77,20 +91,28 @@ class DirTree:
     class DirNode:
         def __init__(self, path, name):
             self.logger = WebifyLogger.get('db')
-            self.files = {'yaml': [], 'misc': []}
+            self.files = {'yaml': [], 'html': [], 'misc': []}
             self.name = name
             self.path = path
             self.children = []
+            self.partials = None
     
         def add_file(self, name):
             _, ext = os.path.splitext(name)
-            if ext == '.yaml':
+            if ext.lower() == '.yaml':
                 self.files['yaml'].append(name)
+            elif ext.lower() in ['.html', '.htm']:
+                self.files['html'].append(name)
+            elif ext.lower() in ['.md', '.markdown']:
+                self.files['md'].append(name)
             else:
                 self.files['misc'].append(name)
 
         def add_child(self, dir_node):
-            self.children.append(dir_node)
+            if dir_node.name == '_partials':
+                self.partials = dir_node
+            else:
+                self.children.append(dir_node)
 
         def get_path(self):
             return os.path.join(self.path, self.name)
@@ -156,6 +178,9 @@ class RenderingContext:
         self.logger = WebifyLogger.get('rc')
         self.rc = {}
         self.diff_stack = []
+
+    def data(self):
+        return self.rc
         
     def diff(self):
         return {'a': [], 'm': []}
@@ -214,6 +239,27 @@ class YAMLfile:
             self.logger.debug('Yaml file contents')
             pp.pprint(self.data)
 
+class HTMLfile:
+
+    def __init__(self, filepath):
+        self.logger = WebifyLogger.get('html')
+        self.filepath = filepath
+        self.buffer = None
+
+    def load(self):
+        try:
+            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+                self.buffer = stream.read()
+            self.logger.info('Loaded html file: %s' % self.filepath)
+        except:
+            self.logger.warning('Error loading file: %s' % self.filepath)
+            self.buffer = ''
+        return self
+
+    def get_buffer(self):
+        assert self.buffer
+        return self.buffer
+            
 class IgnoreList:
     def __init__(self):
         self.logger = WebifyLogger.get('db')
@@ -270,10 +316,32 @@ class Webify:
             yaml_file.load()
             self.rc.add(yaml_file.data)
 
+        data = {}
+        if dir.partials:
+            self.logger.debug('Processing _partials')
+            self.rc.push()
+            for i in dir.partials.files['yaml']:
+                yaml_file = YAMLfile(filepath=os.path.join(dir.partials.get_path(), i))
+                yaml_file.load()
+                self.rc.add(yaml_file.data)
+            for i in dir.partials.files['html']:
+                html_file = HTMLfile(filepath=os.path.join(dir.partials.get_path(), i))
+                buffer = html_file.load().get_buffer()
+                rendered_buf = mustache_render(template=buffer, context=self.rc.data())
+                data[i] = rendered_buf
+            for i in dir.partials.files['md']:
+                md_file = MDfile(filepath=os.path.join(dir.partials.get_path(), i))
+                self.rc.push()
+                buffer = md_file.load().convert(self.rc.data())
+                self.rc.pop()
+            self.rc.pop()            
+            self.rc.add(data)
+
         logger_rc =  WebifyLogger.get('rc')
         if WebifyLogger.is_debug(logger_rc):
             logger_rc.debug('Current rendering context')
             self.rc.print()
+
             
     def leave_dir(self, dir):
         self.rc.pop()
@@ -296,7 +364,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-d','--debug',action='store_true',default=False,help='Turns on (global) debug messages')
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
     cmdline_parser.add_argument('--debug-db',action='store_true',default=False,help='Turns on file database debug messages')
-    cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on file yaml debug messages')
+    cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on yaml debug messages')
+    cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
     cmdline_args = cmdline_parser.parse_args()
 
@@ -313,6 +382,9 @@ if __name__ == '__main__':
     WebifyLogger.make(name='db', loglevel=l, logfile=logfile)
     l = logging.DEBUG if cmdline_args.debug_yaml else loglevel    
     WebifyLogger.make(name='yaml', loglevel=l, logfile=logfile)
+    WebifyLogger.make(name='html', loglevel=loglevel, logfile=logfile)    
+    l = logging.DEBUG if cmdline_args.debug_render else loglevel    
+    WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
     ######################################################################
     
     terminal = Terminal()
