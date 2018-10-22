@@ -89,7 +89,9 @@ class MDfile:
 
     csl: None* | path/to/csl file
 
-    preprocess-mustache: None* | true or false
+    preprocess-mustache: None | true or false*
+
+    standalone-alone: None | true* or false
     ___
 
     Contents of the MD file.
@@ -115,7 +117,6 @@ class MDfile:
         self.rootdir = rootdir
         self.extras = extras
         self.rc = rc
-        self.yaml = {}
 
         self.logger.debug('. processing: %s' % self.filepath)
         self.logger.debug('rootdir:    %s' % self.rootdir)
@@ -133,7 +134,8 @@ class MDfile:
                             'beamer': 'pdf',
                             'pdf':    'pdf',
                             'latex':  'tex' }
-        self.supported_keys = [ 'to',
+        self.supported_keys = [ 'standalone',
+                                'to',
                                 'template',
                                 'render',
                                 'bibliography',
@@ -151,13 +153,14 @@ class MDfile:
 
     def load(self):
         logger = WebifyLogger.get('file-debug')
+        self.yaml = {}
         
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
-            logger.info('. Loaded file')
+            self.logger.info('Loaded md file: %s' % self.filepath)
         except:
-            logger.warning('Cannot load: %s' % self.filepath)
+            self.logger.warning('Cannot load: %s' % self.filepath)
             self.buffer = None
             return self
 
@@ -165,7 +168,7 @@ class MDfile:
             yamlsections = yaml.load_all(self.buffer)
             for section in yamlsections:
                 self.yaml = section
-                logger.info('. YAML section found')
+                logger.info('YAML section found')
                 if WebifyLogger.is_debug(logger):
                     print('Buffer:')
                     pp.pprint(self.buffer)
@@ -174,6 +177,7 @@ class MDfile:
                 break # Only the first yaml section is read in            
         except:
             logger.warning('YAML section not found in md file: %s' % self.filepath)
+            self.yaml = {}
 
         if self.get_preprocess_mustache():
             self.logger.debug('Preprocessing Yaml front matter via mustache')
@@ -186,7 +190,7 @@ class MDfile:
             if WebifyLogger.is_debug(logger):
                 print('YAML frontmatter after pre-processing:')
                 pp.pprint(self.yaml)
-                
+
         self.rc.add(self.get_yaml())
         return self
 
@@ -199,7 +203,7 @@ class MDfile:
             self.logger.error('Unsupported conversion format "%s": %s' % (output_format, self.filepath))
             return 'error', 'Unrecognized output format "%s"' % output_format,  self.filepath
 
-        self.logger.info('. Converting to "%s"' % output_format)
+        self.logger.info('Converting to "%s"' % output_format)
         return self.convert()
         
     def compile(self, output_format, pandoc_args, output_filepath=None):
@@ -245,7 +249,15 @@ class MDfile:
         return output_file
 
     def is_standalone(self):
-        return not self.get_renderfile()
+        try:
+            return self.extras['standalone']
+        except:
+            pass
+
+        try:
+            return self.yaml['standalone']
+        except:
+            return True
     
     def convert(self):
         files = []
@@ -253,28 +265,28 @@ class MDfile:
 
         if self.is_standalone():
             pdoc_args.add_flag('standalone')
-            self.logger.debug('. Standalone mode')
+            self.logger.debug('Standalone mode')
             output_filepath = self.make_output_filepath()
+            files.append(output_filepath)
+
+            template_file = self.get_template()
+            self.logger.debug('Template file: %s' % template_file)
+            if template_file:
+                files.append(template_file)
+                pdoc_args.add('template', template_file)
         else:
             render_file = self.get_renderfile()
-            files.append(render_file)
-            self.logger.debug('. Render file: %s' % render_file)
+            self.logger.debug('Render file: %s' % render_file)
             output_filepath = None
             
-        template_file = self.get_template()
-        self.logger.debug('. Template file: %s' % template_file)
-        if template_file:
-            files.append(template_file)
-            pdoc_args.add('template', template_file)
-            
         bib_file = self.get_bibfile()
-        self.logger.debug('. Bibliography: %s' % bib_file)
+        self.logger.debug('Bibliography: %s' % bib_file)
         if bib_file:
             files.append(bib_file)
             pdoc_args.add('bibliography', bib_file)
         
         csl_file = self.get_cslfile()        
-        self.logger.debug('. CSL file: %s' % csl_file)
+        self.logger.debug('CSL file: %s' % csl_file)
         if csl_file:
             files.append(csl_file)
             pdoc_args.add('csl', csl_file)
@@ -290,21 +302,19 @@ class MDfile:
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
-        files.append(output_filepath)
         if self.needs_compilation(files):
-            self.logger.debug('. Need compilation')
+            self.logger.debug('Needs compilation')
         else:
-            self.logger.warning('Output already exists: %s' % output_filepath)
+            self.logger.warning('Doesn\'t need to do anything.  Output already exists: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
         
         pdoc_args.add('highlight-style', self.get_highlighter())
        
         if self.get_preprocess_mustache():
-            self.logger.debug('. Preprocess mustache')
+            self.logger.debug('Preprocess mustache')
             self.buffer = mustache_render(self.buffer, self.rc.data())
         else:
-            self.logger.info('. Do not preprocess mustache')
-
+            self.logger.info('Do not preprocess mustache')
 
         if self.get_output_format() == 'html':
             pdoc_args.add_flag('mathjax')
@@ -344,7 +354,7 @@ class MDfile:
         if not os.path.isfile(files[-1]): return True
 
         for f in files:
-            if os.path.getmtime(f) < os.path.getmtime(self.filepath):
+            if os.path.isfile(f) and os.path.getmtime(f) < os.path.getmtime(self.filepath):
                 return True
 
         return False
@@ -454,10 +464,6 @@ class MDfile:
         return self.get_files(key)
 
     def get_renderfile(self):
-        try:
-            if self.extras['standalone']: return None
-        except:
-            pass            
         file = self.pick_last_file('render')
         file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
         if file and not os.path.isfile(file):
@@ -538,7 +544,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     cmdline_parser.add_argument('--version', action='version', version='Mdfile2: {version}'.format(version=__version__))
     cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
-    cmdline_parser.add_argument('--standalone', action='store_true', default=False, help='Creates a standalone file, ignores render key in yaml frontmatter.')
+    cmdline_parser.add_argument('--not-standalone', action='store_true', default=False, help='Creates a standalone file, ignores render key in yaml frontmatter.')
     cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
     cmdline_parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Prints file contents.')
@@ -586,7 +592,7 @@ if __name__ == '__main__':
         print('Commandline arguments:')
         print('--format:             ', cmdline_args.format)
         print('--template:           ', template)
-        print('--standalone:         ', cmdline_args.standalone)
+        print('--standalone:         ', not cmdline_args.not_standalone)
         print('--include-in-header:  ', include_in_header)
         print('--bibliography:       ', bibliography)
         print('--css:                ', css_files)
@@ -624,7 +630,7 @@ if __name__ == '__main__':
                'include-in-header': include_in_header,
                'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,
-               'standalone': cmdline_args.standalone }
+               'standalone': not cmdline_args.not_standalone }
     
     meta_data = {
         '__version__': __version__,
@@ -647,6 +653,6 @@ if __name__ == '__main__':
     elif ret_type == 'exists':
         pass
     else:
-        logger.error('Unknown error: (%s, %s)' % (ret_type, ret_val))
+        logger.error('Unknown error: (%s, %s...)' % (ret_type, ret_val[:100]))
 
     exit(0)

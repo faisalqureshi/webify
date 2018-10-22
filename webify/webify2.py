@@ -1,96 +1,20 @@
 import argparse
+import pprint as pp
+import sys
 import logging
 import os
-import codecs
-import datetime
-import sys
-import pathspec
-import pprint as pp
-import yaml
-import copy
-import pystache
-#from mdfile2 import MDfile
+from util2 import get_gitinfo, make_directory, mustache_render, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList
+from mdfile2 import MDfile
 
 from globals import __version__
-logfile = 'foo.log'
+logfile = 'webify2.log'
 ignorefile = '.webifyignore'
-
-def make_directory(dirpath):
-    try:
-        os.makedirs(dirpath)
-    except OSError:
-        if os.path.isdir(dirpath):
-            return 'Found'
-        else:
-            return None
-    return 'Created'
-
-def mustache_render(template, context):
-    logger = WebifyLogger.get('render')
-
-    try:
-        logger.debug('Success pystache render')        
-        rendered_buf = pystache.render(template, context)
-    except:
-        logger.warning('Error pystache render')
-        rendered_buf = template
-
-    return rendered_buf
-
-class WebifyLogger:
-    @staticmethod
-    def make(name, loglevel=logging.WARNING, logfile=None):
-        logger = logging.getLogger(name)
-        if logger.handlers:
-            return logger
-
-        logger.setLevel(logging.DEBUG)
-        
-        # Console
-        fmtstr = '%(message)s'
-        formatter = logging.Formatter(fmtstr)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-    
-        # Logfile
-        if logfile:
-            fmtstr = '%(name)-8s \t %(levelname)-8s \t [%(asctime)s] \t %(message)s'
-            formatter = logging.Formatter(fmtstr)
-            file_handler = logging.FileHandler(logfile)
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-
-        return WebifyLogger.set_level(logger, loglevel)
-
-    @staticmethod
-    def get(name):
-        return logging.getLogger(name)
-    
-    @staticmethod 
-    def set_level(logger, level):
-        assert level in [logging.INFO, logging.WARNING, logging.DEBUG]
-        
-        if level == logging.WARNING:
-            h1 = logging.WARNING
-            h2 = logging.INFO
-        else:
-            h1 = level
-            h2 = level
-
-        logger.handlers[0].setLevel(h1)
-        if len(logger.handlers) > 1: logger.handlers[1].setLevel(h2)
-        return logger
-
-    @staticmethod
-    def is_debug(logger):
-        return logger.handlers[0].level <= logging.DEBUG
 
 class DirTree:
     class DirNode:
         def __init__(self, path, name):
             self.logger = WebifyLogger.get('db')
-            self.files = {'yaml': [], 'html': [], 'misc': []}
+            self.files = {'yaml': [], 'html': [], 'misc': [], 'md': []}
             self.name = name
             self.path = path
             self.children = []
@@ -158,126 +82,6 @@ class DirTree:
         rootdir = self.rootdir
         self.__traverse__(rootdir, enter_func, proc_func, leave_func)
 
-
-class Terminal:
-    def __init__(self):
-        try:
-            self.rows, self.cols = os.popen('stty size', 'r').read().split()
-        except:
-            self.rows, self.cols = 24, 16
-
-    def r(self):
-        return int(self.rows)
-        
-    def c(self):
-        return int(self.cols)-1
-
-class RenderingContext:
-    def __init__(self):
-        self.logger = WebifyLogger.get('rc')
-        self.rc = {}
-        self.diff_stack = []
-
-    def data(self):
-        return self.rc
-        
-    def diff(self):
-        return {'a': [], 'm': []}
-        
-    def push(self):
-        self.diff_stack.append(self.diff())
-
-    def add(self, data):
-        diff = self.diff_stack[-1]
-
-        for k in data.keys():
-            if k in self.rc.keys():
-                diff['m'].append({k: copy.deepcopy(self.rc[k])})
-                self.rc[k] = data[k]
-            else:
-                kv = {k: data[k]}
-                diff['a'].append({k: data[k]})
-                self.rc.update(kv)
-                
-    def pop(self):
-        diff = self.diff_stack.pop()
-        for i in diff['a']:
-            for k in i.keys():
-                del self.rc[k]
-        for i in diff['m']:
-            for k in i.keys():
-                self.rc[k] = i[k]
-
-    def get(self):
-        return self.rc
-
-    def print(self):
-        pp.pprint(self.rc)
-
-class YAMLfile:
-    """
-    Yaml files play a central role in webify.  These store all rendering context.
-    Each yaml files should only contain on yaml block.
-
-    """
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('yaml')
-        self.filepath = filepath
-        self.data = None
-
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r') as stream:
-                self.data = yaml.load(stream)
-            self.logger.info('Loaded YAML file: %s' % self.filepath)
-        except:
-            self.logger.warning('Error loading YAML file: %s' % self.filepath)
-            self.data = {}
-
-        if WebifyLogger.is_debug(self.logger):
-            self.logger.debug('Yaml file contents')
-            pp.pprint(self.data)
-
-class HTMLfile:
-
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('html')
-        self.filepath = filepath
-        self.buffer = None
-
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
-                self.buffer = stream.read()
-            self.logger.info('Loaded html file: %s' % self.filepath)
-        except:
-            self.logger.warning('Error loading file: %s' % self.filepath)
-            self.buffer = ''
-        return self
-
-    def get_buffer(self):
-        assert self.buffer
-        return self.buffer
-            
-class IgnoreList:
-    def __init__(self):
-        self.logger = WebifyLogger.get('db')
-        self.ignorelist = []
-
-    def read_ignore_file(self, ignorefile):
-        self.logger.info('Reading ignore file: %s' % ignorefile)
-        try:
-            with codecs.open(ignorefile, 'r') as stream:
-                self.spec = pathspec.PathSpec.from_lines('gitignore', stream)
-        except:
-            self.spec = None
-            self.logger.warning('Cannot read ignorefile: %s' % ignorefile)
-
-    def ignore(self, filepath):
-        if self.spec:
-            return self.spec.match_file(filepath)
-        return False
-    
 class Webify:
     def __init__(self):
         self.logger = WebifyLogger.get('webify')
@@ -293,7 +97,7 @@ class Webify:
             raise ValueError('Error source folder')
         else:
             self.logger.info('Source folder found: %s' % srcdir)
-            self.ignore.read_ignore_file(os.path.join(srcdir, __ignore_file__))
+            self.ignore.read_ignore_file(os.path.join(srcdir, ignorefile))
 
     def set_dest(self, destdir):
         self.destdir = os.path.abspath(destdir)
@@ -306,7 +110,14 @@ class Webify:
             self.logger.info('Destination directory %s: %s' % (r, destdir))
 
     def enter_dir(self, dir):
-        self.logger.info('Processing folder %s' % dir.get_path())
+        self.logger.info('+ Processing folder %s' % dir.get_path())
+
+        logger_rc =  WebifyLogger.get('rc')
+        if WebifyLogger.is_debug(logger_rc):
+            logger_rc.info('-'*terminal.c())
+            logger_rc.debug('Rendering context (enter: %s)' % dir.name)
+            self.rc.print()
+        
         self.rc.push()
 
     def proc_dir(self, dir):
@@ -315,39 +126,54 @@ class Webify:
             yaml_file.load()
             self.rc.add(yaml_file.data)
 
-        data = {}
+        data = {}    
         if dir.partials:
-            self.logger.debug('Processing _partials')
+            self.logger.info('+ Processing: %s' % dir.partials.get_path())
             self.rc.push()
             for i in dir.partials.files['yaml']:
                 yaml_file = YAMLfile(filepath=os.path.join(dir.partials.get_path(), i))
                 yaml_file.load()
                 self.rc.add(yaml_file.data)
+            
             for i in dir.partials.files['html']:
                 html_file = HTMLfile(filepath=os.path.join(dir.partials.get_path(), i))
                 buffer = html_file.load().get_buffer()
                 rendered_buf = mustache_render(template=buffer, context=self.rc.data())
                 data[i] = rendered_buf
+
+            extras = { 'output-file': None, 'ignore-times': True, 'standalone': False, 'preprocess-mustache': True }
             for i in dir.partials.files['md']:
-                md_file = MDfile(filepath=os.path.join(dir.partials.get_path(), i))
                 self.rc.push()
-                buffer = md_file.load().convert(self.rc.data())
+                filepath = os.path.join(dir.partials.get_path(), i)
+                md_file = MDfile(filepath=filepath, rootdir=dir.partials.get_path(), extras=extras, rc=self.rc)
+                ret_type, buffer, _ = md_file.load().get_buffer()
                 self.rc.pop()
+                if not ret_type == 'buffer':
+                    self.logger.warning('Ignoring _partials file: %s' % filepath)
+                else:
+                    rendered_buf = mustache_render(template=buffer, context=self.rc.data())
+                    data[i] = rendered_buf
+            self.logger.info('> Done processing: %s' % dir.partials.get_path())
             self.rc.pop()            
             self.rc.add(data)
 
         logger_rc =  WebifyLogger.get('rc')
         if WebifyLogger.is_debug(logger_rc):
-            logger_rc.debug('Current rendering context')
+            logger_rc.debug('\nRendering context (inside: %s)' % dir.name)
             self.rc.print()
-
             
     def leave_dir(self, dir):
         self.rc.pop()
+        logger_rc =  WebifyLogger.get('rc')
+        if WebifyLogger.is_debug(logger_rc):
+            logger_rc.debug('\nRendering context (leave: %s)' % dir.name)
+            self.rc.print()
+            logger_rc.info('-'*terminal.c())
+        self.logger.info('> Done processing folder %s' % dir.get_path())
             
     def traverse(self):
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
-        self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
+#        self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
 if __name__ == '__main__':
 
@@ -365,12 +191,13 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-db',action='store_true',default=False,help='Turns on file database debug messages')
     cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on yaml debug messages')
     cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
+    cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
     cmdline_args = cmdline_parser.parse_args()
 
     ######################################################################
     # Setting up logging
-    logfile = None if cmdline_args.log == None else __logfile__
+    logfile = None if cmdline_args.log == None else logfile
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = WebifyLogger.make(name='webify', loglevel=loglevel, logfile=logfile)
@@ -384,6 +211,8 @@ if __name__ == '__main__':
     WebifyLogger.make(name='html', loglevel=loglevel, logfile=logfile)    
     l = logging.DEBUG if cmdline_args.debug_render else loglevel    
     WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
+    l = logging.DEBUG if cmdline_args.debug_md else loglevel    
+    WebifyLogger.make(name='mdfile', loglevel=l, logfile=logfile)
     ######################################################################
     
     terminal = Terminal()
@@ -392,8 +221,8 @@ if __name__ == '__main__':
     prog_dir = os.path.dirname(prog_name)
     cur_dir = os.getcwd()
     logger.info('='*terminal.c())
-    logger.info('Prog name: %s  ' % prog_name)
-    logger.info('Prog dir: %s   ' % prog_dir)
+    logger.info('Prog name:   %s' % prog_name)
+    logger.info('Prog dir:    %s' % prog_dir)
     logger.info('Current dir: %s' % cur_dir)
     logger.info('-'*terminal.c())
 

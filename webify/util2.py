@@ -4,6 +4,11 @@ import inspect
 import subprocess
 import pprint as pp
 import pystache
+import sys
+import pathspec
+import codecs
+import yaml
+import copy
 
 def get_gitinfo():
     try:
@@ -87,79 +92,10 @@ class WebifyLogger:
 
     @staticmethod
     def is_debug(logger):
-        return logger.handlers[0].level <= logging.DEBUG
-
-class DirTree:
-    class DirNode:
-        def __init__(self, path, name):
-            self.logger = WebifyLogger.get('db')
-            self.files = {'yaml': [], 'html': [], 'misc': []}
-            self.name = name
-            self.path = path
-            self.children = []
-            self.partials = None
-    
-        def add_file(self, name):
-            _, ext = os.path.splitext(name)
-            if ext.lower() == '.yaml':
-                self.files['yaml'].append(name)
-            elif ext.lower() in ['.html', '.htm']:
-                self.files['html'].append(name)
-            elif ext.lower() in ['.md', '.markdown']:
-                self.files['md'].append(name)
-            else:
-                self.files['misc'].append(name)
-
-        def add_child(self, dir_node):
-            if dir_node.name == '_partials':
-                self.partials = dir_node
-            else:
-                self.children.append(dir_node)
-
-        def get_path(self):
-            return os.path.join(self.path, self.name)
-
-        def __repr__(self):
-            s = "Path: " + self.path + ", Name: " + self.name
-            return s
-            
-    def __init__(self):
-        self.logger = WebifyLogger.get('db')
-        self.rootdir = None
-        
-    def collect(self, rootdir, ignore=None):
-        self.ignore = ignore
-        self.rootdir = self.DirNode(path='', name=rootdir)
-
-        dirs = [self.rootdir]
-        while len(dirs) > 0:
-            cur_dir_node = dirs.pop()
-
-            self.logger.debug('Collecting directory %s' % cur_dir_node.get_path())
-            for entry in os.scandir(cur_dir_node.get_path()):
-                if ignore and ignore.ignore(entry.name):
-                    self.logger.debug('Ignoring          : %s' % entry.name)
-                    continue
-                
-                if entry.is_dir():
-                    sub_dir_node = self.DirNode(path=cur_dir_node.get_path(), name=entry.name)
-                    cur_dir_node.add_child(sub_dir_node)
-                    dirs.append(sub_dir_node)
-                    self.logger.debug('Added subdirectory: %s' % entry.name)
-                else:
-                    self.logger.debug('Added file        : %s' % entry.name)
-                    cur_dir_node.add_file(name=entry.name)
-
-    def __traverse__(self, dir, enter_func, proc_func, leave_func):
-        if enter_func: enter_func(dir)
-        if proc_func: proc_func(dir)
-        for i in dir.children:
-            self.__traverse__(i, enter_func, proc_func, leave_func)
-        if leave_func: leave_func(dir)
-            
-    def traverse(self, enter_func=None, proc_func=None, leave_func=None):
-        rootdir = self.rootdir
-        self.__traverse__(rootdir, enter_func, proc_func, leave_func)
+        try:
+            return logger.handlers[0].level <= logging.DEBUG
+        except:
+            return False
 
 class Terminal:
     def __init__(self):
@@ -260,3 +196,22 @@ class HTMLfile:
     def get_buffer(self):
         assert self.buffer
         return self.buffer
+
+class IgnoreList:
+    def __init__(self):
+        self.logger = WebifyLogger.get('db')
+        self.ignorelist = []
+
+    def read_ignore_file(self, ignorefile):
+        self.logger.info('Reading ignore file: %s' % ignorefile)
+        try:
+            with codecs.open(ignorefile, 'r') as stream:
+                self.spec = pathspec.PathSpec.from_lines('gitignore', stream)
+        except:
+            self.spec = None
+            self.logger.warning('Cannot read ignorefile: %s' % ignorefile)
+
+    def ignore(self, filepath):
+        if self.spec:
+            return self.spec.match_file(filepath)
+        return False
