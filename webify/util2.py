@@ -239,3 +239,24 @@ class YAMLfile:
         if WebifyLogger.is_debug(self.logger):
             self.logger.debug('Yaml file contents')
             pp.pprint(self.data)
+
+class HTMLfile:
+
+    def __init__(self, filepath):
+        self.logger = WebifyLogger.get('html')
+        self.filepath = filepath
+        self.buffer = None
+
+    def load(self):
+        try:
+            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+                self.buffer = stream.read()
+            self.logger.info('Loaded html file: %s' % self.filepath)
+        except:
+            self.logger.warning('Error loading file: %s' % self.filepath)
+            self.buffer = ''
+        return self
+
+    def get_buffer(self):
+        assert self.buffer
+        return self.buffer

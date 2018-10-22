@@ -9,12 +9,11 @@ import pprint as pp
 import yaml
 import copy
 import pystache
-from mdfile2 import MDfile
+#from mdfile2 import MDfile
 
-global prog_name, prog_dir, cur_dir, __version__, __logfile__, terminal, __ignore_file__
-__version__ = '2.0'
-__logfile__ = 'foo.log'
-__ignore_file__ = '.webifyignore'
+from globals import __version__
+logfile = 'foo.log'
+ignorefile = '.webifyignore'
 
 def make_directory(dirpath):
     try:

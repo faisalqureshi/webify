@@ -6,10 +6,10 @@ import pypandoc
 import os
 import sys
 import pprint as pp
-from util2 import WebifyLogger, Terminal, mustache_render
+from util2 import WebifyLogger, Terminal, mustache_render, RenderingContext
 import util2 as util
-from webify2 import RenderingContext
 import pypandoc
+import json
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -115,6 +115,7 @@ class MDfile:
         self.rootdir = rootdir
         self.extras = extras
         self.rc = rc
+        self.yaml = {}
 
         self.logger.debug('. processing: %s' % self.filepath)
         self.logger.debug('rootdir:    %s' % self.rootdir)
@@ -172,8 +173,20 @@ class MDfile:
                     pp.pprint(self.yaml)
                 break # Only the first yaml section is read in            
         except:
-            logger.warning('YAML section not found in md file\n\t - filepath: %s' % self.filepath)
+            logger.warning('YAML section not found in md file: %s' % self.filepath)
 
+        if self.get_preprocess_mustache():
+            self.logger.debug('Preprocessing Yaml front matter via mustache')
+            try:
+                s = mustache_render(json.dumps(self.get_yaml()), self.rc.data())
+                self.set_yaml(yaml.load(s))
+            except:
+                self.logger.debug('Failed: preprocessing Yaml front matter via mustache')
+
+            if WebifyLogger.is_debug(logger):
+                print('YAML frontmatter after pre-processing:')
+                pp.pprint(self.yaml)
+                
         self.rc.add(self.get_yaml())
         return self
 
@@ -232,14 +245,7 @@ class MDfile:
         return output_file
 
     def is_standalone(self):
-        if self.get_output_format() in ['pdf', 'beamer', 'latex']:
-            if self.get_renderfile():
-                self.logger.warning('Render option in yaml frontmatter unsupported for "%s" format\n\t - ' % (to_format, self.filepath))
-            return True
-        else:
-            if not self.get_renderfile():
-                return True
-        return False
+        return not self.get_renderfile()
     
     def convert(self):
         files = []
@@ -284,11 +290,12 @@ class MDfile:
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
-        if self.needs_compilation(files, output_filepath):
+        files.append(output_filepath)
+        if self.needs_compilation(files):
             self.logger.debug('. Need compilation')
         else:
             self.logger.warning('Output already exists: %s' % output_filepath)
-            return 'file', output_filepath, self.filepath
+            return 'exists', output_filepath, self.filepath
         
         pdoc_args.add('highlight-style', self.get_highlighter())
        
@@ -296,7 +303,7 @@ class MDfile:
             self.logger.debug('. Preprocess mustache')
             self.buffer = mustache_render(self.buffer, self.rc.data())
         else:
-            self.logger.debug('. Do not preprocess mustache')
+            self.logger.info('. Do not preprocess mustache')
 
 
         if self.get_output_format() == 'html':
@@ -332,12 +339,12 @@ class MDfile:
 
 
 
-    def needs_compilation(self, files, output_filepath):
+    def needs_compilation(self, files):
         if self.extras['ignore-times']: return True
-        if not os.path.isfile(output_filepath): return True
-        
+        if not os.path.isfile(files[-1]): return True
+
         for f in files:
-            if os.path.getmtime(f) > os.path.getmtime(self.filepath):
+            if os.path.getmtime(f) < os.path.getmtime(self.filepath):
                 return True
 
         return False
@@ -357,8 +364,8 @@ class MDfile:
     def get_yaml(self):
         return self.yaml
 
-    # def set_yaml(self, data):
-    #     self.yaml = data
+    def set_yaml(self, data):
+        self.yaml = data
     
     def get_html_filter(self):
         assert(self.buffer)
@@ -447,28 +454,53 @@ class MDfile:
         return self.get_files(key)
 
     def get_renderfile(self):
-        if self.extras['standalone']: return None
+        try:
+            if self.extras['standalone']: return None
+        except:
+            pass            
         file = self.pick_last_file('render')
-        return os.path.join(self.rootdir, file) if file else None
+        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        if file and not os.path.isfile(file):
+            self.logger.warning('Cannot find render file:\n\t- %s\n\t- %s' % (self.filepath, file))
+            return None
+        return file
 
     def get_template(self):
         file = self.pick_last_file('template')
-        return os.path.join(self.rootdir, file) if file else None
-    
+        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        if file and not os.path.isfile(file):
+            self.logger.warning('Cannot find template file:\n\t- %s\n\t- %s' % (self.filepath, file))
+            return None
+        return file
+        
     def get_cssfiles(self):
         return self.pick_all_files('css', relpath=True)
 
     def get_bibfile(self):
-        return self.pick_last_file('bibliography')
+        file = self.pick_last_file('bibliography')
+        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        if file and not os.path.isfile(file):
+            self.logger.warning('Cannot find bibliography file:\n\t- %s\n\t- %s' % (self.filepath, file))
+            return None
+        return file
 
     def get_cslfile(self):
-        return self.pick_last_file('csl')
-
+        file = self.pick_last_file('csl')
+        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        if file and not os.path.isfile(file):
+            self.logger.warning('Cannot find csl file:\n\t- %s\n\t- %s' % (self.filepath, file))
+            return None
+        return file
+            
     def get_pandoc_include_files(self):
         f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
         for i in f.keys():
-            f[i] = [os.path.join(self.rootdir, x) for x in self.pick_all_files(i)]
-
+            for x in self.pick_all_files(i):
+                file = os.path.join(self.rootdir, os.path.expandvars(x))
+                if not os.path.isfile(file):
+                    self.logger.warning('Cannot find %s file:\n\t- %s\n\t- %s' % (i, self.filepath, file))
+                else:
+                    f[i].append(file)            
         return f
 
     def get_templating(self):
@@ -578,7 +610,7 @@ if __name__ == '__main__':
         logger.debug('output_filename: %s' % output_filename)
         logger.debug('output_filepath: %s' % output_filepath)
     else:
-        logger.info('Input file: %s' % cmdline_args.mdfile)
+        logger.info('Input file:  %s' % cmdline_args.mdfile)
     #logger.debug('-'*terminal.c())
     
     extras = { 'format': cmdline_args.format,
@@ -595,7 +627,9 @@ if __name__ == '__main__':
                'standalone': cmdline_args.standalone }
     
     meta_data = {
-        'version': __version__
+        '__version__': __version__,
+        '__filepath__': filepath,
+        '__rootdir__': file_dir
     }
     rc = RenderingContext()
     rc.push()
@@ -607,10 +641,12 @@ if __name__ == '__main__':
     logger.debug('. status:  %s' % ret_type)
     logger.debug('. message: %s' % ret_val)
     if ret_type == 'file':
-        logger.info('Output: %s' % ret_val)
+        logger.info('Output file: %s' % ret_val)
     elif ret_type == 'error':
         logger.error('Failure: %s' % ret_val)
+    elif ret_type == 'exists':
+        pass
     else:
-        logger.error('Failure: (%s, %s)' % (ret_val, ret_type))
+        logger.error('Unknown error: (%s, %s)' % (ret_type, ret_val))
 
     exit(0)
