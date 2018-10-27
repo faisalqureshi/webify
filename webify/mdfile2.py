@@ -187,6 +187,7 @@ class MDfile:
         if self.get_preprocess_mustache():
             self.logger.debug('Preprocessing Yaml front matter via mustache')
             try:
+#                print(json.dumps(self.get_yaml()))               
                 s = mustache_render(json.dumps(self.get_yaml()), self.rc.data())
                 self.set_yaml(yaml.load(s))
             except:
@@ -335,7 +336,8 @@ class MDfile:
 
         if self.is_create_outputfile() and not using_renderfile: 
             return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
-        else:        
+        else:
+            assert(self.get_output_format() == 'html')
             r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
             if not using_renderfile:
                 self.logger.info('Using render file NO')

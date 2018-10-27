@@ -1,17 +1,3 @@
 #!/bin/bash
 
-if [ "$WEBIFY_PYTHON" ]
-then
-    echo "---------------------------------------------------------------"
-    echo "Using Python specified by WEBIFY_PYTHON environment variable"
-    echo $WEBIFY_PYTHON
-    echo "---------------------------------------------------------------"
-    echo 
-    exec "$WEBIFY_PYTHON" "$WEBIFY_DIR/mdfile.py" "$@"
-else
-    echo "---------------------------------------------------------------"
-    echo "Using default python"
-    echo "---------------------------------------------------------------"
-    echo 
-    exec python "$WEBIFY_DIR/mdfile.py" "$@"
-fi
+exec python "$WEBIFY_DIR/mdfile2.py" "$@"

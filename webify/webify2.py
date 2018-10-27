@@ -3,7 +3,7 @@ import pprint as pp
 import sys
 import logging
 import os
-from util2 import get_gitinfo, make_directory, mustache_render, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file, pandoc_filter, apply_filters
+from util2 import get_gitinfo, make_directory, mustache_render, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
 from mdfile2 import MDfile
 
 from globals import __version__
@@ -63,6 +63,7 @@ class DirTree:
 
             self.logger.debug('Collecting directory %s' % cur_dir_node.get_fullpath())
             for entry in os.scandir(cur_dir_node.get_fullpath()):
+                #print('nn')
                 if ignore and ignore.ignore(entry.name):
                     self.logger.debug('Ignoring          : %s' % entry.name)
                     continue
@@ -337,7 +338,7 @@ if __name__ == '__main__':
         'src-dir': cmdline_args.srcdir,
         'dest-dir': cmdline_args.destdir,
         '__version__': __version__,
-        'root': cmdline_args.srcdir
+        'root': os.path.abspath(cmdline_args.srcdir)
     }
     
     webify = Webify()

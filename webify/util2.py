@@ -13,7 +13,7 @@ import shutil
 import filecmp
 import pypandoc
 
-def pandoc_filter(str):
+def md_filter(str):
     try:
         s = str.strip(' ')
         if s[0:8] == '_pandoc_':
@@ -29,24 +29,24 @@ def pandoc_filter(str):
         #self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
     return str
 
-def apply_filters(filter, data):
+def apply_filter(filter, data):
     if not data:
         return None
-    if isinstance(data, bool) or isinstance(data, int) or isinstance(data, float):
-        return None
     if isinstance(data, dict):
-        for key, value in data.iteritems():
-            retval = apply_filters(filter, value)
+        for key, value in data.items():
+            retval = apply_filter(filter, value)
             if retval:
                 data[key] = retval
-        return None
+        return data
     if isinstance(data, list):
         for i in range(len(data)):
-            retval = apply_filters(filter, data[i])
+            retval = apply_filter(filter, data[i])
             if retval:
                 data[i] = retval
-        return None
-    return filter(data)
+        return data
+    if isinstance(data, str):
+        return filter(data)
+    return data
 
 def get_gitinfo():
     try:
@@ -247,6 +247,10 @@ class YAMLfile:
             with codecs.open(self.filepath, 'r') as stream:
                 self.data = yaml.load(stream)
             self.logger.info('Loaded YAML file: %s' % self.filepath)
+#            pp.pprint(self.data)
+            self.data = apply_filter(md_filter, self.data)
+#            pp.pprint(self.data)
+            
         except:
             self.logger.warning('Error loading YAML file: %s' % self.filepath)
             self.data = {}
