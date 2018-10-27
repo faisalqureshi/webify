@@ -5,6 +5,11 @@ import logging
 import os
 from util2 import get_gitinfo, make_directory, mustache_render, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
 from mdfile2 import MDfile
+import pypandoc
+import pystache
+import yaml
+import json
+import pathspec
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -282,7 +287,16 @@ class Webify:
 if __name__ == '__main__':
 
     if '--version' in sys.argv:
-        print('Webify2 version: %s' % __version__)
+        print('Webify2:    %s' % __version__)
+        print('logfile:    %s' % logfile)
+        print('ignorefile: %s' % ignorefile)
+        print('Git info:   %s' % get_gitinfo())
+        print('Python:     %s.%s' % (sys.version_info[0],sys.version_info[1]))
+        print('Pypandoc:   %s' % pypandoc.__version__)
+        print('Pyyaml:     %s' % yaml.__version__)
+        print('Pystache:   %s' % pystache.__version__)
+        print('Json:       %s' % json.__version__)
+        print('Pathspec:   %s' % pathspec.__version__)
         exit(0)
 
     cmdline_parser = argparse.ArgumentParser()
@@ -302,7 +316,7 @@ if __name__ == '__main__':
 
     ######################################################################
     # Setting up logging
-    logfile = None if cmdline_args.log == None else logfile
+    logfile = None if not cmdline_args.log else logfile
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = WebifyLogger.make(name='webify', loglevel=loglevel, logfile=logfile)
@@ -331,6 +345,14 @@ if __name__ == '__main__':
     cur_dir = os.getcwd()
     logger.info('Current dir: %s' % cur_dir)
 
+    logger.info('Version:    %s' % __version__)
+    logger.info('logfile:    %s' % logfile)
+    logger.info('Git info:   %s' % get_gitinfo())
+    logger.info('Python:     %s.%s' % (sys.version_info[0],sys.version_info[1]))
+    logger.info('Pypandoc:   %s' % pypandoc.__version__)
+    logger.info('Pyyaml:     %s' % yaml.__version__)
+    logger.info('Pystache:   %s' % pystache.__version__)
+    
     meta_data = {
         'prog-name': prog_name,
         'prog-dir': prog_dir,

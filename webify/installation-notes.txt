@@ -1,6 +1,21 @@
 # Installation instructions
 
-## Minimal Installation using Miniconda
+## Webify >= 3.0 (Uses Python 3)
+
+Webify2:    3.0
+logfile:    webify2.log
+ignorefile: .webifyignore
+Git info:   b'v1.8.5-30-g15098f0'
+Python:     3.6
+Pypandoc:   1.4
+Pyyaml:     3.12
+Pystache:   0.5.4
+Json:       2.0.9
+Pathspec:   0.5.9
+
+## Webify < 3.0 (Uses Python 2.7)
+
+### Minimal Installation using Miniconda
 
 Install miniconda with Python 2.7.  Take a look here [https://conda.io/miniconda.html](https://conda.io/miniconda.html).
 
@@ -10,8 +25,7 @@ conda install -c conda-forge pypandoc=1.4
 conda install pyyaml=3.13
 pip install pystache==0.5.4
 
-
-## Without Docker
+### Without Docker
 
 Install Anaconda python distribution.
 
@@ -24,7 +38,7 @@ pip install pystache==0.5.4
 
 You can use webify within the webify environment.
 
-## Using docker
+### Using docker
 
 The preferred way of using webify is through docker.
 This allows us to use webify in any environment that supports docker.
