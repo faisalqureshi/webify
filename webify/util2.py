@@ -9,6 +9,44 @@ import pathspec
 import codecs
 import yaml
 import copy
+import shutil
+import filecmp
+import pypandoc
+
+def pandoc_filter(str):
+    try:
+        s = str.strip(' ')
+        if s[0:8] == '_pandoc_':
+            pdoc_args = ['--mathjax','--highlight-style=pygments']
+            s = pypandoc.convert_text(s[8:], to='html', format='md', extra_args=pdoc_args)
+            s = s.replace('<p>', '', 1)                
+            s = ''.join(s.rsplit('</p>', 1))
+            return s
+        else:
+            pass
+    except:
+        pass
+        #self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
+    return str
+
+def apply_filters(filter, data):
+    if not data:
+        return None
+    if isinstance(data, bool) or isinstance(data, int) or isinstance(data, float):
+        return None
+    if isinstance(data, dict):
+        for key, value in data.iteritems():
+            retval = apply_filters(filter, value)
+            if retval:
+                data[key] = retval
+        return None
+    if isinstance(data, list):
+        for i in range(len(data)):
+            retval = apply_filters(filter, data[i])
+            if retval:
+                data[i] = retval
+        return None
+    return filter(data)
 
 def get_gitinfo():
     try:
@@ -28,6 +66,47 @@ def make_directory(dirpath):
             return None
     return 'Created'
 
+def copy_file(src, dest, force_save):
+    """
+    Copy src to dest
+
+    Returns status:
+        - None: failed
+        - 1: copied
+        - 2: skipped
+    """
+    if not force_save and os.path.exists(dest):
+        if filecmp.cmp(src, dest):
+            return 'Skipped'
+
+    try:
+        shutil.copy2(src, dest)
+        return 'Copied'
+    except:
+        pass
+    return 'Failed'
+
+def save_to_file(filepath, buffer):
+    try:
+        with codecs.open(filepath, 'w', 'utf-8') as stream:
+            stream.write(buffer)
+        return True
+    except:
+        return False
+
+def render(filepath, context, renderer):
+    logger = WebifyLogger.get('render')
+    try:
+        with codecs.open(filepath, 'r', 'utf-8') as stream:
+            template = stream.read()
+            logger.info('Loaded render file: %s' % filepath)
+    except:
+        logger.warning('Cannot load render file: %s' % filepath)
+        return ''
+
+    return renderer(template, context)
+
+        
 def mustache_render(template, context):
     logger = WebifyLogger.get('render')
 
@@ -196,6 +275,10 @@ class HTMLfile:
     def get_buffer(self):
         assert self.buffer
         return self.buffer
+
+    def save(self, filepath):
+        pass
+    
 
 class IgnoreList:
     def __init__(self):
