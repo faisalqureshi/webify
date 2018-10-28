@@ -8,8 +8,8 @@ from mdfile2 import MDfile
 import pypandoc
 import pystache
 import yaml
-import json
 import pathspec
+import datetime
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -150,7 +150,7 @@ class Webify:
                 html_file = HTMLfile(filepath=os.path.join(dir.partials.get_fullpath(), i))
                 buffer = html_file.load().get_buffer()
                 rendered_buf = mustache_render(template=buffer, context=self.rc.data())
-                data[i.replace('.','-')] = rendered_buf
+                data[i.replace('.','_')] = rendered_buf
 
             if len(dir.partials.files['md']) > 0:
                 self.logger.info('Processing  MD files...')
@@ -168,7 +168,7 @@ class Webify:
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
                 else:
                     rendered_buf = mustache_render(template=buffer, context=self.rc.data())
-                    data[i.replace('.','-')] = rendered_buf
+                    data[i.replace('.','_')] = rendered_buf
             self.logger.info('Done processing folder %s' % dir.partials.get_fullpath())
             self.rc.pop()            
             self.rc.add(data)
@@ -284,25 +284,30 @@ class Webify:
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
+def version_info():
+    str =  '  Webify2:    %s\n' % __version__
+    str += '  logfile:    %s\n' % logfile 
+    str += '  ignorefile: %s\n' % ignorefile
+    str += '  Git info:   %s\n' % get_gitinfo()
+    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
+    str += '  Pypandoc:   %s\n' % pypandoc.__version__
+    str += '  Pyyaml:     %s\n' % yaml.__version__
+    str += '  Pystache:   %s\n' % pystache.__version__
+    str += '  Pathspec:   %s\n' % pathspec.__version__
+    return str
+
 if __name__ == '__main__':
 
-    if '--version' in sys.argv:
-        print('Webify2:    %s' % __version__)
-        print('logfile:    %s' % logfile)
-        print('ignorefile: %s' % ignorefile)
-        print('Git info:   %s' % get_gitinfo())
-        print('Python:     %s.%s' % (sys.version_info[0],sys.version_info[1]))
-        print('Pypandoc:   %s' % pypandoc.__version__)
-        print('Pyyaml:     %s' % yaml.__version__)
-        print('Pystache:   %s' % pystache.__version__)
-        print('Json:       %s' % json.__version__)
-        print('Pathspec:   %s' % pathspec.__version__)
-        exit(0)
+    terminal = Terminal()
+    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
+    prog_dir = os.path.dirname(prog_name)
+    cur_dir = os.getcwd()
 
+    # Command line arguments
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('srcdir', help='Source directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
-    cmdline_parser.add_argument('--version', action='version', version='Webify2: {version}'.format(version=__version__))
+    cmdline_parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
     cmdline_parser.add_argument('-v','--verbose',action='store_true',default=False,help='Prints helpful messages')
     cmdline_parser.add_argument('-d','--debug',action='store_true',default=False,help='Turns on (global) debug messages')
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
@@ -313,8 +318,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
     cmdline_args = cmdline_parser.parse_args()
+    ignore_times = cmdline_args.ignore_times
 
-    ######################################################################
     # Setting up logging
     logfile = None if not cmdline_args.log else logfile
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
@@ -333,40 +338,39 @@ if __name__ == '__main__':
     l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
     WebifyLogger.make(name='mdfile', loglevel=l, logfile=logfile)
 
-    ignore_times = cmdline_args.ignore_times
-    ######################################################################
-    
-    terminal = Terminal()
-    
-    prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
-    logger.info('Prog name:   %s' % prog_name)
-    prog_dir = os.path.dirname(prog_name)
-    logger.info('Prog dir:    %s' % prog_dir)
-    cur_dir = os.getcwd()
-    logger.info('Current dir: %s' % cur_dir)
-
-    logger.info('Version:    %s' % __version__)
-    logger.info('logfile:    %s' % logfile)
-    logger.info('Git info:   %s' % get_gitinfo())
-    logger.info('Python:     %s.%s' % (sys.version_info[0],sys.version_info[1]))
-    logger.info('Pypandoc:   %s' % pypandoc.__version__)
-    logger.info('Pyyaml:     %s' % yaml.__version__)
-    logger.info('Pystache:   %s' % pystache.__version__)
+    # Go        
+    logger.info('Prog name:    %s' % prog_name)
+    logger.info('Prog dir:     %s' % prog_dir)
+    logger.info('Current dir:  %s' % cur_dir)
+    logger.info('Info:')
+    logger.info(version_info())
     
     meta_data = {
-        'prog-name': prog_name,
-        'prog-dir': prog_dir,
-        'cur-dir': cur_dir,
-        'src-dir': cmdline_args.srcdir,
-        'dest-dir': cmdline_args.destdir,
+        'prog_name': prog_name,
+        'prog_dir': prog_dir,
+        'cur_dir': cur_dir,
+        'src_dir': cmdline_args.srcdir,
+        'dest_dir': cmdline_args.destdir,
         '__version__': __version__,
-        'root': os.path.abspath(cmdline_args.srcdir)
+        'root': os.path.abspath(cmdline_args.srcdir),
+        'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
     }
     
+    if WebifyLogger.is_debug(logger):
+        print('Meta data:')
+        pp.pprint(meta_data)
+
     webify = Webify()
-    webify.set_src(cmdline_args.srcdir, meta_data)
-    webify.set_dest(cmdline_args.destdir)
+    try:
+        webify.set_src(cmdline_args.srcdir, meta_data)
+    except ValueError as e:
+        print(e)
+        exit(-1)
+    try:           
+        webify.set_dest(cmdline_args.destdir)
+    except ValueError as e:
+        print(e)
+        exit(-2)
+    
     webify.traverse()
-        
-    
-    
+    exit(0)

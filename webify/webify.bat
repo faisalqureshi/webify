@@ -1,1 +1,1 @@
-python %~dp0\webify.py %*
+python %~dp0\webify2.py %*

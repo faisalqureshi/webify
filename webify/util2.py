@@ -179,7 +179,10 @@ class WebifyLogger:
 class Terminal:
     def __init__(self):
         try:
-            self.rows, self.cols = os.popen('stty size', 'r').read().split()
+        	if sys.platform in ['linux', 'linux2', 'darwin']:
+	            self.rows, self.cols = os.popen('stty size', 'r').read().split()
+	        else:
+	        	self.rows, self.cols = 24, 16
         except:
             self.rows, self.cols = 24, 16
 

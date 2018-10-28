@@ -6,10 +6,8 @@ import pypandoc
 import os
 import sys
 import pprint as pp
-from util2 import WebifyLogger, Terminal, mustache_render, RenderingContext, render, save_to_file
-import util2 as util
-import pypandoc
-import json
+from util2 import WebifyLogger, Terminal, mustache_render, RenderingContext, render, save_to_file, get_gitinfo
+import pystache
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -126,8 +124,8 @@ class MDfile:
             print('Extras:')
             pp.pprint(self.extras)
             print('Rendering context:')
-            pp.pprint(self.rc.get())
-        
+#            pp.pprint(self.rc.get())
+
         self.supported_output_formats = [ 'html',
                                           'beamer',
                                           'pdf',
@@ -156,7 +154,7 @@ class MDfile:
     def load(self):
         logger = WebifyLogger.get('file-debug')
         self.yaml = {}
-        
+
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
@@ -176,22 +174,25 @@ class MDfile:
                     pp.pprint(self.buffer)
                     print('YAML frontmatter:')
                     pp.pprint(self.yaml)
-                break # Only the first yaml section is read in            
+                break # Only the first yaml section is read in
         except:
             pass
 
         if not isinstance(self.yaml, dict):
             logger.warning('YAML section not found in md file: %s' % self.filepath)
             self.yaml = {}
-            
+
         if self.get_preprocess_mustache():
             self.logger.debug('Preprocessing Yaml front matter via mustache')
             try:
-#                print(json.dumps(self.get_yaml()))               
-                s = mustache_render(json.dumps(self.get_yaml()), self.rc.data())
+                yaml_str = yaml.dump(self.get_yaml())
+                s = mustache_render(yaml_str, self.rc.data())
                 self.set_yaml(yaml.load(s))
             except:
-                self.logger.debug('Failed: preprocessing Yaml front matter via mustache')
+                self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
+                if WebifyLogger.is_debug(self.logger):
+                    pp.pprint(self.rc.data())
+                    pp.pprint(yaml.dump(self.get_yaml()))
 
             if WebifyLogger.is_debug(logger):
                 print('YAML frontmatter after pre-processing:')
@@ -203,7 +204,7 @@ class MDfile:
     def get_buffer(self):
         if not self.buffer:
             return 'error', 'Load error', self.filepath
-        
+
         output_format = self.get_output_format()
         if not output_format in self.supported_output_formats:
             self.logger.error('Unsupported conversion format "%s": %s' % (output_format, self.filepath))
@@ -211,11 +212,11 @@ class MDfile:
 
         self.logger.info('Converting to "%s"' % output_format)
         return self.convert()
-        
+
     def compile(self, output_format, pandoc_args, output_filepath=None):
-        ret_type = 'file' if output_filepath else 'buffer' 
+        ret_type = 'file' if output_filepath else 'buffer'
         ret_val = output_filepath
-        
+
         cwd = os.getcwd()
         os.chdir(self.rootdir)
         try:
@@ -238,7 +239,7 @@ class MDfile:
         output_file = self.extras['output-file']
         assert(output_file)
         output_format = self.get_output_format()
-        
+
         if not output_file:
             output_file = os.path.splitext(self.filepath)[0]
 
@@ -251,7 +252,7 @@ class MDfile:
         else:
             pass
         self.logger.debug('Output file: %s' % output_file)
-        
+
         return output_file
 
     def is_create_outputfile(self):
@@ -259,12 +260,12 @@ class MDfile:
             return not self.extras['no-output-file']
         except:
             return True
-    
+
     def convert(self):
         files = []
         pdoc_args = PandocArguments()
         using_renderfile = False
-        
+
         render_file = self.get_renderfile()
         template_file = self.get_template()
         if self.is_create_outputfile():
@@ -288,20 +289,20 @@ class MDfile:
             output_filepath = None
             if render_file: self.logger.warning('Ignoring renderfile file: %s' % render_file)
             if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template_file)
-            
+
         bib_file = self.get_bibfile()
         self.logger.debug('Bibliography: %s' % bib_file)
         if bib_file:
             files.append(bib_file)
             pdoc_args.add('bibliography', bib_file)
-        
-        csl_file = self.get_cslfile()        
+
+        csl_file = self.get_cslfile()
         self.logger.debug('CSL file: %s' % csl_file)
         if csl_file:
             files.append(csl_file)
             pdoc_args.add('csl', csl_file)
 
-        include_files = self.get_pandoc_include_files()        
+        include_files = self.get_pandoc_include_files()
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
         pdoc_args.add('include-after-body',  include_files['include-after-body'])
@@ -318,9 +319,9 @@ class MDfile:
             self.logger.debug('Needs compilation NO')
             self.logger.warning('Doesn\'t need to do anything.  Output already exists: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
-        
+
         pdoc_args.add('highlight-style', self.get_highlighter())
-       
+
         if self.get_preprocess_mustache():
             self.logger.info('Preprocess mustache YES')
             #print (self.rc.data())
@@ -334,7 +335,7 @@ class MDfile:
         elif self.get_output_format() in ['pdf', 'beamer', 'latex']:
             pdoc_args.add_var('graphics','true')
 
-        if self.is_create_outputfile() and not using_renderfile: 
+        if self.is_create_outputfile() and not using_renderfile:
             return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
         else:
             assert(self.get_output_format() == 'html')
@@ -352,9 +353,9 @@ class MDfile:
                 else:
                     self.logger.warning('Error saving to output file: %s' % output_filepath)
                     return 'error', output_filepath, self.filepath
-            
+
         exit(0)
-            
+
         # if to_format == 'html':
         #     apply_hf, hf = self.get_html_filter()
         #     if apply_hf:
@@ -403,8 +404,9 @@ class MDfile:
         return self.yaml
 
     def set_yaml(self, data):
+        #print(data)
         self.yaml = data
-    
+
     def get_html_filter(self):
         assert(self.buffer)
 
@@ -487,7 +489,7 @@ class MDfile:
         files = self.get_files(key)
         if len(files) > 0: return files[-1]
         return None
-        
+
     def pick_all_files(self, key, relpath=False):
         return self.get_files(key)
 
@@ -506,7 +508,7 @@ class MDfile:
             self.logger.warning('Cannot find template file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
         return file
-        
+
     def get_cssfiles(self):
         return self.pick_all_files('css', relpath=True)
 
@@ -525,7 +527,7 @@ class MDfile:
             self.logger.warning('Cannot find csl file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
         return file
-            
+
     def get_pandoc_include_files(self):
         f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
         for i in f.keys():
@@ -534,7 +536,7 @@ class MDfile:
                 if not os.path.isfile(file):
                     self.logger.warning('Cannot find %s file:\n\t- %s\n\t- %s' % (i, self.filepath, file))
                 else:
-                    f[i].append(file)            
+                    f[i].append(file)
         return f
 
     def get_templating(self):
@@ -557,17 +559,24 @@ class MDfile:
         except:
             return False
 
-if __name__ == '__main__':
+def version_info():
+    str =  '  Mdfile2:    %s\n' % __version__
+    str += '  logfile:    %s\n' % logfile 
+    str += '  Git info:   %s\n' % get_gitinfo()
+    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
+    str += '  Pypandoc:   %s\n' % pypandoc.__version__
+    str += '  Pyyaml:     %s\n' % yaml.__version__
+    str += '  Pystache:   %s\n' % pystache.__version__
+    return str
 
-    if '--version' in sys.argv:
-        print('Webify2 version: %s' % __version__)
-        exit(0)
+if __name__ == '__main__':
 
     terminal = Terminal()
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
     prog_dir = os.path.dirname(prog_name)
     cur_dir = os.getcwd()
-        
+
+    # Command line arguments
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     cmdline_parser.add_argument('--version', action='version', version='Mdfile2: {version}'.format(version=__version__))
@@ -595,27 +604,23 @@ if __name__ == '__main__':
     csl = os.path.join(cur_dir, cmdline_args.csl) if cmdline_args.csl else None
     template = os.path.join(cur_dir, cmdline_args.template) if cmdline_args.template else None
 
+    # Setting up logging
     logfile = None if not cmdline_args.log else __logfile__
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
-
     WebifyLogger.make(name='render', loglevel=loglevel, logfile=logfile)
-
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug_file   else loglevel
     WebifyLogger.make(name='file-debug', loglevel=loglevel, logfile=logfile)
+    
+    # Go
+    logger.info('Prog name:    %s' % prog_name)
+    logger.info('Prog dir:     %s' % prog_dir)
+    logger.info('Current dir:  %s' % cur_dir)
+    logger.info('Info:')
+    logger.info(version_info())
 
-    logger.debug('Prog name:   %s' % prog_name)
-    logger.debug('Prog dir:    %s' % prog_dir)
-    logger.debug('Current dir: %s' % cur_dir)
-    logger.debug('Version:     %s' % __version__)
-    logger.debug('logfile:     %s' % logfile)
-    logger.debug('Git debug:    %s' % util.get_gitinfo())
-    logger.debug('Python:      %s.%s' % (sys.version_info[0],sys.version_info[1]))
-    logger.debug('Pypandoc:    %s' % pypandoc.__version__)
-    logger.debug('Pyyaml:      %s' % yaml.__version__)
-    #logger.debug('-'*terminal.c())
     if WebifyLogger.is_debug(logger):
         print('Commandline arguments:')
         print('--format:             ', cmdline_args.format)
@@ -629,7 +634,6 @@ if __name__ == '__main__':
         print('--preprocess-mustache:', cmdline_args.preprocess_mustache)
         print('--ignore-times:       ', cmdline_args.ignore_times)
         print('--output:             ', cmdline_args.output)
-    #logger.debug('-'*terminal.c())
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
     filename = os.path.basename(filepath)
@@ -639,7 +643,7 @@ if __name__ == '__main__':
         output_filepath = os.path.normpath(os.path.join(output_filename, filename))
     else:
         output_filepath = os.path.normpath(os.path.join(cur_dir, output_filename))
-    
+
     if WebifyLogger.is_debug(logger):
         logger.debug('filepath:        %s' % filepath)
         logger.debug('filename:        %s' % filename)
@@ -648,8 +652,7 @@ if __name__ == '__main__':
         logger.debug('output_filepath: %s' % output_filepath)
     else:
         logger.info('Input file:  %s' % cmdline_args.mdfile)
-    #logger.debug('-'*terminal.c())
-    
+
     extras = { 'format': cmdline_args.format,
                'template': template,
                'bibliography': bibliography,
@@ -662,7 +665,7 @@ if __name__ == '__main__':
                'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,
                'no-output-file': cmdline_args.no_output_file }
-    
+
     meta_data = {
         '__version__': __version__,
         '__filepath__': filepath,
