@@ -12,6 +12,7 @@ import copy
 import shutil
 import filecmp
 import pypandoc
+from jinja2 import Template
 
 def md_filter(str):
     try:
@@ -106,13 +107,45 @@ def render(filepath, context, renderer):
 
     return renderer(template, context)
 
-        
-def mustache_render(template, context):
+def jinja2_renderer(template, context):
     logger = WebifyLogger.get('render')
 
+    if WebifyLogger.is_debug(logger):
+        print('Template:')  
+        print(template)
+        print('Context:')
+        pp.pprint(context)
+
     try:
-        logger.debug('Success pystache render')        
+        rendered_buf = Template(template).render(context)
+        logger.debug('Success jinja2 render')
+    except:
+        logger.warning('Error jinja2 render')
+        if WebifyLogger.is_debug(logger):
+            print('Template:')
+            print(template)
+            print('Context:')
+            pp.pprint(context)
+        rendered_buf = template
+
+    if WebifyLogger.is_debug(logger):
+        print('Rendered Buf')
+        print(rendered_buf)
+
+    return rendered_buf
+
+def mustache_renderer(template, context):
+    logger = WebifyLogger.get('render')
+
+    if WebifyLogger.is_debug(logger):
+        print('Template:')  
+        print(template)
+        print('Context:')
+        pp.pprint(context)
+
+    try:
         rendered_buf = pystache.render(template, context)
+        logger.debug('Success pystache render')        
     except:
         logger.warning('Error pystache render')
         if WebifyLogger.is_debug(logger):
@@ -121,6 +154,10 @@ def mustache_render(template, context):
             print('Context:')
             pp.pprint(context)
         rendered_buf = template
+
+    if WebifyLogger.is_debug(logger):
+        print('Rendered Buf')
+        print(rendered_buf)
 
     return rendered_buf
 

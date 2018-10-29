@@ -6,7 +6,7 @@ import pypandoc
 import os
 import sys
 import pprint as pp
-from util2 import WebifyLogger, Terminal, mustache_render, RenderingContext, render, save_to_file, get_gitinfo
+from util2 import WebifyLogger, Terminal, mustache_renderer, jinja2_renderer, RenderingContext, render, save_to_file, get_gitinfo
 import pystache
 
 from globals import __version__
@@ -85,7 +85,7 @@ class MDfile:
     html-vid: None* | file
     html-vids: None* | file
 
-    templating: jinja | mustache*
+    renderer: jinja | mustache*
 
     bibliography: None* | path/to/bib file
 
@@ -124,7 +124,7 @@ class MDfile:
             print('Extras:')
             pp.pprint(self.extras)
             print('Rendering context:')
-#            pp.pprint(self.rc.get())
+            pp.pprint(self.rc.get())
 
         self.supported_output_formats = [ 'html',
                                           'beamer',
@@ -186,7 +186,7 @@ class MDfile:
             self.logger.debug('Preprocessing Yaml front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
-                s = mustache_render(yaml_str, self.rc.data())
+                s = mustache_renderer(yaml_str, self.rc.data())
                 self.set_yaml(yaml.load(s))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
@@ -219,6 +219,7 @@ class MDfile:
 
         cwd = os.getcwd()
         os.chdir(self.rootdir)
+    
         try:
             ret_val = pypandoc.convert_text(self.buffer, to=output_format, format='md', outputfile=output_filepath, extra_args=pandoc_args)
             ret_val = output_filepath if output_filepath else ret_val
@@ -262,7 +263,7 @@ class MDfile:
             return True
 
     def convert(self):
-        files = []
+        files = [self.filepath]
         pdoc_args = PandocArguments()
         using_renderfile = False
 
@@ -325,7 +326,7 @@ class MDfile:
         if self.get_preprocess_mustache():
             self.logger.info('Preprocess mustache YES')
             #print (self.rc.data())
-            self.buffer = mustache_render(self.buffer, self.rc.data())
+            self.buffer = mustache_renderer(self.buffer, self.rc.data())
         else:
             self.logger.info('Preprocess mustache NO')
 
@@ -346,7 +347,13 @@ class MDfile:
             else:
                 self.logger.info('Using render file YES')
                 self.rc.add({'body': r[1]})
-                buffer = render(render_file, self.rc.data(), mustache_render)
+                if self.get_renderer() == 'mustache':
+                    render_engine = mustache_renderer
+                    self.logger.info('Using renderer: mustache')
+                else:
+                    render_engine = jinja2_renderer
+                    self.logger.info('Using renderer: jinja2')
+                buffer = render(render_file, self.rc.data(), render_engine)
                 self.logger.debug('Saving to output file: %s' % output_filepath)
                 if save_to_file(output_filepath, buffer):
                     return 'file', output_filepath, self.filepath
@@ -381,7 +388,7 @@ class MDfile:
         if output_filepath and not os.path.isfile(output_filepath): return True
 
         for f in files:
-            if os.path.isfile(f) and os.path.getmtime(f) < os.path.getmtime(self.filepath):
+            if os.path.isfile(f) and os.path.getmtime(f) > os.path.getmtime(output_filepath):
                 return True
         if output_filepath and os.path.isfile(output_filepath) and os.path.getmtime(output_filepath) < os.path.getmtime(self.filepath):
             return True
@@ -539,12 +546,12 @@ class MDfile:
                     f[i].append(file)
         return f
 
-    def get_templating(self):
+    def get_renderer(self):
         assert(self.buffer)
 
         try:
-            value = self.yaml['templating']
-            if not value in ['mustache', 'jinja']:
+            value = self.yaml['renderer']
+            if not value in ['mustache', 'jinja2']:
                 self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (value, self.filepath))
                 return 'mustache'
             return value
@@ -584,7 +591,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--no-output-file', action='store_true', default=False, help='Use this flag to turn off creating an output file.')
     cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
     cmdline_parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
-    cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Prints file contents.')
+    cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
+    cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
     cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
     cmdline_parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file.')
     cmdline_parser.add_argument('-H','--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
@@ -609,6 +617,8 @@ if __name__ == '__main__':
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
+    loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
+    loglevel = logging.DEBUG if cmdline_args.debug_render   else loglevel
     WebifyLogger.make(name='render', loglevel=loglevel, logfile=logfile)
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug_file   else loglevel
@@ -668,8 +678,8 @@ if __name__ == '__main__':
 
     meta_data = {
         '__version__': __version__,
-        '__filepath__': filepath,
-        '__rootdir__': file_dir
+        '__filepath__': filepath.replace('\\','\\\\'),
+        '__rootdir__': file_dir.replace('\\','\\\\')
     }
     rc = RenderingContext()
     rc.push()

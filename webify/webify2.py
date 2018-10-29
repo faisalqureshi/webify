@@ -347,12 +347,12 @@ if __name__ == '__main__':
     
     meta_data = {
         'prog_name': prog_name,
-        'prog_dir': prog_dir,
-        'cur_dir': cur_dir,
-        'src_dir': cmdline_args.srcdir,
-        'dest_dir': cmdline_args.destdir,
+        'prog_dir': prog_dir.replace('\\','\\\\'),
+        'cur_dir': cur_dir.replace('\\','\\\\'),
+        'src_dir': cmdline_args.srcdir.replace('\\','\\\\'),
+        'dest_dir': cmdline_args.destdir.replace('\\','\\\\'),
         '__version__': __version__,
-        'root': os.path.abspath(cmdline_args.srcdir),
+        'root': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
     }
     
