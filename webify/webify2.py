@@ -3,7 +3,7 @@ import pprint as pp
 import sys
 import logging
 import os
-from util2 import get_gitinfo, make_directory, mustache_render, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
+from util2 import get_gitinfo, make_directory, mustache_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
 from mdfile2 import MDfile
 import pypandoc
 import pystache
@@ -149,7 +149,7 @@ class Webify:
             for i in dir.partials.files['html']:
                 html_file = HTMLfile(filepath=os.path.join(dir.partials.get_fullpath(), i))
                 buffer = html_file.load().get_buffer()
-                rendered_buf = mustache_render(template=buffer, context=self.rc.data())
+                rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
                 data[i.replace('.','_')] = rendered_buf
 
             if len(dir.partials.files['md']) > 0:
@@ -167,8 +167,8 @@ class Webify:
                 if not ret_type == 'buffer':
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
                 else:
-                    rendered_buf = mustache_render(template=buffer, context=self.rc.data())
-                    data[i.replace('.','_')] = rendered_buf
+                    #rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
+                    data[i.replace('.','_')] = buffer
             self.logger.info('Done processing folder %s' % dir.partials.get_fullpath())
             self.rc.pop()            
             self.rc.add(data)
@@ -196,6 +196,7 @@ class Webify:
             self.rc.print()
         
         self.rc.push()
+        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})        
 
     def proc_html(self, dir):
         if len(dir.files['html']) > 0:
@@ -207,7 +208,7 @@ class Webify:
             dest_file = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
             html_file = HTMLfile(filepath=os.path.join(dir.get_fullpath(), i))
             buffer = html_file.load().get_buffer()
-            rendered_buf = mustache_render(template=buffer, context=self.rc.data())
+            rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
             self.logger.info('Saving %s' % dest_file)
             save_to_file(dest_file, rendered_buf)
 
@@ -219,12 +220,13 @@ class Webify:
 
         extras = { 'ignore-times': ignore_times }
         for i in dir.files['md']:
-            self.rc.push()
             filepath =  os.path.join(dir.get_fullpath(), i)
             dest_filepath = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
             extras['output-file'] = os.path.splitext(dest_filepath)[0]
             self.logger.info('Processing MD file: %s' % filepath)
+            self.rc.push() 
             md_file = MDfile(filepath=filepath, rootdir=dir.get_fullpath(), extras=extras, rc=self.rc)
+            self.rc.pop()
             self.logger.debug('Saving %s' % extras['output-file'])
             ret_type, saved_file, _ = md_file.load().get_buffer()
             if ret_type == 'file':
@@ -233,7 +235,6 @@ class Webify:
                 self.logger.info('Already exists %s' % filepath)
             else:
                 self.logger.warning('Error processing %s' % filepath)
-            self.rc.pop()
 
     def proc_misc(self, dir):
         if len(dir.files['misc']) > 0:
@@ -352,7 +353,7 @@ if __name__ == '__main__':
         'src_dir': cmdline_args.srcdir.replace('\\','\\\\'),
         'dest_dir': cmdline_args.destdir.replace('\\','\\\\'),
         '__version__': __version__,
-        'root': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
+        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
     }
     

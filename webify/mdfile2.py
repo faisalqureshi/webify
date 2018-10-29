@@ -269,6 +269,8 @@ class MDfile:
 
         render_file = self.get_renderfile()
         template_file = self.get_template()
+
+        # The plan is to create an output file
         if self.is_create_outputfile():
             self.logger.info('Create output file YES')
             output_filepath = self.make_output_filepath()
@@ -285,12 +287,14 @@ class MDfile:
                     self.logger.info('Using pandoc template file: %s' % template_file)
                     pdoc_args.add('template', template_file)
                     files.append(template_file)
+        # We don't plan to create an output file
         else:
             self.logger.info('Create output file NO')
             output_filepath = None
             if render_file: self.logger.warning('Ignoring renderfile file: %s' % render_file)
             if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template_file)
 
+        # Lets get the bib and csl files
         bib_file = self.get_bibfile()
         self.logger.debug('Bibliography: %s' % bib_file)
         if bib_file:
@@ -303,6 +307,7 @@ class MDfile:
             files.append(csl_file)
             pdoc_args.add('csl', csl_file)
 
+        # Get pandoc include files
         include_files = self.get_pandoc_include_files()
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
@@ -314,6 +319,8 @@ class MDfile:
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
+        # See if any of the sources are newer than the output,
+        # if output exists
         if self.needs_compilation(files, output_filepath):
             self.logger.debug('Needs compilation YES')
         else:
@@ -321,47 +328,76 @@ class MDfile:
             self.logger.warning('Doesn\'t need to do anything.  Output already exists: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
+        # So it seems that we will have to do the real work
         pdoc_args.add('highlight-style', self.get_highlighter())
 
+        # See if we need to preprocess the mdfile using mustache templating
+        # If we have to then lets get on with it.        
         if self.get_preprocess_mustache():
             self.logger.info('Preprocess mustache YES')
-            #print (self.rc.data())
             self.buffer = mustache_renderer(self.buffer, self.rc.data())
         else:
             self.logger.info('Preprocess mustache NO')
 
+        # Now we need to use pandoc to transform the "preprocessed"
+        # md file to one of three output formats: 1) html,
+        # 2) latex, or 3) beamer
+        # We set the options accordingly
         if self.get_output_format() == 'html':
             pdoc_args.add_flag('mathjax')
             pdoc_args.add('css', self.get_cssfiles())
         elif self.get_output_format() in ['pdf', 'beamer', 'latex']:
             pdoc_args.add_var('graphics','true')
 
+        # If we were supposed to create an output file
+        # and no renderfile is specified.  This case is rather
+        # straightforward.  Pandoc can create the output file
+        # for us.  
         if self.is_create_outputfile() and not using_renderfile:
             return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
-        else:
-            assert(self.get_output_format() == 'html')
-            r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
-            if not using_renderfile:
-                self.logger.info('Using render file NO')
-                return r
-            else:
-                self.logger.info('Using render file YES')
-                self.rc.add({'body': r[1]})
-                if self.get_renderer() == 'mustache':
-                    render_engine = mustache_renderer
-                    self.logger.info('Using renderer: mustache')
-                else:
-                    render_engine = jinja2_renderer
-                    self.logger.info('Using renderer: jinja2')
-                buffer = render(render_file, self.rc.data(), render_engine)
-                self.logger.debug('Saving to output file: %s' % output_filepath)
-                if save_to_file(output_filepath, buffer):
-                    return 'file', output_filepath, self.filepath
-                else:
-                    self.logger.warning('Error saving to output file: %s' % output_filepath)
-                    return 'error', output_filepath, self.filepath
+        
+        # We are left with the following choices.  We are not
+        # supposed to create an output file.  Or we are 
+        # supposed to create an output file using the
+        # render file.  In the later case the html contents from 
+        # the md file will replace the {{body}} tag of the template.
 
-        exit(0)
+        # First, lets ensure that the output format is html
+        assert(self.get_output_format() == 'html')
+
+        # Next lets use pandoc to get md to html
+        r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
+
+        # Case 1: If a render file is not specified.  It means that the intention is not
+        # to create a output file.  Return the buffer. 
+        if not using_renderfile:
+            self.logger.info('Using render file NO')
+            return r
+
+        # Case 2: A render file is specified.  We need will use the 
+        # render file to create the output file.
+        self.logger.info('Using render file YES')
+        self.rc.add({'body': r[1]})
+
+        # Lets find the renderer that we plan to use.  We have
+        # two options: mustache or jinja2
+        if self.get_renderer() == 'mustache':
+            render_engine = mustache_renderer
+            self.logger.info('Using renderer: mustache')
+        else:
+            render_engine = jinja2_renderer
+            self.logger.info('Using renderer: jinja2')
+
+        # Render and save to the output file
+        buffer = render(render_file, self.rc.data(), render_engine)
+        self.logger.debug('Saving to output file: %s' % output_filepath)
+        if save_to_file(output_filepath, buffer):
+            return 'file', output_filepath, self.filepath
+        else:
+            self.logger.warning('Error saving to output file: %s' % output_filepath)
+            return 'error', output_filepath, self.filepath
+
+
 
         # if to_format == 'html':
         #     apply_hf, hf = self.get_html_filter()
