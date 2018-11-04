@@ -345,3 +345,21 @@ class IgnoreList:
         if self.spec:
             return self.spec.match_file(filepath)
         return False
+
+
+from file_processor import CopyFile, JupyterNotebook
+    
+def process_file(filepath, dest_filepath, ignore_times):
+    _, ext = os.path.splitext(filepath)
+
+    processor = make_file_processor(ext)
+    return processor(filepath, dest_filepath, ignore_times)
+    
+def make_file_processor(ext):
+    if ext == '.ipynb':
+        return JupyterNotebook
+    else:
+        return CopyFile
+
+    
+        

@@ -3,7 +3,7 @@ import pprint as pp
 import sys
 import logging
 import os
-from util2 import get_gitinfo, make_directory, mustache_renderer, jinja2_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
+from util2 import get_gitinfo, make_directory, mustache_renderer, jinja2_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, process_file
 from mdfile2 import MDfile
 import pypandoc
 import pystache
@@ -212,12 +212,12 @@ class Webify:
             self.logger.info('No HTML files found')
                 
         for i in dir.files['html']:
-            dest_file = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
-            html_file = HTMLfile(filepath=os.path.join(dir.get_fullpath(), i))
+            filepath, dest_filepath = self.get_src_and_dest(dir, i)
+            html_file = HTMLfile(filepath)
             buffer = html_file.load().get_buffer()
             rendered_buf = self.render(template=buffer, context=self.rc.data())
-            self.logger.info('Saving %s' % dest_file)
-            save_to_file(dest_file, rendered_buf)
+            self.logger.info('Saving %s' % dest_filepath)
+            save_to_file(dest_filepath, rendered_buf)
 
     def proc_md(self, dir):
         if len(dir.files['md']) > 0:
@@ -227,8 +227,7 @@ class Webify:
 
         extras = { 'ignore-times': ignore_times }
         for i in dir.files['md']:
-            filepath =  os.path.join(dir.get_fullpath(), i)
-            dest_filepath = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
+            filepath, dest_filepath = self.get_src_and_dest(dir, i)
             extras['output-file'] = os.path.splitext(dest_filepath)[0]
             self.logger.info('Processing MD file: %s' % filepath)
             self.rc.push() 
@@ -243,6 +242,11 @@ class Webify:
             else:
                 self.logger.warning('Error processing %s' % filepath)
 
+    def get_src_and_dest(self, dir, i):
+        filepath =  os.path.join(dir.get_fullpath(), i)
+        dest_filepath = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
+        return filepath, dest_filepath  
+                
     def proc_misc(self, dir):
         if len(dir.files['misc']) > 0:
             self.logger.info('Processing all other files...')
@@ -250,13 +254,9 @@ class Webify:
             self.logger.info('No other files found')
 
         for i in dir.files['misc']:
-            filepath =  os.path.join(dir.get_fullpath(), i)
-            dest_filepath = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
-            r = copy_file(filepath, dest_filepath, ignore_times)
-            if r == 'Failed':
-                self.logger.warning('%s %s' % (r, dest_filepath))
-            else:
-                self.logger.info('%s %s' % (r, dest_filepath))
+            filepath, dest_filepath = self.get_src_and_dest(dir, i)
+            self.logger.info('Processing %s' % filepath)
+            r = process_file(filepath, dest_filepath, ignore_times)
             
     def proc_dir(self, dir):
         self.proc_yaml(dir)
