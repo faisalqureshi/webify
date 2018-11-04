@@ -13,6 +13,8 @@ Pystache:   0.5.4
 Json:       2.0.9
 Pathspec:   0.5.9
 
+This version of webify supports both mustache and jinja2 templating.
+
 ## Webify < 3.0 (Uses Python 2.7)
 
 ### Minimal Installation using Miniconda
