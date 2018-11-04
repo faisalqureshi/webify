@@ -8,6 +8,7 @@ import sys
 import pprint as pp
 from util2 import WebifyLogger, Terminal, mustache_renderer, jinja2_renderer, RenderingContext, render, save_to_file, get_gitinfo
 import pystache
+import markupsafe
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -112,6 +113,8 @@ class MDfile:
     set preprocess-mustache to true.  The default is false.
     """
     def __init__(self, filepath, rootdir, extras, rc):
+
+        # Initialize the md object
         self.logger = WebifyLogger.get('mdfile')
         self.filepath = filepath
         self.rootdir = rootdir
@@ -126,6 +129,7 @@ class MDfile:
             print('Rendering context:')
             pp.pprint(self.rc.get())
 
+        # We only support the following conversions
         self.supported_output_formats = [ 'html',
                                           'beamer',
                                           'pdf',
@@ -134,6 +138,8 @@ class MDfile:
                             'beamer': 'pdf',
                             'pdf':    'pdf',
                             'latex':  'tex' }
+
+        # This is an incomplete list of keys that can be found in a yaml frontmatter
         self.supported_keys = [ 'standalone',
                                 'to',
                                 'template',
@@ -155,6 +161,7 @@ class MDfile:
         logger = WebifyLogger.get('file-debug')
         self.yaml = {}
 
+        # Read the file in to a buffer
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
@@ -164,6 +171,7 @@ class MDfile:
             self.buffer = None
             return self
 
+        # Try to get the first yaml section from the file
         try:
             yamlsections = yaml.load_all(self.buffer)
             for section in yamlsections:
@@ -178,12 +186,16 @@ class MDfile:
         except:
             pass
 
+        # If yaml section found, good.  If not create a {} yaml section.
         if not isinstance(self.yaml, dict):
             logger.warning('YAML section not found in md file: %s' % self.filepath)
             self.yaml = {}
 
+        # If we want to preprocess the file using mustache renderer then do it
+        # here.  This allows us to change the yaml frontmatter based upon the
+        # larger rendering context.  Cool, eh. 
         if self.get_preprocess_mustache():
-            self.logger.debug('Preprocessing Yaml front matter via mustache')
+            self.logger.info('Preprocessing Yaml front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
                 s = mustache_renderer(yaml_str, self.rc.data())
@@ -198,6 +210,7 @@ class MDfile:
                 print('YAML frontmatter after pre-processing:')
                 pp.pprint(self.yaml)
 
+        # Update the rendering context for this file
         self.rc.add(self.get_yaml())
         return self
 
@@ -225,12 +238,14 @@ class MDfile:
             ret_val = output_filepath if output_filepath else ret_val
             self.logger.debug('Converted to "%s": %s' % (output_format, output_filepath))
             ret = ret_type, ret_val, self.filepath
-        except:
+        except Exception as e:
             self.logger.error('Pandoc conversion failed\n\t - filename: %s' % self.filepath)
             self.logger.error('\t - output format: %s' % output_format)
             self.logger.error('\t - args:          %s' % pandoc_args)
             self.logger.error('\t - outputfile:    %s' % output_filepath)
             self.logger.error('\t - rootdir:       %s' % self.rootdir)
+            self.logger.error('--- Pandoc says ---\n\n%s\n---' % e)
+            
             ret = 'error', 'Conversion', self.filepath
         os.chdir(cwd)
 
@@ -241,15 +256,16 @@ class MDfile:
         assert(output_file)
         output_format = self.get_output_format()
 
-        if not output_file:
-            output_file = os.path.splitext(self.filepath)[0]
-
         oname, oextension = os.path.splitext(output_file)
         if oextension == '':
             output_file = oname + '.' + self.extensions[output_format]
         elif oextension[1:] != self.extensions[output_format]:
-            self.logger.warning('Overriding output file extension\n\t - filename: %s\n\t - output:   %s [%s]' % (self.filepath, output_file, self.extensions[output_format]))
-            output_file = oname + '.' + self.extensions[output_format]
+            if oextension != '._mdfile_tmp':
+                self.logger.warning('Illegal file extension\n\t - filename: %s\n\t - output:   %s' % (self.filepath, output_file))
+                self.logger.warning('Correct extension is: %s' % self.extensions[output_format])
+                return None
+            else:
+                output_file = oname + '.' + self.extensions[output_format]
         else:
             pass
         self.logger.debug('Output file: %s' % output_file)
@@ -274,6 +290,9 @@ class MDfile:
         if self.is_create_outputfile():
             self.logger.info('Create output file YES')
             output_filepath = self.make_output_filepath()
+            if not output_filepath:
+                return 'error', 'Illegal output filename', self.filepath
+            
             if render_file:
                 self.logger.info('Renderfile found: %s' % render_file)
                 if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template)
@@ -334,8 +353,11 @@ class MDfile:
         # See if we need to preprocess the mdfile using mustache templating
         # If we have to then lets get on with it.        
         if self.get_preprocess_mustache():
-            self.logger.info('Preprocess mustache YES')
-            self.buffer = mustache_renderer(self.buffer, self.rc.data())
+            if self.get_output_format() == 'html':
+                self.logger.info('Preprocess mustache YES')
+                self.buffer = mustache_renderer(self.buffer, self.rc.data())
+            else:
+                self.logger.warning('Preprocess mustache is only allowed for md to html conversion.')
         else:
             self.logger.info('Preprocess mustache NO')
 
@@ -377,7 +399,7 @@ class MDfile:
         # Case 2: A render file is specified.  We need will use the 
         # render file to create the output file.
         self.logger.info('Using render file YES')
-        self.rc.add({'body': r[1]})
+        self.rc.add({'body': markupsafe.Markup(r[1])})
 
         # Lets find the renderer that we plan to use.  We have
         # two options: mustache or jinja2
@@ -504,7 +526,7 @@ class MDfile:
         assert(self.buffer)
 
         try:
-            if self.extras['preprocess-mustache']:
+            if not self.extras['preprocess-mustache'] is None:
                 return self.extras['preprocess-mustache']
         except:
             pass
@@ -633,12 +655,12 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file.')
     cmdline_parser.add_argument('-H','--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
     cmdline_parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file.')
-    cmdline_parser.add_argument('-s','--css', nargs='*', action='append', help='Space separated list of css files.')
+    cmdline_parser.add_argument('-s','--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
     cmdline_parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
     cmdline_parser.add_argument('-k','--highlighter', action='store', default=None, help='Specify a highlighter.  See pandoc --list-highlight-styles.')
     cmdline_parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
-    cmdline_parser.add_argument('-p', '--preprocess-mustache', action='store_true', default=False, help='Pre-processes md file using mustache before converting via pandoc.')
+    cmdline_parser.add_argument('-p', '--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
     cmdline_args = cmdline_parser.parse_args()
 
@@ -661,32 +683,33 @@ if __name__ == '__main__':
     WebifyLogger.make(name='file-debug', loglevel=loglevel, logfile=logfile)
     
     # Go
-    logger.info('Prog name:    %s' % prog_name)
-    logger.info('Prog dir:     %s' % prog_dir)
-    logger.info('Current dir:  %s' % cur_dir)
-    logger.info('Info:')
-    logger.info(version_info())
+    logger.debug('Prog name:    %s' % prog_name)
+    logger.debug('Prog dir:     %s' % prog_dir)
+    logger.debug('Current dir:  %s' % cur_dir)
+    logger.debug('Info:')
+    logger.debug(version_info())
 
     if WebifyLogger.is_debug(logger):
         print('Commandline arguments:')
-        print('--format:             ', cmdline_args.format)
-        print('--template:           ', template)
-        print('--no-output-file:     ', cmdline_args.no_output_file)
-        print('--include-in-header:  ', include_in_header)
-        print('--bibliography:       ', bibliography)
-        print('--css:                ', css_files)
-        print('--csl:                ', csl)
-        print('--highlighter:        ', cmdline_args.highlighter)
-        print('--preprocess-mustache:', cmdline_args.preprocess_mustache)
-        print('--ignore-times:       ', cmdline_args.ignore_times)
-        print('--output:             ', cmdline_args.output)
+        print('--format:                    ', cmdline_args.format)
+        print('--template:                  ', template)
+        print('--no-output-file:            ', cmdline_args.no_output_file)
+        print('--include-in-header:         ', include_in_header)
+        print('--bibliography:              ', bibliography)
+        print('--css:                       ', css_files)
+        print('--csl:                       ', csl)
+        print('--highlighter:               ', cmdline_args.highlighter)
+        print('--do-not-preprocess-mustache:', cmdline_args.do_not_preprocess_mustache)
+        print('--ignore-times:              ', cmdline_args.ignore_times)
+        print('--output:                    ', cmdline_args.output)
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
     filename = os.path.basename(filepath)
     file_dir = os.path.split(filepath)[0]
-    output_filename = cmdline_args.output if cmdline_args.output else os.path.splitext(filename)[0]
+    temporary_output_filename = os.path.splitext(filename)[0]+'._mdfile_tmp'
+    output_filename = cmdline_args.output if cmdline_args.output else temporary_output_filename 
     if os.path.isdir(output_filename):
-        output_filepath = os.path.normpath(os.path.join(output_filename, filename))
+        output_filepath = os.path.normpath(os.path.join(output_filename, temporary_output_filename))
     else:
         output_filepath = os.path.normpath(os.path.join(cur_dir, output_filename))
 
@@ -696,8 +719,6 @@ if __name__ == '__main__':
         logger.debug('file_dir:        %s' % file_dir)
         logger.debug('output_filename: %s' % output_filename)
         logger.debug('output_filepath: %s' % output_filepath)
-    else:
-        logger.info('Input file:  %s' % cmdline_args.mdfile)
 
     extras = { 'format': cmdline_args.format,
                'template': template,
@@ -706,7 +727,7 @@ if __name__ == '__main__':
                'csl': csl,
                'highlighter': cmdline_args.highlighter,
                'ignore-times': cmdline_args.ignore_times,
-               'preprocess-mustache': cmdline_args.preprocess_mustache,
+               'preprocess-mustache': not cmdline_args.do_not_preprocess_mustache,
                'include-in-header': include_in_header,
                'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,

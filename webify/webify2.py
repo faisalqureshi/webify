@@ -3,13 +3,14 @@ import pprint as pp
 import sys
 import logging
 import os
-from util2 import get_gitinfo, make_directory, mustache_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
+from util2 import get_gitinfo, make_directory, mustache_renderer, jinja2_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, copy_file
 from mdfile2 import MDfile
 import pypandoc
 import pystache
 import yaml
 import pathspec
 import datetime
+import markupsafe
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -68,7 +69,6 @@ class DirTree:
 
             self.logger.debug('Collecting directory %s' % cur_dir_node.get_fullpath())
             for entry in os.scandir(cur_dir_node.get_fullpath()):
-                #print('nn')
                 if ignore and ignore.ignore(entry.name):
                     self.logger.debug('Ignoring          : %s' % entry.name)
                     continue
@@ -103,7 +103,14 @@ class Webify:
         self.ignore = IgnoreList()
         self.dir_tree = DirTree()
 
+    def set_templating_engine(self):
+        if self.meta_data['templating-engine'] == 'jinja2':
+            self.render = jinja2_renderer
+        else:
+            self.render = mustache_renderer
+        
     def set_src(self, srcdir, meta_data):
+        self.meta_data = meta_data
         self.srcdir = os.path.abspath(srcdir)
         if not os.path.isdir(self.srcdir):
             self.logger.critical('Source folder not found: %s' % srcdir)
@@ -113,6 +120,7 @@ class Webify:
             self.logger.info('Source folder found: %s' % srcdir)
             self.ignore.read_ignore_file(os.path.join(srcdir, ignorefile))
 
+        self.set_templating_engine()            
         self.rc.push()
         self.rc.add(meta_data)
 
@@ -149,8 +157,8 @@ class Webify:
             for i in dir.partials.files['html']:
                 html_file = HTMLfile(filepath=os.path.join(dir.partials.get_fullpath(), i))
                 buffer = html_file.load().get_buffer()
-                rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
-                data[i.replace('.','_')] = rendered_buf
+                rendered_buf = self.render(template=buffer, context=self.rc.data())
+                data[i.replace('.','_')] = markupsafe.Markup(rendered_buf)
 
             if len(dir.partials.files['md']) > 0:
                 self.logger.info('Processing  MD files...')
@@ -167,8 +175,7 @@ class Webify:
                 if not ret_type == 'buffer':
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
                 else:
-                    #rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
-                    data[i.replace('.','_')] = buffer
+                    data[i.replace('.','_')] = markupsafe.Markup(buffer)
             self.logger.info('Done processing folder %s' % dir.partials.get_fullpath())
             self.rc.pop()            
             self.rc.add(data)
@@ -208,7 +215,7 @@ class Webify:
             dest_file = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name, i))
             html_file = HTMLfile(filepath=os.path.join(dir.get_fullpath(), i))
             buffer = html_file.load().get_buffer()
-            rendered_buf = mustache_renderer(template=buffer, context=self.rc.data())
+            rendered_buf = self.render(template=buffer, context=self.rc.data())
             self.logger.info('Saving %s' % dest_file)
             save_to_file(dest_file, rendered_buf)
 
@@ -254,6 +261,9 @@ class Webify:
     def proc_dir(self, dir):
         self.proc_yaml(dir)
         self.proc_partials(dir)
+
+        # print(self.rc.data()['header-bootstrap4_html'])
+        # print(self.rc.data()['nav_html'])
 
         logger_rc =  WebifyLogger.get('rc')
         if WebifyLogger.is_debug(logger_rc):
@@ -318,9 +328,11 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
+    cmdline_parser.add_argument('-t', '--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
+    
     cmdline_args = cmdline_parser.parse_args()
     ignore_times = cmdline_args.ignore_times
-
+    
     # Setting up logging
     logfile = None if not cmdline_args.log else logfile
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
@@ -339,12 +351,18 @@ if __name__ == '__main__':
     l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
     WebifyLogger.make(name='mdfile', loglevel=l, logfile=logfile)
 
+    # Check
+    if not cmdline_args.templating_engine in ['mustache', 'jinja2']:
+        logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateing_engine)
+        exit(-4)
+        
     # Go        
     logger.info('Prog name:    %s' % prog_name)
     logger.info('Prog dir:     %s' % prog_dir)
     logger.info('Current dir:  %s' % cur_dir)
     logger.info('Info:')
     logger.info(version_info())
+    logger.info('Using "%s" templating engine' % cmdline_args.templating_engine)
     
     meta_data = {
         'prog_name': prog_name,
@@ -354,7 +372,8 @@ if __name__ == '__main__':
         'dest_dir': cmdline_args.destdir.replace('\\','\\\\'),
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
-        'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'templating-engine': cmdline_args.templating_engine
     }
     
     if WebifyLogger.is_debug(logger):

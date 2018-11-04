@@ -13,6 +13,7 @@ import shutil
 import filecmp
 import pypandoc
 from jinja2 import Template
+import jinja2
 
 def md_filter(str):
     try:
@@ -110,27 +111,29 @@ def render(filepath, context, renderer):
 def jinja2_renderer(template, context):
     logger = WebifyLogger.get('render')
 
-    if WebifyLogger.is_debug(logger):
-        print('Template:')  
-        print(template)
-        print('Context:')
-        pp.pprint(context)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Template:')  
+    #     print(template)
+    #     print('Context:')
+    #     pp.pprint(context)
+
+    #rendered_buf = Template(template).render(context)
 
     try:
         rendered_buf = Template(template).render(context)
         logger.debug('Success jinja2 render')
-    except:
-        logger.warning('Error jinja2 render')
-        if WebifyLogger.is_debug(logger):
+    except jinja2.exceptions.TemplateSyntaxError as e:
+        logger.warning('Error jinja2 render %s' % e)
+        if WebifyLogger.is_debug(logger) or True:
             print('Template:')
             print(template)
-            print('Context:')
-            pp.pprint(context)
+            #print('Context:')
+            #pp.pprint(context)
         rendered_buf = template
 
-    if WebifyLogger.is_debug(logger):
-        print('Rendered Buf')
-        print(rendered_buf)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Rendered Buf')
+    #     print(rendered_buf)
 
     return rendered_buf
 
