@@ -9,6 +9,7 @@ import pprint as pp
 from util2 import WebifyLogger, Terminal, mustache_renderer, jinja2_renderer, RenderingContext, render, save_to_file, get_gitinfo
 import pystache
 import markupsafe
+from mdfilters import HTML_Filter
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -338,6 +339,10 @@ class MDfile:
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
+        hf, hf_file_list = self.get_html_filters()
+        if len(hf_file_list) > 0:
+            files.extend(hf_file_list)
+        
         # See if any of the sources are newer than the output,
         # if output exists
         if self.needs_compilation(files, output_filepath):
@@ -355,11 +360,19 @@ class MDfile:
         if self.get_preprocess_mustache():
             if self.get_output_format() == 'html':
                 self.logger.info('Preprocess mustache YES')
+
+                if len(hf_file_list) > 0:
+                    self.logger.info('Applying HTML filter')
+                    f = HTML_Filter(hf)
+                    self.buffer = f.apply(self.buffer)
+                
                 self.buffer = mustache_renderer(self.buffer, self.rc.data())
             else:
                 self.logger.warning('Preprocess mustache is only allowed for md to html conversion.')
         else:
             self.logger.info('Preprocess mustache NO')
+            if len(hf_file_list) > 0:
+                self.logger.warning('HTML Filters are only applied when preprocess mustache is ON.')
 
         # Now we need to use pandoc to transform the "preprocessed"
         # md file to one of three output formats: 1) html,
@@ -387,6 +400,26 @@ class MDfile:
         # First, lets ensure that the output format is html
         assert(self.get_output_format() == 'html')
 
+        # Lets apply the HTML filters
+#        apply_hf, hf = self.get_html_filters()
+        #if apply_hf:
+        #         for k in hf.keys():
+        #             if hf[k]:
+        #                 self.files[k] = hf[k]
+
+        #     if not self.needs_compilation(use_cache, outputfile):
+        #         self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
+        #         return 'file', outputfile
+
+        #     if apply_hf:
+        #         f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile, self.filepath)
+        #         try:
+        #             self.buffer = f.apply(self.filepath, self.rootdir, self.buffer)
+        #         except:
+        #             self.logger.warning('HTML filters failed. \n\t - %s' % self.filepath)
+
+
+        
         # Next lets use pandoc to get md to html
         r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
 
@@ -419,28 +452,6 @@ class MDfile:
             self.logger.warning('Error saving to output file: %s' % output_filepath)
             return 'error', output_filepath, self.filepath
 
-
-
-        # if to_format == 'html':
-        #     apply_hf, hf = self.get_html_filter()
-        #     if apply_hf:
-        #         for k in hf.keys():
-        #             if hf[k]:
-        #                 self.files[k] = hf[k]
-
-        #     if not self.needs_compilation(use_cache, outputfile):
-        #         self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
-        #         return 'file', outputfile
-
-        #     if apply_hf:
-        #         f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile, self.filepath)
-        #         try:
-        #             self.buffer = f.apply(self.filepath, self.rootdir, self.buffer)
-        #         except:
-        #             self.logger.warning('HTML filters failed. \n\t - %s' % self.filepath)
-
-
-
     def needs_compilation(self, files, output_filepath):
         if not output_filepath or self.extras['ignore-times']: return True
         if output_filepath and not os.path.isfile(output_filepath): return True
@@ -472,41 +483,20 @@ class MDfile:
         #print(data)
         self.yaml = data
 
-    def get_html_filter(self):
-        assert(self.buffer)
-
+    def get_html_filters(self):
+        file_list = []
         hf = {'html-img': None, 'html-imgs': None, 'html-vid': None, 'html-vids': None}
 
-        try:
-            hf['html-img'] = self.yaml['html-img']
-            if hf['html-img'] != None:
-                hf['html-img'] = self.get_abs_path(hf['html-img'])
-        except:
-            pass
-
-        try:
-            hf['html-imgs'] = self.yaml['html-imgs']
-            if hf['html-imgs'] != None:
-                hf['html-imgs'] = self.get_abs_path(hf['html-imgs'])
-        except:
-            pass
-
-        try:
-            hf['html-vid'] = self.yaml['html-vid']
-            if hf['html-vid'] != None:
-                hf['html-vid'] = self.get_abs_path(hf['html-vid'])
-        except:
-            pass
-
-        try:
-            hf['html-vids'] = self.yaml['html-vids']
-            if hf['html-vids'] != None:
-                hf['html-vids'] = self.get_abs_path(hf['html-vids'])
-        except:
-            pass
-
-        use = not (hf['html-img']==None and hf['html-imgs']==None and hf['html-vid']==None and hf['html-vids']==None)
-        return use, hf
+        for key in hf.keys():
+            if key in self.yaml.keys():
+                f = os.path.normpath(os.path.join(self.rootdir, self.yaml[key]))
+                if os.path.isfile(f):
+                    hf[key] = f
+                    file_list.append(f)
+                    self.logger.info('Found HTML filter file: %s found in %s' % (f, self.filepath))
+                else:
+                    self.logger.warning('Ignoring HTML filter file: %s found in %s' % (f, self.filepath))
+        return hf, file_list
 
     def get_output_format(self):
         assert(self.buffer)
