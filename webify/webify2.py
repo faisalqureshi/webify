@@ -69,7 +69,9 @@ class DirTree:
 
             self.logger.debug('Collecting directory %s' % cur_dir_node.get_fullpath())
             for entry in os.scandir(cur_dir_node.get_fullpath()):
-                if ignore and ignore.ignore(entry.name):
+                self.logger.debug('Found entry %s %s' % (cur_dir_node.get_fullpath(), entry.name))
+
+                if ignore and ignore.ignore(cur_dir_node.get_fullpath(), entry.name, entry.is_dir()):
                     self.logger.debug('Ignoring          : %s' % entry.name)
                     continue
                 
@@ -100,7 +102,7 @@ class Webify:
     def __init__(self):
         self.logger = WebifyLogger.get('webify')
         self.rc = RenderingContext()
-        self.ignore = IgnoreList()
+        self.ignore = None
         self.dir_tree = DirTree()
 
     def set_templating_engine(self):
@@ -118,7 +120,8 @@ class Webify:
             raise ValueError('Error source folder')
         else:
             self.logger.info('Source folder found: %s' % srcdir)
-            self.ignore.read_ignore_file(os.path.join(srcdir, ignorefile))
+            self.ignore = IgnoreList(srcdir=self.srcdir)
+            self.ignore.read_ignore_file(os.path.abspath(os.path.join(srcdir, ignorefile)))
 
         self.set_templating_engine()            
         self.rc.push()
@@ -281,7 +284,6 @@ class Webify:
         self.proc_md(dir)
         self.proc_misc(dir)
             
-            
     def leave_dir(self, dir):
         self.rc.pop()
         logger_rc =  WebifyLogger.get('rc')
@@ -323,6 +325,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-d','--debug',action='store_true',default=False,help='Turns on (global) debug messages')
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
     cmdline_parser.add_argument('--debug-db',action='store_true',default=False,help='Turns on file database debug messages')
+    cmdline_parser.add_argument('--debug-db-ignore',action='store_true',default=False,help='Turns on .webifyignore debug messages')
     cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on yaml debug messages')
     cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
@@ -350,7 +353,10 @@ if __name__ == '__main__':
     WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
     l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
     WebifyLogger.make(name='mdfile', loglevel=l, logfile=logfile)
+    l = logging.DEBUG if cmdline_args.debug_db_ignore else loglevel
+    WebifyLogger.make(name='db-ignore', loglevel=l, logfile=logfile)
 
+    
     # Check
     if not cmdline_args.templating_engine in ['mustache', 'jinja2']:
         logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateing_engine)
@@ -363,13 +369,16 @@ if __name__ == '__main__':
     logger.info('Info:')
     logger.info(version_info())
     logger.info('Using "%s" templating engine' % cmdline_args.templating_engine)
+
+    srcdir = os.path.normpath(cmdline_args.srcdir)
+    destdir = os.path.normpath(cmdline_args.destdir)
     
     meta_data = {
         'prog_name': prog_name,
-        'prog_dir': prog_dir.replace('\\','\\\\'),
-        'cur_dir': cur_dir.replace('\\','\\\\'),
-        'src_dir': cmdline_args.srcdir.replace('\\','\\\\'),
-        'dest_dir': cmdline_args.destdir.replace('\\','\\\\'),
+        'prog_dir': prog_dir.replace('\\','\\\\'), # We need to do it for windows.
+        'cur_dir': cur_dir.replace('\\','\\\\'),   # It is a bit wierd, I agree.
+        'src_dir': srcdir.replace('\\','\\\\'),    # But it seems mustache templating engine
+        'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
@@ -382,12 +391,12 @@ if __name__ == '__main__':
 
     webify = Webify()
     try:
-        webify.set_src(cmdline_args.srcdir, meta_data)
+        webify.set_src(srcdir, meta_data)
     except ValueError as e:
         print(e)
         exit(-1)
     try:           
-        webify.set_dest(cmdline_args.destdir)
+        webify.set_dest(destdir)
     except ValueError as e:
         print(e)
         exit(-2)

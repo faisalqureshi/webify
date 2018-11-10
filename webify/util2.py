@@ -14,6 +14,7 @@ import filecmp
 import pypandoc
 from jinja2 import Template
 import jinja2
+import fnmatch 
 
 def md_filter(str):
     try:
@@ -328,24 +329,64 @@ class HTMLfile:
     
 
 class IgnoreList:
-    def __init__(self):
-        self.logger = WebifyLogger.get('db')
+    def __init__(self, srcdir):
+        self.logger = WebifyLogger.get('db-ignore')
         self.ignorelist = []
+        self.srcdir = srcdir
 
     def read_ignore_file(self, ignorefile):
         self.logger.info('Reading ignore file: %s' % ignorefile)
         try:
-            with codecs.open(ignorefile, 'r') as stream:
-                self.spec = pathspec.PathSpec.from_lines('gitignore', stream)
+            with codecs.open(ignorefile, 'r', 'utf-8') as stream:
+                for line in stream:
+                    p, f = os.path.split(line.strip())
+                    self.logger.debug('%s %s' % (p, f))
+                    self.ignorelist.append((p, f))
         except:
             self.spec = None
             self.logger.warning('Cannot read ignorefile: %s' % ignorefile)
 
-    def ignore(self, filepath):
-        if self.spec:
-            return self.spec.match_file(filepath)
-        return False
+    def match(self, path, name, is_dir, p, f):
 
+        # if WebifyLogger.is_debug(self.logger):
+        #     print('srcdir: %s' % self.srcdir)
+        #     print('path:   %s' % path)
+        #     print('name:   %s' % name)
+        #     print('p:      %s' % p)
+        #     print('f:      %s' % f)
+
+        if p == '' and f == '':
+            self.warning('Illegal empty pattern found in ignore file')
+        
+        if p == '':
+            r = fnmatch.fnmatch(name, f)
+        elif p[0] == '/':
+            if f == '':
+                r = fnmatch.fnmatch(os.path.join(path, name), p) if is_dir else False
+            else:
+                r = fnmatch.fnmatch(path, p) and fnmatch.fnmatch(name, f)
+        else: 
+            if f == '':
+                r = fnmatch.fnmatch(name, p) if is_dir else False
+            else:
+                r = fnmatch.fnmatch(path, p) and fnmatch.fnmatch(name, f)
+
+        self.logger.debug('Ignore: %s - %s %s == %s %s' % (r, path, name, p, f))
+        return r
+            
+    def ignore(self, path, name, is_dir):
+        self.logger.debug('Checking %s %s' % (path, name))
+
+        path = '/' if path == self.srcdir else path.replace(self.srcdir, '')
+
+        should_ignore = False        
+        for (p, f) in self.ignorelist:
+            should_ignore = self.match(path, name, is_dir, p, f)
+            if should_ignore:
+                self.logger.debug('Ignore file')
+                return True
+        self.logger.debug('Do not ignore file')
+        return False
 
 from file_processor import CopyFile, JupyterNotebook
     
