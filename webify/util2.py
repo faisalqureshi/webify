@@ -69,7 +69,7 @@ def make_directory(dirpath):
             return None
     return 'Created'
 
-def copy_file(src, dest, force_save):
+def copy_file(src, dest, force_copy):
     """
     Copy src to dest
 
@@ -78,9 +78,12 @@ def copy_file(src, dest, force_save):
         - 1: copied
         - 2: skipped
     """
-    if not force_save and os.path.exists(dest):
-        if filecmp.cmp(src, dest):
-            return 'Skipped'
+    if not force_copy:
+        try:
+            if filecmp.cmp(src, dest):
+                return 'Skipped'
+        except:
+            pass
 
     try:
         shutil.copy2(src, dest)
@@ -390,11 +393,11 @@ class IgnoreList:
 
 from file_processor import CopyFile, JupyterNotebook
     
-def process_file(filepath, dest_filepath, ignore_times):
+def process_file(filepath, dest_filepath, force_copy):
     _, ext = os.path.splitext(filepath)
 
     processor = make_file_processor(ext)
-    return processor(filepath, dest_filepath, ignore_times)
+    return processor(filepath, dest_filepath, force_copy)
     
 def make_file_processor(ext):
     if ext == '.ipynb':

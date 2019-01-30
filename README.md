@@ -6,4 +6,5 @@ used to generate an entire site or perform markdown to html/LaTeX/Beamer convers
 It also supports templating through mustache and jinja2.
 
 [My website](http://faculty.uoit.ca/qureshi) is generated using this utility.  Most of my course websites are
-also generated using this webify.
+also generated using this tool.
+

@@ -11,6 +11,7 @@ import yaml
 import pathspec
 import datetime
 import markupsafe
+import json
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -259,7 +260,7 @@ class Webify:
         for i in dir.files['misc']:
             filepath, dest_filepath = self.get_src_and_dest(dir, i)
             self.logger.info('Processing %s' % filepath)
-            r = process_file(filepath, dest_filepath, ignore_times)
+            r = process_file(filepath, dest_filepath, self.meta_data['force_copy'])
             
     def proc_dir(self, dir):
         self.proc_yaml(dir)
@@ -298,15 +299,16 @@ class Webify:
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
 def version_info():
-    str =  '  Webify2:    %s\n' % __version__
-    str += '  logfile:    %s\n' % logfile 
-    str += '  ignorefile: %s\n' % ignorefile
-    str += '  Git info:   %s\n' % get_gitinfo()
-    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
-    str += '  Pypandoc:   %s\n' % pypandoc.__version__
-    str += '  Pyyaml:     %s\n' % yaml.__version__
-    str += '  Pystache:   %s\n' % pystache.__version__
-    str += '  Pathspec:   %s\n' % pathspec.__version__
+    str =  '  Webify2:    %s, ' % __version__
+    str += '  logfile:    %s, ' % logfile 
+    str += '  ignorefile: %s, ' % ignorefile
+    str += '  Git info:   %s, ' % get_gitinfo()
+    str += '  Python:     %s.%s, ' % (sys.version_info[0],sys.version_info[1])
+    str += '  Pypandoc:   %s, ' % pypandoc.__version__
+    str += '  Pyyaml:     %s, ' % yaml.__version__
+    str += '  Pystache:   %s, and' % pystache.__version__
+    str += '  Json:   %s.' % json.__version__
+    str += '  Pathspec:   %s.' % pathspec.__version__
     return str
 
 if __name__ == '__main__':
@@ -320,7 +322,7 @@ if __name__ == '__main__':
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('srcdir', help='Source directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
-    cmdline_parser.add_argument('--version', action='version', version='%(prog)s {version}'.format(version=__version__))
+    cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-v','--verbose',action='store_true',default=False,help='Prints helpful messages')
     cmdline_parser.add_argument('-d','--debug',action='store_true',default=False,help='Turns on (global) debug messages')
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
@@ -331,6 +333,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
+    cmdline_parser.add_argument('--force-copy', action='store_true', default=False, help='Force file copy.')    
     cmdline_parser.add_argument('-t', '--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
@@ -382,7 +385,8 @@ if __name__ == '__main__':
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
-        'templating-engine': cmdline_args.templating_engine
+        'templating-engine': cmdline_args.templating_engine,
+        'force_copy': cmdline_args.force_copy
     }
     
     if WebifyLogger.is_debug(logger):

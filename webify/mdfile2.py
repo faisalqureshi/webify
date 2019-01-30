@@ -21,6 +21,9 @@ class PandocArguments:
     def add_var(self, var, val):
         self.pdoc_args.append("-V %s:%s" % (var, val))
 
+    def add_filter(self, name):
+        self.pdoc_args.append("--filter %s" % name)
+        
     def add_flag(self, options):
         if isinstance(options, list):
             for o in options:
@@ -320,6 +323,7 @@ class MDfile:
         if bib_file:
             files.append(bib_file)
             pdoc_args.add('bibliography', bib_file)
+            #pdoc_args.add_filter('pandoc-citeproc')
 
         csl_file = self.get_cslfile()
         self.logger.debug('CSL file: %s' % csl_file)
@@ -353,7 +357,12 @@ class MDfile:
             return 'exists', output_filepath, self.filepath
 
         # So it seems that we will have to do the real work
-        pdoc_args.add('highlight-style', self.get_highlighter())
+        pdoc_args.add('highlight-style', self.get_highlight_style())
+#        pdoc_args.add_flag('listings')
+
+        if self.get_output_format() == 'beamer':
+            slide_level = self.get_slide_level()
+            pdoc_args.add('slide-level', slide_level)
 
         # See if we need to preprocess the mdfile using mustache templating
         # If we have to then lets get on with it.        
@@ -464,15 +473,15 @@ class MDfile:
 
         return False
 
-    def get_highlighter(self):
+    def get_highlight_style(self):
         try:
-            if self.extras['highlighter']:
-                return self.extras['highlighter']
+            if self.extras['highlight-style']:
+                return self.extras['highlight-style']
         except:
             pass
 
         try:
-            return self.yaml['highlighter']
+            return self.yaml['highlight-style']
         except:
             return 'pygments'
 
@@ -594,6 +603,20 @@ class MDfile:
                     f[i].append(file)
         return f
 
+    def get_slide_level(self):
+        assert(self.buffer)
+
+        try:
+            if self.extras['slide-level']:
+                return self.extras['slide-level']
+        except:
+            pass
+
+        try:
+            return self.yaml['slide-level']
+        except:
+            return 1        
+    
     def get_renderer(self):
         assert(self.buffer)
 
@@ -615,13 +638,13 @@ class MDfile:
             return False
 
 def version_info():
-    str =  '  Mdfile2:    %s\n' % __version__
-    str += '  logfile:    %s\n' % logfile 
-    str += '  Git info:   %s\n' % get_gitinfo()
-    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
-    str += '  Pypandoc:   %s\n' % pypandoc.__version__
-    str += '  Pyyaml:     %s\n' % yaml.__version__
-    str += '  Pystache:   %s\n' % pystache.__version__
+    str =  '  Mdfile2:    %s, ' % __version__
+    str += '  logfile:    %s, ' % __logfile__ 
+    str += '  Git info:   %s, ' % get_gitinfo()
+    str += '  Python:     %s.%s, ' % (sys.version_info[0],sys.version_info[1])
+    str += '  Pypandoc:   %s, ' % pypandoc.__version__
+    str += '  Pyyaml:     %s, and' % yaml.__version__
+    str += '  Pystache:   %s.' % pystache.__version__
     return str
 
 if __name__ == '__main__':
@@ -634,7 +657,7 @@ if __name__ == '__main__':
     # Command line arguments
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
-    cmdline_parser.add_argument('--version', action='version', version='Mdfile2: {version}'.format(version=__version__))
+    cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
     cmdline_parser.add_argument('--no-output-file', action='store_true', default=False, help='Use this flag to turn off creating an output file.')
     cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
@@ -642,16 +665,17 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
     cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
-    cmdline_parser.add_argument('-t','--template', action='store', default=None, help='Path to pandoc template file.')
+    cmdline_parser.add_argument('-T','--template', action='store', default=None, help='Path to pandoc template file.')
     cmdline_parser.add_argument('-H','--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
     cmdline_parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file.')
-    cmdline_parser.add_argument('-s','--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
-    cmdline_parser.add_argument('-c','--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
+    cmdline_parser.add_argument('--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
+    cmdline_parser.add_argument('--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
-    cmdline_parser.add_argument('-k','--highlighter', action='store', default=None, help='Specify a highlighter.  See pandoc --list-highlight-styles.')
-    cmdline_parser.add_argument('-y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
+    cmdline_parser.add_argument('--highlight-style', action='store', default=None, help='Specify a highlight-style.  See pandoc --list-highlight-styles.')
+    cmdline_parser.add_argument('-Y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
     cmdline_parser.add_argument('-p', '--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
+    cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
     cmdline_args = cmdline_parser.parse_args()
 
     css_files = cmdline_args.css[0] if cmdline_args.css else []
@@ -688,10 +712,12 @@ if __name__ == '__main__':
         print('--bibliography:              ', bibliography)
         print('--css:                       ', css_files)
         print('--csl:                       ', csl)
-        print('--highlighter:               ', cmdline_args.highlighter)
+        print('--highlight-style:           ', cmdline_args.highlight_style)
         print('--do-not-preprocess-mustache:', cmdline_args.do_not_preprocess_mustache)
         print('--ignore-times:              ', cmdline_args.ignore_times)
         print('--output:                    ', cmdline_args.output)
+        print('--slide-level:               ', cmdline_args.slide_level)
+        
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
     filename = os.path.basename(filepath)
@@ -715,13 +741,14 @@ if __name__ == '__main__':
                'bibliography': bibliography,
                'css': css_files,
                'csl': csl,
-               'highlighter': cmdline_args.highlighter,
+               'highlight-style': cmdline_args.highlight_style,
                'ignore-times': cmdline_args.ignore_times,
                'preprocess-mustache': not cmdline_args.do_not_preprocess_mustache,
                'include-in-header': include_in_header,
                'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,
-               'no-output-file': cmdline_args.no_output_file }
+               'no-output-file': cmdline_args.no_output_file,
+               'slide-level': cmdline_args.slide_level }
 
     meta_data = {
         '__version__': __version__,
