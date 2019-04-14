@@ -1,5 +1,14 @@
 # Installation instructions
 
+## Webify >= 3.0
+
+- Install python 3, preferrably using anaconda distribution.
+- pip install -r requirements.txt
+
+All done!
+
+**Old, please disregard**
+
 ## Webify >= 3.0 (Uses Python 3)
 
 Webify2:    3.0
