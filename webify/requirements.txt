@@ -1,0 +1,5 @@
+Pypandoc==1.4
+#PyYAML==3.12
+Pystache==0.5.4
+#json==2.0.9
+Pathspec==0.5.9

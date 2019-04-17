@@ -1,0 +1,63 @@
+\newcommand{\vv}[1] {\ensuremath{\mathbf{#1}}}
+
+\newcommand{\mean[1]} {\ensuremath{\langle {#1} \rangle}}
+
+\newcommand{\bi}{\vv{i}}
+\newcommand{\bb}{\vv{b}}
+\newcommand{\bo}{\vv{o}}
+\newcommand{\bg}{\vv{g}}
+\newcommand{\bc}{\vv{c}}
+
+\newcommand{\bx}{\vv{x}}
+\newcommand{\bz}{\vv{z}}
+\newcommand{\boldf}{\vv{f}}
+\newcommand{\by}{\vv{y}}
+\newcommand{\bth}{\vv{\theta}}
+\newcommand{\bh}{\vv{h}}
+\newcommand{\bmu}{\vv{\mu}}
+
+\newcommand{\bA}{\vv{A}}
+\newcommand{\bX}{\vv{X}}
+\newcommand{\bY}{\vv{Y}}
+\newcommand{\bI}{\vv{I}}
+\newcommand{\bK}{\vv{K}}
+\newcommand{\bTh}{\vv{\Theta}}
+
+
+\newcommand{\ix}{\ensuremath{x^{(i)}}}
+\newcommand{\ibx}{\ensuremath{\vv{x}^{(i)}}}
+\newcommand{\iy}{\ensuremath{y^{(i)}}}
+\newcommand{\iby}{\ensuremath{\vv{y}^{(i)}}}
+
+\newcommand{\diff}[2]
+{
+\ensuremath{
+\frac{\partial {#1}}{\partial {#2}}
+}
+}
+
+\newcommand{\var}{\ensuremath{ \sigma^2 }}
+\newcommand{\cov}{\ensuremath{ \Sigma }}
+\newcommand{\norm}{\ensuremath{ \mathcal{N}} }
+
+\newcommand{\bbR}{\ensuremath{ \mathbb{R}}}
+\newcommand{\bbE}{\ensuremath{ \mathbb{E}}}
+
+\newcommand{\vartext}{\mathrm{var}}
+\newcommand{\covtext}{\mathrm{cov}}
+
+\newcommand{\sm}[2]{\ensuremath{\mathrm{S}({#1})_{#2}}}
+\newcommand{\sigm}{\ensuremath{\mathrm{sigm}}}
+\newcommand{\ber}{\ensuremath{\mathrm{Ber}}}
+\newcommand{\pr}{\ensuremath{\mathrm{Pr}}}
+
+\usefonttheme[onlymath]{serif}
+\newcommand{\begincols}[1]{\begin{columns}{#1}}
+\newcommand{\colhalf}{\column{.5 \linewidth}}
+\newcommand{\stopcols}{\end{columns}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\comment}[1]{}
+
+\newcommand{\pic}[2]{\centerline{\includegraphics[width=#1]{#2}}}
+\newcommand{\picv}[2]{\vfill \centerline{\includegraphics[width=#1]{#2}} \vfill}

@@ -1,0 +1,211 @@
+.fixed-width {
+  height: 300px;
+  width: 300px;
+}
+
+#landing {
+  margin: 50px;
+  margin-top: 75px;
+  font-size: xx-large;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.me {
+    font-size: 83%;
+    font-style: bold;
+}
+
+.my-pos {
+    font-size: 65%;
+    font-style: normal;
+}
+
+.landing-address {
+    font-size: 55%;
+    font-weight: light;
+}
+
+.nav-text {
+    font-size: 50%;
+}
+
+#logo {
+  height: 200px; 
+  width: 200px; 
+  overflow: hidden; 
+  padding: 10px;
+}
+
+.media {
+  margin: 10px;
+}
+
+.media-heading {
+}
+
+.small-text {
+  font-size: small;
+}
+
+body {
+  padding: 25px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 400; // Corresponds to the Bold 400 style
+  color: gray;
+  background: gray;
+}
+
+strong,
+.text-strong {
+  font-weight: 700; // Corresponds to the Bold 700 style
+}
+
+.text-light {
+  font-weight: 300; // Corresponds to the Light 300 style
+}
+
+.bib-entry {
+  margin-top: 9px;
+  margin-bottom: 9px;  
+}
+
+.container {
+  max-width: 1000px;
+  background: white;
+}
+
+.map {
+    align: center;
+}
+
+.news-date {
+    text-align: right;
+    padding-right: 20px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+}
+
+.news-info {
+    text-align: left;
+    padding-top: 1px;
+    padding-bottom: 1px;
+}
+
+.old-news {
+    display: none;
+}
+
+#toggle-news {
+    color: blue;
+}
+
+.about-more {
+    display: none;
+}
+
+#toggle-about {
+    color: blue;
+}
+
+.student-name {
+    font-weight: bold;
+}
+
+.student-thesis {
+    font-style: italic;
+}
+
+.vcenter {
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  resize: both;
+  overflow: auto;
+}
+
+h1, h2, h3, h4 {
+  padding-top: 20px;
+  font-family: 'Open Sans', sans-serif;
+}
+
+h1 {
+  font-size: 36;
+}
+
+h2 {
+  font-size: 32;
+}
+
+h3 {
+  font-size: 28;
+}
+
+h4 {
+  font-size: 24;
+}
+
+h5 {
+    font-weight: bolder;
+  font-size: 24;
+}
+
+.footer {
+  text-align: center;  
+}
+
+td.lineNumbers {
+    width: 64px;
+}
+
+.blog-header {
+    margin-top: 25px;
+}
+
+.blog-title {
+    font-family: 'Open Sans', sans-serif;
+    font-size: xx-large;
+}
+
+.blog-subtitle {
+    margin-top: -10px;
+    font-family: 'Open Sans', sans-serif;
+    font-size: large;
+}
+
+.blog-author {
+    font-family: 'Open Sans', sans-serif;
+    font-size: medium;
+    font-color: DimGrey;
+}
+
+.blog-date {
+    font-family: 'Open Sans', sans-serif;
+    font-size: medium;
+    font-style: italic;
+    font-color: DimGrey;
+}
+
+#blog-body {
+    margin-top: 60px;
+    margin-left: 100px;
+    margin-right: 100px;
+    background-color: Linen;
+}
+
+.blog-list {
+    margin-top: 50px;
+}
+
+.blog-list-item {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.blog-list-date {
+    font-size: large;
+}
+
+.blog-list-title {
+    font-size: large;
+}
