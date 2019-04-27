@@ -90,6 +90,10 @@ class MDfile:
     html-vid: None* | file
     html-vids: None* | file
 
+    Check out mdfilters.py and ./filter/* to see how these tags are used.  These use the following 
+    markdown syntax: "![](file)" or "![](file1|file2)".  Note that the second form isn't understood by 
+    markdown.
+
     renderer: jinja | mustache*
 
     bibliography: None* | path/to/bib file
@@ -409,26 +413,6 @@ class MDfile:
         # First, lets ensure that the output format is html
         assert(self.get_output_format() == 'html')
 
-        # Lets apply the HTML filters
-#        apply_hf, hf = self.get_html_filters()
-        #if apply_hf:
-        #         for k in hf.keys():
-        #             if hf[k]:
-        #                 self.files[k] = hf[k]
-
-        #     if not self.needs_compilation(use_cache, outputfile):
-        #         self.logger.warning('Output already exists.  Nothing to do here.\n\t - %s\n\t - %s' % (self.filepath, outputfile))
-        #         return 'file', outputfile
-
-        #     if apply_hf:
-        #         f = mdfilters.HTML_Filter(hf, self.dbglevel, self.logfile, self.filepath)
-        #         try:
-        #             self.buffer = f.apply(self.filepath, self.rootdir, self.buffer)
-        #         except:
-        #             self.logger.warning('HTML filters failed. \n\t - %s' % self.filepath)
-
-
-        
         # Next lets use pandoc to get md to html
         r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
 
