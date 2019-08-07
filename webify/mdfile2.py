@@ -101,6 +101,8 @@ class MDfile:
     csl: None* | path/to/csl file
 
     preprocess-mustache: None | *True or False
+
+    pdf-engine: *None | lualatex or tetex.  This info will be passed onto pandoc convertor.
     ___
 
     Contents of the MD file.
@@ -396,6 +398,9 @@ class MDfile:
             pdoc_args.add('css', self.get_cssfiles())
         elif self.get_output_format() in ['pdf', 'beamer', 'latex']:
             pdoc_args.add_var('graphics','true')
+            pdf_engine = self.get_pdf_engine()
+            if pdf_engine:
+                pdoc_args.add('pdf-engine', pdf_engine)
 
         # If we were supposed to create an output file
         # and no renderfile is specified.  This case is rather
@@ -504,6 +509,20 @@ class MDfile:
             return self.yaml['to']
         except:
             return 'html'
+
+    def get_pdf_engine(self):
+        assert(self.buffer)
+
+        try:
+            if self.extras['pdf-engine']:
+                return self.extras['pdf-engine']
+        except:
+            pass
+
+        try:
+            return self.yaml['pdf-engine']
+        except:
+            return None
 
     def get_preprocess_mustache(self):
         assert(self.buffer)
@@ -660,6 +679,9 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-p', '--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
     cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
+    cmdline_parser.add_argument('--pdf-engine', action='store', default=None, help='PDF engine used to generate pdf. The default is vanilla LaTeX.  Possible options are lualatex or tetex.')
+
+    
     cmdline_args = cmdline_parser.parse_args()
 
     css_files = cmdline_args.css[0] if cmdline_args.css else []
@@ -701,6 +723,7 @@ if __name__ == '__main__':
         print('--ignore-times:              ', cmdline_args.ignore_times)
         print('--output:                    ', cmdline_args.output)
         print('--slide-level:               ', cmdline_args.slide_level)
+        print('--pdf-engine:                ', cmdline_args.pdf_engine)
         
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
@@ -732,7 +755,8 @@ if __name__ == '__main__':
                'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,
                'no-output-file': cmdline_args.no_output_file,
-               'slide-level': cmdline_args.slide_level }
+               'slide-level': cmdline_args.slide_level,
+               'pdf-engine': cmdline_args.pdf_engine }
 
     meta_data = {
         '__version__': __version__,
