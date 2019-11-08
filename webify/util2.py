@@ -292,7 +292,7 @@ class YAMLfile:
     def load(self):
         try:
             with codecs.open(self.filepath, 'r') as stream:
-                self.data = yaml.load(stream)
+                self.data = yaml.load(stream, Loader=yaml.CLoader)
             self.logger.info('Loaded YAML file: %s' % self.filepath)
 #            pp.pprint(self.data)
             self.data = apply_filter(md_filter, self.data)

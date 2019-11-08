@@ -183,7 +183,7 @@ class MDfile:
 
         # Try to get the first yaml section from the file
         try:
-            yamlsections = yaml.load_all(self.buffer)
+            yamlsections = yaml.load_all(self.buffer, Loader=yaml.CLoader)
             for section in yamlsections:
                 self.yaml = section
                 logger.info('YAML section found')
@@ -209,7 +209,7 @@ class MDfile:
             try:
                 yaml_str = yaml.dump(self.get_yaml())
                 s = mustache_renderer(yaml_str, self.rc.data())
-                self.set_yaml(yaml.load(s))
+                self.set_yaml(yaml.load(s, Loader=yaml.CLoader))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
                 if WebifyLogger.is_debug(self.logger):
