@@ -4,6 +4,15 @@ import os
 import re
 from util2 import mustache_renderer, WebifyLogger
 
+# We have four options here.  A single image, a series of images, a single video, a series of videos.
+#
+# Single image/video
+# ![caption]{file}
+#
+# Series of images/videos, use | to separate the files
+# ![caption]{file1|file2|...|fileN}
+#
+# The user can provide up to four mustache templates, one corresponding to each of the four cases.
 
 class HTML_Filter:
 
