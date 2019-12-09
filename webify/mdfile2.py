@@ -51,11 +51,11 @@ class MDfile:
 
     to: html* | pdf | beamer | latex (very useful during debugging)
     template: None* | path/to/pandoc-template-file
-    render: None* | path/to/mustache-or-jinja-template-file
+    render: None* | path/to/mustache-or-jinja-template-file (see below about how to use it)
 
     standalone-alone: None | false* or true
 
-    if standalone is false and render is None then standalon is true
+    if standalone is false and render is None then standalone is true
 
     css: None* | path/to/css-file (used only when converting to html)
 
@@ -183,7 +183,7 @@ class MDfile:
 
         # Try to get the first yaml section from the file
         try:
-            yamlsections = yaml.load_all(self.buffer, Loader=yaml.CLoader)
+            yamlsections = yaml.load_all(self.buffer)
             for section in yamlsections:
                 self.yaml = section
                 logger.info('YAML section found')
@@ -194,7 +194,11 @@ class MDfile:
                     pp.pprint(self.yaml)
                 break # Only the first yaml section is read in
         except:
-            pass
+            logger.info('YAML loader problems.  Check rendering.')
+            if self.extras['verbose']:
+                print("------")
+                print(self.buffer)
+                print("------")
 
         # If yaml section found, good.  If not create a {} yaml section.
         if not isinstance(self.yaml, dict):
@@ -724,6 +728,7 @@ if __name__ == '__main__':
         print('--output:                    ', cmdline_args.output)
         print('--slide-level:               ', cmdline_args.slide_level)
         print('--pdf-engine:                ', cmdline_args.pdf_engine)
+        print('--verbose:                   ', cmdline_args.verbose)
         
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
@@ -756,7 +761,8 @@ if __name__ == '__main__':
                'output-file': output_filepath,
                'no-output-file': cmdline_args.no_output_file,
                'slide-level': cmdline_args.slide_level,
-               'pdf-engine': cmdline_args.pdf_engine }
+               'pdf-engine': cmdline_args.pdf_engine,
+               'verbose': cmdline_args.verbose }
 
     meta_data = {
         '__version__': __version__,

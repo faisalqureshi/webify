@@ -1,5 +1,7 @@
-Pypandoc==1.4
-#PyYAML==3.12
-Pystache==0.5.4
+Jinja2==2.10.3
+MarkupSafe==1.1.1
+pathspec==0.5.9
+pypandoc==1.4
+pystache==0.5.4
+PyYAML==3.12
 #json==2.0.9
-Pathspec==0.5.9

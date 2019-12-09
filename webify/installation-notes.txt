@@ -1,17 +1,32 @@
 # Installation instructions
 
-## Webify >= 3.0
+## Webify >= 3.0 (Uses Python 3.  Dec 9, 2019)
 
-- Install python 3, preferrably using anaconda distribution.
-- pip install -r requirements.txt
+### Installation instructions
 
-All done!
+I now prefer to use vanilla Python package.
 
-**Old, please disregard**
+#### OSX
 
-## Webify >= 3.0 (Uses Python 3)
+Install Homebrew first.
 
-Webify2:    3.0
+$ brew install python3
+$ pip install -r requirements.txt
+
+#### Linux
+
+$ apt-get install python3
+$ pip install -r requirements.txt
+
+#### Windows (Anaconda)
+
+Install Anaconda Python 3
+
+$ pip install -r requirements.txt
+
+### Relevant notes
+
+Webify2:    >3.0 use Python3
 logfile:    webify2.log
 ignorefile: .webifyignore
 Git info:   b'v1.8.5-30-g15098f0'
@@ -21,8 +36,10 @@ Pyyaml:     3.12
 Pystache:   0.5.4
 Json:       2.0.9
 Pathspec:   0.5.9
+Jinja2:     2.10.3
 
-**Version info gathered on Dec 25, 2018**
+#### Checking version (Dec 25, 2018)
+
 ~~~bash
 > webify --version
 Webify2: 3.1, logfile: webify2.log, ignorefile: .webifyignore, Git info:
@@ -34,9 +51,7 @@ Mdfile2: 3.1, logfile: mdfile.log, Git info: b'v3.1', Python: 3.6, Pypandoc:
 1.4, Pyyaml: 3.12, and Pystache: 0.5.4.
 ~~~
 
-This version of webify supports both mustache and jinja2 templating.
-
-## Webify < 3.0 (Uses Python 2.7)
+## Webify < 3.0 (Uses Python 2.7.  Deprecated.)
 
 ### Minimal Installation using Miniconda
 

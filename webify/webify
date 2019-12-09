@@ -1,4 +1,4 @@
 #!/bin/bash
 
-exec python "$WEBIFY_DIR/webify2.py" "$@"
+exec $WEBIFY_PYTHON "$WEBIFY_DIR/webify2.py" "$@"
 
