@@ -3,5 +3,4 @@ MarkupSafe==1.1.1
 pathspec==0.5.9
 pypandoc==1.4
 pystache==0.5.4
-PyYAML==3.12
-#json==2.0.9
+PyYAML==5.2
