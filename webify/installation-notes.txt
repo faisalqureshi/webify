@@ -4,7 +4,7 @@
 
 ### Installation instructions
 
-I now prefer to use vanilla Python package.
+Webify requires pandoc (version > 1.19) and LaTeX (for pdf generation).
 
 #### OSX
 
@@ -20,64 +20,5 @@ $ pip install -r requirements.txt
 
 #### Windows (Anaconda)
 
-Install Anaconda Python 3
-
-$ pip install -r requirements.txt
-
-### Relevant notes
-
-Webify2:    >3.0 use Python3
-logfile:    webify2.log
-ignorefile: .webifyignore
-Git info:   b'v1.8.5-30-g15098f0'
-Python:     3.6
-Pypandoc:   1.4
-Pyyaml:     3.12
-Pystache:   0.5.4
-Json:       2.0.9
-Pathspec:   0.5.9
-Jinja2:     2.10.3
-
-#### Checking version (Dec 25, 2018)
-
-~~~bash
-> webify --version
-Webify2: 3.1, logfile: webify2.log, ignorefile: .webifyignore, Git info:
-b'v3.1', Python: 3.6, Pypandoc: 1.4, Pyyaml: 3.12, Pystache: 0.5.4, and Json:
-2.0.9. Pathspec: 0.5.9.
-
-> mdfile --version
-Mdfile2: 3.1, logfile: mdfile.log, Git info: b'v3.1', Python: 3.6, Pypandoc:
-1.4, Pyyaml: 3.12, and Pystache: 0.5.4.
-~~~
-
-## Webify < 3.0 (Uses Python 2.7.  Deprecated.)
-
-### Minimal Installation using Miniconda
-
-Install miniconda with Python 2.7.  Take a look here [https://conda.io/miniconda.html](https://conda.io/miniconda.html).
-
-Miniconda is usually installed in ~/miniconda2 folder.  Restart the terminal and ensure your default python environment is miniconda2.
-
-conda install -c conda-forge pypandoc=1.4
-conda install pyyaml=3.13
-pip install pystache==0.5.4
-
-### Without Docker
-
-Install Anaconda python distribution.
-
-conda create -n webify python=2.7
-activate webify OR source activate webify (depending upon your OS)
-Confirm that you are in the correct environment, use "python --version" command
-conda install -c conda-forge pypandoc=1.4
-conda install pyyaml=3.13
-pip install pystache==0.5.4
-
-You can use webify within the webify environment.
-
-### Using docker
-
-The preferred way of using webify is through docker.
-This allows us to use webify in any environment that supports docker.
-Check out the instructions available in the docker/ folder.
+I recommend using the Ubuntu shell available in Windows to 
+install Webify.
