@@ -53,8 +53,9 @@ class MDfile:
     template: None* | path/to/pandoc-template-file
     render: None* | path/to/mustache-or-jinja-template-file (see below about how to use it)
 
-    standalone-alone: None | false* or true
-
+    
+    DEPRCIATED standalone flag is no longer used.
+    standalone: None | false* or true
     if standalone is false and render is None then standalone is true
 
     css: None* | path/to/css-file (used only when converting to html)
@@ -150,8 +151,7 @@ class MDfile:
                             'latex':  'tex' }
 
         # This is an incomplete list of keys that can be found in a yaml frontmatter
-        self.supported_keys = [ 'standalone',
-                                'to',
+        self.supported_keys = [ 'to',
                                 'template',
                                 'render',
                                 'bibliography',
@@ -246,11 +246,14 @@ class MDfile:
 
         cwd = os.getcwd()
         os.chdir(self.rootdir)
-    
+
+        
         try:
             ret_val = pypandoc.convert_text(self.buffer, to=output_format, format='md', outputfile=output_filepath, extra_args=pandoc_args)
             ret_val = output_filepath if output_filepath else ret_val
             self.logger.debug('Converted to "%s": %s' % (output_format, output_filepath))
+            self.logger.debug('\t - args:          %s' % pandoc_args)
+            self.logger.debug('\t - rootdir:       %s' % self.rootdir)
             ret = ret_type, ret_val, self.filepath
         except Exception as e:
             self.logger.error('Pandoc conversion failed\n\t - filename: %s' % self.filepath)
