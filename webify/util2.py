@@ -275,8 +275,18 @@ class RenderingContext:
     def get(self):
         return self.rc
 
+    def keys(self):
+        return self.rc.keys()
+
+    def value(self, key):
+        try:
+            return self.rc[key]
+        except:
+            return None    
+
     def print(self):
         pp.pprint(self.rc)
+
 
 class YAMLfile:
     """

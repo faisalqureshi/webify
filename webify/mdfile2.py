@@ -94,7 +94,7 @@ class MDfile:
     markdown syntax: "![](file)" or "![](file1|file2)".  Note that the second form isn't understood by 
     markdown.
 
-    renderer: jinja | mustache*
+    renderer: jinja2 | mustache*
 
     bibliography: None* | path/to/bib file
 
@@ -479,7 +479,11 @@ class MDfile:
             return 'pygments'
 
     def get_yaml(self):
-        return self.yaml
+        try:
+            return self.yaml
+        except:
+            self.logger.error('Get yaml called before loading file %s' % self.filepath)
+            return {}
 
     def set_yaml(self, data):
         #print(data)
@@ -757,7 +761,6 @@ if __name__ == '__main__':
                'ignore-times': cmdline_args.ignore_times,
                'preprocess-mustache': not cmdline_args.do_not_preprocess_mustache,
                'include-in-header': include_in_header,
-               'ignore-times': cmdline_args.ignore_times,
                'output-file': output_filepath,
                'no-output-file': cmdline_args.no_output_file,
                'slide-level': cmdline_args.slide_level,
