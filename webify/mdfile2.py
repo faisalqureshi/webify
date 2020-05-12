@@ -6,7 +6,7 @@ import pypandoc
 import os
 import sys
 import pprint as pp
-from util2 import WebifyLogger, Terminal, mustache_renderer, jinja2_renderer, RenderingContext, render, save_to_file, get_gitinfo
+import util2 as util
 import pystache
 import markupsafe
 from mdfilters import HTML_Filter
@@ -125,7 +125,7 @@ class MDfile:
     def __init__(self, filepath, rootdir, extras, rc):
 
         # Initialize the md object
-        self.logger = WebifyLogger.get('mdfile')
+        self.logger = util.WebifyLogger.get('mdfile')
         self.filepath = filepath
         self.rootdir = rootdir
         self.extras = extras
@@ -133,7 +133,7 @@ class MDfile:
 
         self.logger.debug('Processing: %s' % self.filepath)
         self.logger.debug('rootdir:    %s' % self.rootdir)
-        if WebifyLogger.is_debug(self.logger):
+        if util.WebifyLogger.is_debug(self.logger):
             print('Extras:')
             pp.pprint(self.extras)
             print('Rendering context:')
@@ -168,7 +168,7 @@ class MDfile:
                                 'preprocess-mustache' ]
 
     def load(self):
-        logger = WebifyLogger.get('file-debug')
+        logger = util.WebifyLogger.get('file-debug')
         self.yaml = {}
 
         # Read the file in to a buffer
@@ -187,18 +187,18 @@ class MDfile:
             for section in yamlsections:
                 self.yaml = section
                 logger.info('YAML section found')
-                if WebifyLogger.is_debug(logger):
+                if util.WebifyLogger.is_debug(logger):
                     print('Buffer:')
                     pp.pprint(self.buffer)
                     print('YAML frontmatter:')
                     pp.pprint(self.yaml)
                 break # Only the first yaml section is read in
         except:
-            logger.info('YAML loader problems.  Check rendering.')
-            if self.extras['verbose']:
-                print("------")
-                print(self.buffer)
-                print("------")
+            logger.info('YAML loader problems.  Check rendering.  %s' % self.filepath)
+            # if self.extras['verbose']:
+            #     print("------")
+            #     print(self.buffer)
+            #     print("------")
 
         # If yaml section found, good.  If not create a {} yaml section.
         if not isinstance(self.yaml, dict):
@@ -212,15 +212,15 @@ class MDfile:
             self.logger.info('Preprocessing Yaml front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
-                s = mustache_renderer(yaml_str, self.rc.data())
+                s = util.mustache_renderer(yaml_str, self.rc.data())
                 self.set_yaml(yaml.safe_load(s))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
-                if WebifyLogger.is_debug(self.logger):
+                if util.WebifyLogger.is_debug(self.logger):
                     pp.pprint(self.rc.data())
                     pp.pprint(yaml.dump(self.get_yaml()))
 
-            if WebifyLogger.is_debug(logger):
+            if util.WebifyLogger.is_debug(logger):
                 print('YAML frontmatter after pre-processing:')
                 pp.pprint(self.yaml)
 
@@ -346,7 +346,7 @@ class MDfile:
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
         pdoc_args.add('include-after-body',  include_files['include-after-body'])
-        if WebifyLogger.is_debug(self.logger):
+        if util.WebifyLogger.is_debug(self.logger):
             print('Pandoc include files:')
             pp.pprint(include_files)
         files.extend(include_files['include-in-header'])
@@ -385,7 +385,7 @@ class MDfile:
                     f = HTML_Filter(hf)
                     self.buffer = f.apply(self.buffer)
                 
-                self.buffer = mustache_renderer(self.buffer, self.rc.data())
+                self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
             else:
                 self.logger.warning('Preprocess mustache is only allowed for md to html conversion.')
         else:
@@ -439,16 +439,20 @@ class MDfile:
         # Lets find the renderer that we plan to use.  We have
         # two options: mustache or jinja2
         if self.get_renderer() == 'mustache':
-            render_engine = mustache_renderer
+            render_engine = util.mustache_renderer
             self.logger.info('Using renderer: mustache')
         else:
-            render_engine = jinja2_renderer
+            render_engine = util.jinja2_renderer
             self.logger.info('Using renderer: jinja2')
 
         # Render and save to the output file
-        buffer = render(render_file, self.rc.data(), render_engine)
+        # print(self.rc.data().keys())
+        # print(render_engine)
+        # print(render_file)
+        # print(render)
+        buffer = util.render(render_file, self.rc.data(), render_engine)
         self.logger.debug('Saving to output file: %s' % output_filepath)
-        if save_to_file(output_filepath, buffer):
+        if util.save_to_file(output_filepath, buffer):
             return 'file', output_filepath, self.filepath
         else:
             self.logger.warning('Error saving to output file: %s' % output_filepath)
@@ -631,15 +635,27 @@ class MDfile:
     def get_renderer(self):
         assert(self.buffer)
 
+        renderer = None
+        
         try:
-            value = self.yaml['renderer']
-            if not value in ['mustache', 'jinja2']:
+            if self.extras['renderer']:
+                renderer = self.extras['renderer']
+        except:
+            pass
+
+        if renderer == None:
+            try:
+                if self.yaml['renderer']:
+                    renderer = self.extras['renderer']
+            except:
+                pass
+
+        if not renderer in ['mustache', 'jinja2']:
                 self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (value, self.filepath))
                 return 'mustache'
-            return value
-        except:
-            return 'mustache'
 
+        return renderer
+        
     def get_copy_to_destination(self):
         assert(self.buffer)
 
@@ -649,18 +665,18 @@ class MDfile:
             return False
 
 def version_info():
-    str =  '  Mdfile2:    %s, ' % __version__
-    str += '  logfile:    %s, ' % __logfile__ 
-    str += '  Git info:   %s, ' % get_gitinfo()
-    str += '  Python:     %s.%s, ' % (sys.version_info[0],sys.version_info[1])
-    str += '  Pypandoc:   %s, ' % pypandoc.__version__
-    str += '  Pyyaml:     %s, and' % yaml.__version__
+    str =  '  Mdfile2:    %s\n' % __version__
+    str += '  logfile:    %s\n' % __logfile__ 
+    str += '  Git info:   %s\n' % util.get_gitinfo()
+    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
+    str += '  Pypandoc:   %s\n' % pypandoc.__version__
+    str += '  Pyyaml:     %s, and \n' % yaml.__version__
     str += '  Pystache:   %s.' % pystache.__version__
     return str
 
 if __name__ == '__main__':
 
-    terminal = Terminal()
+    terminal = util.Terminal()
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
     prog_dir = os.path.dirname(prog_name)
     cur_dir = os.getcwd()
@@ -668,27 +684,34 @@ if __name__ == '__main__':
     # Command line arguments
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
-    cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
+    cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
     cmdline_parser.add_argument('--no-output-file', action='store_true', default=False, help='Use this flag to turn off creating an output file.')
+    cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
+    
+    cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
     cmdline_parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
+    cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
+
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
-    cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
-    cmdline_parser.add_argument('-T','--template', action='store', default=None, help='Path to pandoc template file.')
-    cmdline_parser.add_argument('-H','--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
-    cmdline_parser.add_argument('-b','--bibliography', action='store', default=None, help='Path to bibliography file.')
+    
+    cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
+    cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
+    cmdline_parser.add_argument('--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
+    cmdline_parser.add_argument('--bibliography', action='store', default=None, help='Path to bibliography file.')
     cmdline_parser.add_argument('--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
     cmdline_parser.add_argument('--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
-    cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
     cmdline_parser.add_argument('--highlight-style', action='store', default=None, help='Specify a highlight-style.  See pandoc --list-highlight-styles.')
-    cmdline_parser.add_argument('-Y', '--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
-    cmdline_parser.add_argument('-p', '--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
-    cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
-    cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
-    cmdline_parser.add_argument('--pdf-engine', action='store', default=None, help='PDF engine used to generate pdf. The default is vanilla LaTeX.  Possible options are lualatex or tetex.')
+    cmdline_parser.add_argument('--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
 
+    cmdline_parser.add_argument('--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
+
+    cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
+
+    cmdline_parser.add_argument('--pdf-engine', action='store', default=None, help='PDF engine used to generate pdf. The default is vanilla LaTeX.  Possible options are lualatex or tetex.')
+    cmdline_parser.add_argument('--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
 
@@ -696,19 +719,20 @@ if __name__ == '__main__':
     include_in_header = [os.path.join(cur_dir, f) for f in (cmdline_args.include_in_header[0] if cmdline_args.include_in_header else [])]
     bibliography = os.path.join(cur_dir, cmdline_args.bibliography) if cmdline_args.bibliography else None
     csl = os.path.join(cur_dir, cmdline_args.csl) if cmdline_args.csl else None
-    template = os.path.join(cur_dir, cmdline_args.template) if cmdline_args.template else None
-
+    template = os.path.join(cur_dir, cmdline_args.template_file) if cmdline_args.template_file else None
+    render = os.path.join(cur_dir, cmdline_args.render_file) if cmdline_args.render_file else None
+    
     # Setting up logging
     logfile = None if not cmdline_args.log else __logfile__
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
-    logger = WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
+    logger = util.WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug_render   else loglevel
-    WebifyLogger.make(name='render', loglevel=loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='render', loglevel=loglevel, logfile=logfile)
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug_file   else loglevel
-    WebifyLogger.make(name='file-debug', loglevel=loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='file-debug', loglevel=loglevel, logfile=logfile)
     
     # Go
     logger.debug('Prog name:    %s' % prog_name)
@@ -717,10 +741,11 @@ if __name__ == '__main__':
     logger.debug('Info:')
     logger.debug(version_info())
 
-    if WebifyLogger.is_debug(logger):
+    if util.WebifyLogger.is_debug(logger):
         print('Commandline arguments:')
         print('--format:                    ', cmdline_args.format)
-        print('--template:                  ', template)
+        print('--template-file:             ', template)
+        print('--render-fil                 ', render)
         print('--no-output-file:            ', cmdline_args.no_output_file)
         print('--include-in-header:         ', include_in_header)
         print('--bibliography:              ', bibliography)
@@ -733,7 +758,7 @@ if __name__ == '__main__':
         print('--slide-level:               ', cmdline_args.slide_level)
         print('--pdf-engine:                ', cmdline_args.pdf_engine)
         print('--verbose:                   ', cmdline_args.verbose)
-        
+        print('--templating-engine:         ', cmdline_args.templating_engine)
 
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
     filename = os.path.basename(filepath)
@@ -745,7 +770,7 @@ if __name__ == '__main__':
     else:
         output_filepath = os.path.normpath(os.path.join(cur_dir, output_filename))
 
-    if WebifyLogger.is_debug(logger):
+    if util.WebifyLogger.is_debug(logger):
         logger.debug('filepath:        %s' % filepath)
         logger.debug('filename:        %s' % filename)
         logger.debug('file_dir:        %s' % file_dir)
@@ -754,6 +779,7 @@ if __name__ == '__main__':
 
     extras = { 'format': cmdline_args.format,
                'template': template,
+               'render': render,
                'bibliography': bibliography,
                'css': css_files,
                'csl': csl,
@@ -765,14 +791,15 @@ if __name__ == '__main__':
                'no-output-file': cmdline_args.no_output_file,
                'slide-level': cmdline_args.slide_level,
                'pdf-engine': cmdline_args.pdf_engine,
-               'verbose': cmdline_args.verbose }
+               'verbose': cmdline_args.verbose,
+               'renderer': cmdline_args.templating_engine }
 
     meta_data = {
         '__version__': __version__,
         '__filepath__': filepath.replace('\\','\\\\'),
         '__rootdir__': file_dir.replace('\\','\\\\')
     }
-    rc = RenderingContext()
+    rc = util.RenderingContext()
     rc.push()
     rc.add(meta_data)
 

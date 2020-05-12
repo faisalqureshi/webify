@@ -12,8 +12,9 @@ import copy
 import shutil
 import filecmp
 import pypandoc
-from jinja2 import Template
 import jinja2
+# from jinja2 import Template
+# import jinja2
 import fnmatch 
 
 def md_filter(str):
@@ -124,7 +125,7 @@ def jinja2_renderer(template, context):
     #rendered_buf = Template(template).render(context)
 
     try:
-        rendered_buf = Template(template).render(context)
+        rendered_buf = jinja2.Template(template).render(context)
         logger.debug('Success jinja2 render')
     except jinja2.exceptions.TemplateSyntaxError as e:
         logger.warning('Error jinja2 render %s' % e)

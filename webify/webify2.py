@@ -207,7 +207,7 @@ class Webify:
             self.rc.print()
 
         self.rc.push()
-        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.add({'__rootdir__': os.path.relpath(self.srcdir, dir.get_fullpath())})
 
     def proc_html(self, dir):
         if len(dir.files['html']) > 0:
@@ -447,9 +447,14 @@ if __name__ == '__main__':
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('srcdir', help='Source directory')
     cmdline_parser.add_argument('destdir', help='Destination directory')
+    cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
+    cmdline_parser.add_argument('--force-copy', action='store_true', default=False, help='Force file copy.')    
+
     cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-v','--verbose',action='store_true',default=False,help='Prints helpful messages')
     cmdline_parser.add_argument('-d','--debug',action='store_true',default=False,help='Turns on (global) debug messages')
+    cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
+
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
     cmdline_parser.add_argument('--debug-db',action='store_true',default=False,help='Turns on file database debug messages')
     cmdline_parser.add_argument('--debug-db-ignore',action='store_true',default=False,help='Turns on .webifyignore debug messages')
@@ -457,10 +462,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('--debug-webify',action='store_true',default=False,help='Turns on webify debug messages')
-    cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
-    cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
-    cmdline_parser.add_argument('--force-copy', action='store_true', default=False, help='Force file copy.')    
-    cmdline_parser.add_argument('-t', '--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
+    
+    cmdline_parser.add_argument('--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
     ignore_times = cmdline_args.ignore_times
@@ -513,7 +516,7 @@ if __name__ == '__main__':
         'src_dir': srcdir.replace('\\','\\\\'),    # But it seems mustache templating engine
         'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
-        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
+        '__rootdir__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
         'templating-engine': cmdline_args.templating_engine,
         'force_copy': cmdline_args.force_copy,
