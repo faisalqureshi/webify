@@ -3,7 +3,8 @@ import pprint as pp
 import sys
 import logging
 import os
-from util2 import get_gitinfo, make_directory, mustache_renderer, jinja2_renderer, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, process_file
+import util2 as util
+from util2 import get_gitinfo, make_directory, WebifyLogger, Terminal, RenderingContext, YAMLfile, HTMLfile, IgnoreList, save_to_file, process_file
 from mdfile2 import MDfile
 import pypandoc
 import pystache
@@ -108,9 +109,9 @@ class Webify:
 
     def set_templating_engine(self):
         if self.meta_data['templating-engine'] == 'jinja2':
-            self.render = jinja2_renderer
+            self.render = util.jinja2_renderer
         else:
-            self.render = mustache_renderer
+            self.render = util.mustache_renderer
         
     def set_src(self, srcdir, meta_data):
         self.meta_data = meta_data
@@ -207,7 +208,7 @@ class Webify:
             self.rc.print()
 
         self.rc.push()
-        self.rc.add({'__rootdir__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
 
     def proc_html(self, dir):
         if len(dir.files['html']) > 0:
@@ -516,7 +517,7 @@ if __name__ == '__main__':
         'src_dir': srcdir.replace('\\','\\\\'),    # But it seems mustache templating engine
         'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
-        '__rootdir__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
+        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
         'templating-engine': cmdline_args.templating_engine,
         'force_copy': cmdline_args.force_copy,

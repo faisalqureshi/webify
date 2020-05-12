@@ -7,6 +7,7 @@ import os
 import sys
 import pprint as pp
 import util2 as util
+#from util2 import WebifyLogger, Terminal, mustache_renderer, jinja2_renderer, RenderingContext, save_to_file, get_gitinfo
 import pystache
 import markupsafe
 from mdfilters import HTML_Filter
@@ -635,25 +636,23 @@ class MDfile:
     def get_renderer(self):
         assert(self.buffer)
 
+
         renderer = None
-        
         try:
-            if self.extras['renderer']:
-                renderer = self.extras['renderer']
+            renderer = self.yaml['renderer']
         except:
             pass
 
-        if renderer == None:
-            try:
-                if self.yaml['renderer']:
-                    renderer = self.extras['renderer']
-            except:
-                pass
+        try:
+            renderer = self.extras['renderer']
+        except:
+            pass
+
 
         if not renderer in ['mustache', 'jinja2']:
-                self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (value, self.filepath))
-                return 'mustache'
-
+            self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (renderer, self.filepath))
+            return 'mustache'
+        
         return renderer
         
     def get_copy_to_destination(self):
@@ -797,7 +796,7 @@ if __name__ == '__main__':
     meta_data = {
         '__version__': __version__,
         '__filepath__': filepath.replace('\\','\\\\'),
-        '__rootdir__': file_dir.replace('\\','\\\\')
+        '__root__': file_dir.replace('\\','\\\\')
     }
     rc = util.RenderingContext()
     rc.push()
