@@ -1,13 +1,9 @@
 ---
 to: pdf
+title: Generated LaTeX articles
+author: Faisal Qureshi
 
 ---
-
-# Section 1
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Quam vulputate dignissim suspendisse in est ante. Morbi non arcu risus quis varius quam. Integer eget aliquet nibh praesent tristique magna sit. Neque laoreet suspendisse interdum consectetur libero. Vitae elementum curabitur vitae nunc sed. Pellentesque nec nam aliquam sem et tortor consequat id porta. Arcu bibendum at varius vel pharetra vel. Pellentesque eu tincidunt tortor aliquam nulla facilisi cras. Quis auctor elit sed vulputate mi sit amet. A erat nam at lectus urna duis convallis convallis. Lorem donec massa sapien faucibus et molestie ac.
-
-Dolor purus non enim praesent elementum facilisis leo vel. In nulla posuere sollicitudin aliquam ultrices sagittis orci a scelerisque. Auctor elit sed vulputate mi sit amet. Nulla facilisi nullam vehicula ipsum a arcu cursus vitae congue. Posuere ac ut consequat semper viverra nam. Orci porta non pulvinar neque laoreet suspendisse interdum consectetur libero. In nibh mauris cursus mattis molestie. Urna cursus eget nunc scelerisque viverra mauris in aliquam. Mauris augue neque gravida in fermentum. Accumsan lacus vel facilisis volutpat est velit. Ornare arcu odio ut sem nulla pharetra diam sit. Nulla posuere sollicitudin aliquam ultrices. Eget lorem dolor sed viverra ipsum nunc aliquet bibendum enim. Scelerisque purus semper eget duis at tellus. Ac odio tempor orci dapibus ultrices. Lacinia quis vel eros donec ac odio. At imperdiet dui accumsan sit amet.
 
 # Section 2
 

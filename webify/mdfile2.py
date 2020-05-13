@@ -169,7 +169,7 @@ class MDfile:
                                 'preprocess-mustache' ]
 
     def load(self):
-        logger = util.WebifyLogger.get('file-debug')
+        logger = util.WebifyLogger.get('file')
         self.yaml = {}
 
         # Read the file in to a buffer
@@ -460,15 +460,39 @@ class MDfile:
             return 'error', output_filepath, self.filepath
 
     def needs_compilation(self, files, output_filepath):
-        if not output_filepath or self.extras['ignore-times']: return True
-        if output_filepath and not os.path.isfile(output_filepath): return True
+        logger = util.WebifyLogger.get('timestamps')
+        logger.debug('Function enter: needs_compilation')
 
-        for f in files:
-            if os.path.isfile(f) and os.path.getmtime(f) > os.path.getmtime(output_filepath):
-                return True
-        if output_filepath and os.path.isfile(output_filepath) and os.path.getmtime(output_filepath) < os.path.getmtime(self.filepath):
+        if not output_filepath:
+            logger.debug('\tOutput filepath not specified.')
+            logger.debug('\tCompilation needed.')
             return True
 
+        if self.extras['ignore-times']:
+            logger.debug('\tIgnore times flag is True')
+            logger.debug('\tCompilation needed.')
+            return True
+        
+        if output_filepath and not os.path.isfile(output_filepath): 
+            logger.debug('\tOutput filepath is not a file %s' % output_filepath)
+            logger.debug('\tCompilation needed.')
+            return True
+
+        # output_filepath is a file
+        output_filepath_mtime =  os.path.getmtime(output_filepath)
+        logger.debug('\tOutput filepath: %s [%s]' % (output_filepath, str(output_filepath_mtime)))
+        for f in files:
+            if os.path.isfile(f):
+                f_mtime = os.path.getmtime(f)
+                logger.debug('\tCheck: %s [%s]' % (f, str(f_mtime)))
+                if f_mtime > output_filepath_mtime:
+                    logger.debug('\tCompilation needed.')
+                    return True
+            else:
+                logger.debug('\tIgnoring %s.  Not a file.' % f)
+
+        logger.debug('\tCompilation not needed.')
+        logger.debug('Function exit: needs_compilation')
         return False
 
     def get_highlight_style(self):
@@ -695,6 +719,7 @@ if __name__ == '__main__':
 
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
+    cmdline_parser.add_argument('--debug-timestamps', action='store_true', default=False, help='Debug messages regarding file timestamps.')
     
     cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
     cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
@@ -723,15 +748,13 @@ if __name__ == '__main__':
     
     # Setting up logging
     logfile = None if not cmdline_args.log else __logfile__
+
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = util.WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
-    loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
-    loglevel = logging.DEBUG if cmdline_args.debug_render   else loglevel
-    util.WebifyLogger.make(name='render', loglevel=loglevel, logfile=logfile)
-    loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
-    loglevel = logging.DEBUG if cmdline_args.debug_file   else loglevel
-    util.WebifyLogger.make(name='file-debug', loglevel=loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='render',     loglevel=logging.DEBUG if cmdline_args.debug_render else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='file',       loglevel=logging.DEBUG if cmdline_args.debug_file else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else loglevel, logfile=logfile)
     
     # Go
     logger.debug('Prog name:    %s' % prog_name)

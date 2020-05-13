@@ -54,9 +54,9 @@
 <p>My course notes are often spread over multiple markdown files. I needed a way to automate markdown-to-desired-output conversion. One straightforward option was to use a bash script to automate this conversion. I found this approach to be limiting. There wasn’t an easy way to treat various files differently. Say I wanted to convert <code>a.md</code> to a beamer slideshow and <code>b.md</code> to an html page? I couldn’t find a way to write a bash script that would do this for me. I knew that markdown files support metadata through a yaml header. This suggests that we can include file specific processing instructions in the markdown file itself. At processing time, we can use these instructons to process the markdown file accordingly. MDfile is Python utility built around pandoc. It uses pandoc to do all the heavy lifting, i.e., actual document conversion. However, it loads in the yaml metadata from the markdown file and uses this information to set up pandoc conversion appropriately. Yaml front matter can also be used to speciify custom options for pandoc conversions. MDfile relies upon pandoc Python bindings. Specifically, MDFile supports 1) markdown-to-html, 2) markdown-to-LaTeX-article, and 3) markdown-to-beamer-slides conversions.</p>
 <p>Consider the three files:</p>
 <ul>
-<li><code>lorem-article.md</code>;</li>
-<li><code>lorem-slides.md</code>; and</li>
-<li><code>lorem-html.md</code>.</li>
+<li><code>lorem-article.md</code> (<a href="lorem-article.pdf">generated LaTeX article</a>);</li>
+<li><code>lorem-slides.md</code> (<a href="lorem-slides.pdf">generated beamer slides</a>); and</li>
+<li><code>lorem-html.md</code> (<a href="lorem-html.html">generated webpage</a>).</li>
 </ul>
 <p>These can be converted to LaTeX article, beamer slides, or html web page, respectively, using the following command: <code>mdfile filename.md</code>. Yaml front matter for the three files are shown below.</p>
 <h4 id="yaml-front-matter-for-lorem-article.md">YAML front matter for <code>lorem-article.md</code></h4>
@@ -189,7 +189,7 @@ item2: &quot;This is [bbc](http://www.bbc.co.uk).&quot;</code></pre>
 <p>It is possible to process yaml front matter via mustache renderer before adding it to the rendering context for the current file. The rendering context when processing front matter is constructed from information stored in yaml files present in the current folder and in ancestor folders.</p>
 <p>Consider the following file.</p>
 <pre><code>---
-template: /Users/faisal/coding/webify/manual/_templates/web.html
+template: /_templates/web.html
 
 ---
 This is a markdown file.</code></pre>
@@ -253,7 +253,7 @@ optional arguments:
                         Specify whether to use mustache or jinja2 engine.
                         Jinja2 is the default choice.</code></pre>
 <h2 id="blogging">Blogging</h2>
-<p>Webify version &gt; 3.1 supports blog.</p>
+<p>Webify version &gt; 3.1 supports blog. Consider</p>
 
     </div>
   </div>

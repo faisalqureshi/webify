@@ -1,4 +1,4 @@
----
+ ---
 title: Webify
 description: A python utility for generating static websites and course notes. 
 more: >
@@ -10,7 +10,7 @@ more: >
              It supports both Jinja2 and Mustache templating engine that can
              process data stored in yaml files and yaml front matter within
              markdown files to create beautiful documents and websites.
-render: "{{__rootdir__}}/_templates/main_template.html"
+render: "{{__root__}}/_templates/main_template.html"
 web: "https://github.com/faisalqureshi/webify"
 
 ---
@@ -35,9 +35,9 @@ My course notes are often spread over multiple markdown files.  I needed a way t
 
 Consider the three files:
 
-- `lorem-article.md`;
-- `lorem-slides.md`; and
-- `lorem-html.md`.
+- `lorem-article.md` ([generated LaTeX article](lorem-article.pdf));
+- `lorem-slides.md` ([generated beamer slides](lorem-slides.pdf)); and
+- `lorem-html.md` ([generated webpage](lorem-html.html)).
 
 These can be converted to LaTeX article, beamer slides, or html web page, respectively, using the following command: `mdfile filename.md`. Yaml front matter for the three files are shown below.
 
@@ -326,4 +326,6 @@ optional arguments:
 
 ## Blogging
 
-Webify version > 3.1 supports blog.
+Webify version > 3.1 supports blogging as well.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
+
+

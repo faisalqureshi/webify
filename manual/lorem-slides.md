@@ -1,5 +1,7 @@
 ---
 to: beamer
+title: Generated LaTeX articles
+author: Faisal Qureshi
 
 ---
 
