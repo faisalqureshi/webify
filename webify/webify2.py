@@ -107,7 +107,7 @@ class Webify:
         self.dir_tree = DirTree()
 
     def set_templating_engine(self):
-        if self.meta_data['templating-engine'] == 'jinja2':
+        if self.meta_data['templating_engine'] == 'jinja2':
             self.render = util.jinja2_renderer
         else:
             self.render = util.mustache_renderer
@@ -320,6 +320,18 @@ class Webify:
         else:
             self.logger.warning('Error processing %s' % filepath)
 
+        # Check if markdown file needs to be copied
+        y = md_file.get_yaml()
+        try:
+            copy_source = y['copy_source']
+        except:
+            copy_source = False
+
+        if copy_source:
+            self.logger.debug('Copying %s' % extras['output-file']+'.md')
+            util.process_file(filepath, extras['output-file']+'.md', self.meta_data['force_copy'])
+
+        # Collecting blogging information
         if blog_posts != None:
             assert(blog_dest_dir)
             blog_posts.append(
@@ -422,7 +434,7 @@ class Webify:
 
             if not blog_index_filepath:
                 logger_blog.warning('Blog index not found: %s' % blog_index_filepath_dir)
-            elif not os.ispath.isfile(blog_index_filepath):
+            elif not os.path.isfile(blog_index_filepath):
                 logger_blog.warning('Blog index file not found: %s' % blog_index_filepath)
             else:
                 extras = { 'ignore-times': ignore_times,
@@ -554,7 +566,7 @@ if __name__ == '__main__':
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
-        'templating-engine': cmdline_args.templating_engine,
+        'templating_engine': cmdline_args.templating_engine,
         'force_copy': cmdline_args.force_copy,
         'blog': False
     }

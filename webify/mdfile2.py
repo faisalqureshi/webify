@@ -16,6 +16,9 @@ from globals import __version__
 __logfile__ = 'mdfile.log'
 
 class PandocArguments:
+    '''
+    Helper class to setup arguments for pypandoc.
+    '''
     def __init__(self):
         self.pdoc_args = []
 
@@ -44,20 +47,54 @@ class PandocArguments:
 
 class MDfile:
     """
-    Class that implements MD file conversion to other formats.
-    'pandoc' is used to convert MD file to other formats.
+    Class that implements markdown conversion to other formats.
+    'pandoc' is used to convert the markdown file to other formats.
     Yaml front matter is used to control how an MD file is converted.
 
-    Example MD file:
+    # Highlights
 
+    By default a markdown file is converted to a standalone html file.
+
+    The `to` key can be specified to specify other conversion modes: 
+    pdf article, beamer slides, or plain LaTeX (useful for debugging).
+
+    The `template` key is used to specify the pandoc template during conversion:
+
+    - default pandoc is used if `template` key is not provided.  Use 
+    `pandoc -D <html|latex|beamer>` to get default pandoc template for the format that
+    you are interested in.
+    - `template` key is only used if `render` key doesn't specify a mustache or 
+    jinja2 template file.  
+
+    The `render` key is used to specify a mustache or jinja2 template file:
+
+    - `render` key is only used if document is converted to html.
+    - when `render` key is specified, markdown is converted to plain html (without)
+    using pandoc template, i.e., `template` key is ignored.
+    - when `render` key is specified html contents is available as the 
+    `body` tag during mustache or jinja2 rendering.
+    - A value for `render` key
+    indicates that the generated html will be consumed within a mustache or jinja template file.
+
+    # Yaml frontmatter
+
+    [PANDOC & INTERNAL]
     to: html* | pdf | beamer | latex (very useful during debugging)
+    
+    [PANDOC]
     template: None* | path/to/pandoc-template-file
+
+    Use none specified, default template is used. 
+    
+    [INTERNAL]
     render: None* | path/to/mustache-or-jinja-template-file (see below about how to use it)
 
+    [PANDOC & INTERNAL]
     standalone-alone: None | false* or true
 
     if standalone is false and render is None then standalone is true
 
+    [PANDOC]
     css: None* | path/to/css-file (used only when converting to html)
 
     or
@@ -68,24 +105,28 @@ class MDfile:
         - path/to/css-file-3
         ...
 
+    [PANDOC]
     include-before-body: None* | path/to/file
         - path/to/file-1
         - path/to/file-2
         - path/to/file-3
         ...
 
+    [PANDOC]
     include-in-header: None* | path/to/file
         - path/to/file-1
         - path/to/file-2
         - path/to/file-3
         ...
 
+    [PANDOC]
     include-after-body: None* | path/to/file
         - path/to/file-1
         - path/to/file-2
         - path/to/file-3
         ...
 
+    [INTERNAL]
     html-img: None* | file
     html-imgs: None* | file
     html-vid: None* | file
@@ -95,33 +136,29 @@ class MDfile:
     markdown syntax: "![](file)" or "![](file1|file2)".  Note that the second form isn't understood by 
     markdown.
 
+    [INTERNAL]
     renderer: jinja2 | mustache*
 
+    [PANDOC]
     bibliography: None* | path/to/bib file
 
+    [PANDOC]
     csl: None* | path/to/csl file
 
+    [INTERNAL]
     preprocess-mustache: None | *True or False
 
+    It is possible to pass the contents of the mdfile through mustache before the
+    mdfile is passed on to pandoc for conversion.  If this behavior is desired
+    set preprocess-mustache to true.  The default is true.
+
+    [PANDOC]
     pdf-engine: *None | lualatex or tetex.  This info will be passed onto pandoc convertor.
     ___
 
     Contents of the MD file.
 
-    Default mode is to convert an MD file to a standalone html.  Otherwise 'to' key
-    can be used to specify other conversion modes, e.g., pdf or beamer slides.
-    'template' key is used to specify the pandoc template used during the conversion.
-    If no 'template' key is specified the default pandoc template is used.
-    Check out the 'pandoc -D html ...' command to see the default template.
-    'render' key is used to specify the mustache template.  'render' key is only used if
-    html is generated from the MD file.  'body' tag in the mustache template is replaced
-    by the html generated from this MD file.  Note that when converting MD file to html,
-    template is only used if 'render' key is None.  A value for 'render' key
-    indicates that the generated html will be consumed within a mustache file.
-
-    It is possible to pass the contents of the mdfile through mustache before the
-    mdfile is passed on to pandoc for conversion.  If this behavior is desired
-    set preprocess-mustache to true.  The default is false.
+    
     """
     def __init__(self, filepath, rootdir, extras, rc):
 
@@ -169,14 +206,20 @@ class MDfile:
                                 'preprocess-mustache' ]
 
     def load(self):
-        logger = util.WebifyLogger.get('file')
         self.yaml = {}
+
+        logger_file = util.WebifyLogger.get('file')
+        logger_rc = util.WebifyLogger.get('rc')
 
         # Read the file in to a buffer
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
-            self.logger.info('Loaded MD file: %s' % self.filepath)
+            self.logger.info('Loaded markdown file: %s' % self.filepath)
+
+            if util.WebifyLogger.is_debug(logger_file):
+                print('File contents:')
+                pp.pprint(self.buffer)
         except:
             self.logger.warning('Cannot load: %s' % self.filepath)
             self.buffer = None
@@ -187,23 +230,19 @@ class MDfile:
             yamlsections = yaml.safe_load_all(self.buffer)
             for section in yamlsections:
                 self.yaml = section
-                logger.info('YAML section found')
-                if util.WebifyLogger.is_debug(logger):
-                    print('Buffer:')
-                    pp.pprint(self.buffer)
-                    print('YAML frontmatter:')
+                self.logger.info('YAML section found')
+
+                if util.WebifyLogger.is_debug(logger_file):
+                    print('YAML section:')
                     pp.pprint(self.yaml)
+
                 break # Only the first yaml section is read in
         except:
-            logger.info('YAML loader problems.  Check rendering.  %s' % self.filepath)
-            # if self.extras['verbose']:
-            #     print("------")
-            #     print(self.buffer)
-            #     print("------")
-
+            self.logger.warning('YAML loader problems: %s' % self.filepath)
+            
         # If yaml section found, good.  If not create a {} yaml section.
         if not isinstance(self.yaml, dict):
-            logger.warning('YAML section not found in md file: %s' % self.filepath)
+            self.logger.warning('YAML section not found in md file: %s' % self.filepath)
             self.yaml = {}
 
         # If we want to preprocess the file using mustache renderer then do it
@@ -217,16 +256,19 @@ class MDfile:
                 self.set_yaml(yaml.safe_load(s))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
-                if util.WebifyLogger.is_debug(self.logger):
-                    pp.pprint(self.rc.data())
-                    pp.pprint(yaml.dump(self.get_yaml()))
 
-            if util.WebifyLogger.is_debug(logger):
+            if util.WebifyLogger.is_debug(logger_file):
                 print('YAML frontmatter after pre-processing:')
-                pp.pprint(self.yaml)
+                pp.pprint(self.get_yaml())
+
+        if len(self.get_yaml().keys()) == 0:
+            self.logger.warning('Loaded an empty YAML section (check for missing "" around yaml values or other syntax errors): %s' % self.filepath)
 
         # Update the rendering context for this file
         self.rc.add(self.get_yaml())
+        if util.WebifyLogger.is_debug(logger_rc):
+            print('RC:')
+            self.rc.print()
         return self
 
     def get_buffer(self):
@@ -242,6 +284,7 @@ class MDfile:
         return self.convert()
 
     def compile(self, output_format, pandoc_args, output_filepath=None):
+
         ret_type = 'file' if output_filepath else 'buffer'
         ret_val = output_filepath
 
@@ -299,7 +342,10 @@ class MDfile:
         using_renderfile = False
 
         render_file = self.get_renderfile()
+        self.logger.debug('Render file: %s' % render_file)
+
         template_file = self.get_template()
+        self.logger.debug('Template file: %s' % template_file)
 
         # The plan is to create an output file
         if self.is_create_outputfile():
@@ -511,7 +557,7 @@ class MDfile:
         try:
             return self.yaml
         except:
-            self.logger.error('Get yaml called before loading file %s' % self.filepath)
+            self.logger.error('get_yaml called before loading file %s' % self.filepath)
             return {}
 
     def set_yaml(self, data):
@@ -660,7 +706,6 @@ class MDfile:
     def get_renderer(self):
         assert(self.buffer)
 
-
         renderer = None
         try:
             renderer = self.yaml['renderer']
@@ -720,6 +765,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
     cmdline_parser.add_argument('--debug-timestamps', action='store_true', default=False, help='Debug messages regarding file timestamps.')
+    cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug messages regarding yaml front matter and rendering context.')
     
     cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
     cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
@@ -730,7 +776,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--highlight-style', action='store', default=None, help='Specify a highlight-style.  See pandoc --list-highlight-styles.')
     cmdline_parser.add_argument('--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
 
-    cmdline_parser.add_argument('--do-not-preprocess-mustache', action='store_true', default=None, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
+    cmdline_parser.add_argument('--do-not-preprocess-mustache', action='store_true', default=False, help='Turns off pre-processesing md file using mustache before converting via pandoc.')
 
     cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
 
@@ -752,9 +798,10 @@ if __name__ == '__main__':
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = util.WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
-    util.WebifyLogger.make(name='render',     loglevel=logging.DEBUG if cmdline_args.debug_render else loglevel, logfile=logfile)
-    util.WebifyLogger.make(name='file',       loglevel=logging.DEBUG if cmdline_args.debug_file else loglevel, logfile=logfile)
-    util.WebifyLogger.make(name='timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='render',     loglevel=logging.DEBUG if cmdline_args.debug_render else logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='rc',         loglevel=logging.DEBUG if cmdline_args.debug_rc else logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='file',       loglevel=logging.DEBUG if cmdline_args.debug_file else logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else logging.WARNING, logfile=logfile)
     
     # Go
     logger.debug('Prog name:    %s' % prog_name)
@@ -767,7 +814,7 @@ if __name__ == '__main__':
         print('Commandline arguments:')
         print('--format:                    ', cmdline_args.format)
         print('--template-file:             ', template)
-        print('--render-fil                 ', render)
+        print('--render-file                ', render)
         print('--no-output-file:            ', cmdline_args.no_output_file)
         print('--include-in-header:         ', include_in_header)
         print('--bibliography:              ', bibliography)
@@ -782,9 +829,35 @@ if __name__ == '__main__':
         print('--verbose:                   ', cmdline_args.verbose)
         print('--templating-engine:         ', cmdline_args.templating_engine)
 
+    # Input file
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
     filename = os.path.basename(filepath)
     file_dir = os.path.split(filepath)[0]
+
+    # Output file
+    if cmdline_args.output == None:
+        output_filename, output_fileext = os.path.splitext(filename)
+        output_dir = cur_dir
+    else:
+        if not os.path.isdir(cmdline_args.output):
+            output_filename, output_fileext = os.path.splitext(cmdline_args.output)
+            output_dir = cur_dir
+        else:
+            output_filename, output_fileext = os.path.splitext(filename)
+            output_dir = cmdline_args.output
+    output_filepath = os.path.normpath(os.path.join(output_dir, output_filename))
+
+
+    print("filepath", filepath)
+    print("filename", filename)
+    print("file_dir", file_dir)
+    print("cmdline_args.output", cmdline_args.output)
+    print("output_filename", output_filename)
+    print("output_fileext", output_fileext)
+    print("output_dir", output_dir)
+    print("output_filepath", output_filepath)
+    exit(0)
+
     temporary_output_filename = os.path.splitext(filename)[0]+'._mdfile_tmp'
     output_filename = cmdline_args.output if cmdline_args.output else temporary_output_filename 
     if os.path.isdir(output_filename):
@@ -807,7 +880,7 @@ if __name__ == '__main__':
                'csl': csl,
                'highlight-style': cmdline_args.highlight_style,
                'ignore-times': cmdline_args.ignore_times,
-               'preprocess-mustache': not cmdline_args.do_not_preprocess_mustache,
+               'preprocess-mustache': False if cmdline_args.do_not_preprocess_mustache else None,
                'include-in-header': include_in_header,
                'output-file': output_filepath,
                'no-output-file': cmdline_args.no_output_file,
