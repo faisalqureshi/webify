@@ -1,5 +1,6 @@
 ---
 to: html
+copy_source: True
 
 ---
 

@@ -109,8 +109,10 @@ class Webify:
     def set_templating_engine(self):
         if self.meta_data['templating_engine'] == 'jinja2':
             self.render = util.jinja2_renderer
+            self.renderer = 'jinja2'
         else:
             self.render = util.mustache_renderer
+            self.renderer = 'mustache'
         
     def set_src(self, srcdir, meta_data):
         self.meta_data = meta_data
@@ -272,7 +274,8 @@ class Webify:
         # print(dir)
         # self.rc.print()
 
-        extras = { 'ignore-times': ignore_times }
+        extras = { 'ignore-times': ignore_times,
+                   'renderer': self.renderer }
         for filename in dir.files['md']:
             filepath = self.get_src(dir, filename)
             if is_blog and filepath == blog_index_filepath: continue
@@ -281,37 +284,16 @@ class Webify:
             destpath = self.get_dest(dir, filename)
             destpath_noext = os.path.splitext(destpath)[0]
             
-            extras['output-file'] = destpath_noext
+            extras['output-filepath'] = destpath_noext
+            extras['output-fileext'] = ''
             self.proc_md_file(filename, filepath, filepath_dir, extras, blog_posts, blog_dest_dir)
-
-            # self.logger.info('Processing MD file: %s' % filepath)
-            # self.rc.push() 
-            # md_file = MDfile(filepath=filepath, rootdir=dir.get_fullpath(), extras=extras, rc=self.rc)
-            # #self.rc.pop()
-            # self.logger.debug('Saving %s' % extras['output-file'])
-
-            # ret_type, saved_file, _ = md_file.load().get_buffer()
-            # if ret_type == 'file':
-            #     self.logger.info('Saved %s' % saved_file)
-            # elif ret_type == 'exists':
-            #     self.logger.info('Already exists %s' % saved_file)
-            # else:
-            #     self.logger.warning('Error processing %s' % filepath)
-            #     self.rc.pop()
-            #     continue
-
-            # if is_blog:
-            #     blog_posts.append(
-            #         self.collect_blog_info(filename, saved_file, blog_root_dir, md_file)
-            #         )
-            # self.rc.pop()
     
     def proc_md_file(self, filename, filepath, filepath_dir, extras, blog_posts, blog_dest_dir):
         self.rc.push() 
         
-        md_file = MDfile(filepath=filepath, rootdir=filepath_dir, extras=extras, rc=self.rc)
-        self.logger.debug('Saving %s' % extras['output-file'])
+        self.logger.debug('Saving %s' % extras['output-filepath'])
 
+        md_file = MDfile(filepath=filepath, rootdir=filepath_dir, extras=extras, rc=self.rc)
         ret_type, saved_file, _ = md_file.load().get_buffer()
         if ret_type == 'file':
             self.logger.info('Saved %s' % saved_file)
@@ -328,8 +310,8 @@ class Webify:
             copy_source = False
 
         if copy_source:
-            self.logger.debug('Copying %s' % extras['output-file']+'.md')
-            util.process_file(filepath, extras['output-file']+'.md', self.meta_data['force_copy'])
+            self.logger.debug('Copying %s' % extras['output-filepath']+'.md')
+            util.process_file(filepath, extras['output-filepath']+'.md', self.meta_data['force_copy'])
 
         # Collecting blogging information
         if blog_posts != None:
@@ -438,7 +420,9 @@ class Webify:
                 logger_blog.warning('Blog index file not found: %s' % blog_index_filepath)
             else:
                 extras = { 'ignore-times': ignore_times,
-                           'output-file': self.rc.value('blog_index_destpath_noext') }
+                           'renderer': self.renderer,
+                           'output-fileext': '', 
+                           'output-filepath': self.rc.value('blog_index_destpath_noext') }
 
                 blog_index_filename = self.rc.value('blog_index')
 

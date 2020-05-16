@@ -1,4 +1,4 @@
- ---
+---
 title: Webify
 description: A python utility for generating static websites and course notes. 
 more: >
@@ -172,7 +172,7 @@ example1
 └── main.yaml
 ```
 
-The rendering context for file `a.md` will include information from both `main.yaml` and `a.yaml` files, in addition to information stored in its yaml front matter.  Say the contents of `main.yaml` are:
+The rendering context for file `a.md` will include information from both `main.yaml` and `a.yaml` files, in addition to the information stored in its yaml front matter.  Say the contents of `main.yaml` are:
 
 ```
 ---
@@ -227,7 +227,7 @@ The `_pandoc_` tag is used to invoke pandoc filter on a particular data item.
 
 ### A note about yaml front matter
 
-It is possible to process yaml front matter via mustache renderer before adding it to the rendering context for the current file.  The rendering context when processing front matter is constructed from information stored in yaml files present in the current folder and in ancestor folders.
+It is possible to process yaml front matter via mustache renderer before adding it to the rendering context for the current file.  The rendering context when processing front matter is constructed from information stored in yaml files present in the current folder and in ancestor folders (up to the root folder).
 
 Consider the following file.
 
@@ -290,6 +290,18 @@ _templates
 .pynb_checkpoints
 ```
 
+### Copying source markdown files to the destination
+
+Webify's default behavior is to process markdown files to create 1) LaTeX articles, 2) beamer slides, or 3) html pages.  This means that webify does not copy the source markdown file to the destination.  E.g., a markdown files `example.md` will be appear as either `example.pdf` (cases 1 and 2) or `example.html` (case 3) at the destination location.  Sometimes however it is desireable to copy the source markdown file to the destination location.  This can be achieved by using the `copy_source` flag in the yaml front matter as follows.
+
+```txt
+---
+copy_source: True
+
+---
+File contents ...
+```
+
 ## Webify options
 
 Webify supports the following options.
@@ -326,6 +338,6 @@ optional arguments:
 
 ## Blogging
 
-Webify version > 3.1 supports blogging as well.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
+Webify version > 3.1 supports blogging.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
 
 

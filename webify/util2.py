@@ -179,7 +179,7 @@ class WebifyLogger:
         logger.setLevel(logging.DEBUG)
         
         # Console
-        fmtstr = '%(message)s'
+        fmtstr = '[%(levelname)-8s] %(message)s'
         formatter = logging.Formatter(fmtstr)
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)

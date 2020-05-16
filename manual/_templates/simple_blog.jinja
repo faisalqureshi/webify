@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <div class="container">
+        <h1>{{ blog_title }}</h1>
+        
+        <h2>Posts</h2>
+
+        <ul>
+            {% for post in blog_posts %}
+                <li><a href="{{ post.link }}">{{ post.title }}</a></li>
+            {% endfor %}
+        </ul>
+
+    </div>
+  </body>
+</html>

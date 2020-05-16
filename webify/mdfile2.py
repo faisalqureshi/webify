@@ -168,14 +168,15 @@ class MDfile:
         self.rootdir = rootdir
         self.extras = extras
         self.rc = rc
+        self.output_format = None
 
         self.logger.debug('Processing: %s' % self.filepath)
         self.logger.debug('rootdir:    %s' % self.rootdir)
         if util.WebifyLogger.is_debug(self.logger):
             print('Extras:')
-            pp.pprint(self.extras)
+            pp.pprint(self.extras, indent=2)
             print('Rendering context:')
-            pp.pprint(self.rc.get())
+            self.rc.print()
 
         # We only support the following conversions
         self.supported_output_formats = [ 'html',
@@ -276,9 +277,15 @@ class MDfile:
             return 'error', 'Load error', self.filepath
 
         output_format = self.get_output_format()
+
         if not output_format in self.supported_output_formats:
             self.logger.error('Unsupported conversion format "%s": %s' % (output_format, self.filepath))
             return 'error', 'Unrecognized output format "%s"' % output_format,  self.filepath
+
+        output_fileext = self.get_output_fileext()
+        if output_fileext and self.extensions[output_format] != output_fileext[1:]:
+            self.logger.error('Output format "%s" doesnot match output file extension "%s": %s' % (output_format, output_fileext, self.filepath) )
+            return 'error', 'Bad output file extension', self.filepath
 
         self.logger.info('Converting to "%s"' % output_format)
         return self.convert()
@@ -309,37 +316,17 @@ class MDfile:
 
         return ret
 
-    def make_output_filepath(self):
-        output_file = self.extras['output-file']
-        assert(output_file)
+    def make_output_filepath_with_extension(self):
         output_format = self.get_output_format()
-
-        oname, oextension = os.path.splitext(output_file)
-        if oextension == '':
-            output_file = oname + '.' + self.extensions[output_format]
-        elif oextension[1:] != self.extensions[output_format]:
-            if oextension != '._mdfile_tmp':
-                self.logger.warning('Illegal file extension\n\t - filename: %s\n\t - output:   %s' % (self.filepath, output_file))
-                self.logger.warning('Correct extension is: %s' % self.extensions[output_format])
-                return None
-            else:
-                output_file = oname + '.' + self.extensions[output_format]
-        else:
-            pass
-        self.logger.debug('Output file: %s' % output_file)
-
-        return output_file
-
-    def is_create_outputfile(self):
-        try:
-            return not self.extras['no-output-file']
-        except:
-            return True
+        output_filepath = self.get_output_filepath()
+        return output_filepath + '.' + self.extensions[output_format]
 
     def convert(self):
         files = [self.filepath]
         pdoc_args = PandocArguments()
-        using_renderfile = False
+
+        output_filepath = self.make_output_filepath_with_extension()
+        self.logger.info('Writing to: %s' % output_filepath)
 
         render_file = self.get_renderfile()
         self.logger.debug('Render file: %s' % render_file)
@@ -347,32 +334,24 @@ class MDfile:
         template_file = self.get_template()
         self.logger.debug('Template file: %s' % template_file)
 
-        # The plan is to create an output file
-        if self.is_create_outputfile():
-            self.logger.info('Create output file YES')
-            output_filepath = self.make_output_filepath()
-            if not output_filepath:
-                return 'error', 'Illegal output filename', self.filepath
-            
-            if render_file:
+        standalone = True
+        if render_file:
+            if self.is_output_format('html'):
                 self.logger.info('Renderfile found: %s' % render_file)
-                if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template)
-                using_renderfile = True
                 files.append(render_file)
-                self.logger.debug('Pandoc standalone mode OFF')
+                standalone = False
+                if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template_file)
             else:
-                self.logger.debug('Pandoc standalone mode ON')
-                pdoc_args.add_flag('standalone')
-                if template_file:
-                    self.logger.info('Using pandoc template file: %s' % template_file)
-                    pdoc_args.add('template', template_file)
-                    files.append(template_file)
-        # We don't plan to create an output file
-        else:
-            self.logger.info('Create output file NO')
-            output_filepath = None
-            if render_file: self.logger.warning('Ignoring renderfile file: %s' % render_file)
-            if template_file: self.logger.warning('Ignoring pandoc template file: %s' % template_file)
+                self.logger.warning('Render files are only supported when converting to html. Ignoring: %s' % render_file)
+
+        if standalone:
+            pdoc_args.add_flag('standalone')
+            if template_file:
+                self.logger.info('Using pandoc template file: %s' % template_file)
+                pdoc_args.add('template', template_file)
+                files.append(template_file)
+            else:
+                self.logger.info('Using default pandoc template')
 
         # Lets get the bib and csl files
         bib_file = self.get_bibfile()
@@ -395,7 +374,7 @@ class MDfile:
         pdoc_args.add('include-after-body',  include_files['include-after-body'])
         if util.WebifyLogger.is_debug(self.logger):
             print('Pandoc include files:')
-            pp.pprint(include_files)
+            pp.pprint(include_files, indent=2)
         files.extend(include_files['include-in-header'])
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
@@ -415,36 +394,28 @@ class MDfile:
 
         # So it seems that we will have to do the real work
         pdoc_args.add('highlight-style', self.get_highlight_style())
-#        pdoc_args.add_flag('listings')
+        # pdoc_args.add_flag('listings')
 
-        if self.get_output_format() == 'beamer':
+        if self.is_output_format('beamer'):
             slide_level = self.get_slide_level()
             pdoc_args.add('slide-level', slide_level)
 
-        # See if we need to preprocess the mdfile using mustache templating
-        # If we have to then lets get on with it.        
-        if self.get_preprocess_mustache():
-            if self.get_output_format() == 'html':
-                self.logger.info('Preprocess mustache YES')
-
+        if self.get_preprocess_mustache(): 
+            if self.is_output_format('html'):
+                self.logger.info('Preprocessing markdown buffer using mustache')
                 if len(hf_file_list) > 0:
                     self.logger.info('Applying HTML filter')
                     f = HTML_Filter(hf)
-                    self.buffer = f.apply(self.buffer)
-                
+                    self.buffer = f.apply(self.buffer)                    
                 self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
             else:
-                self.logger.warning('Preprocess mustache is only allowed for md to html conversion.')
-        else:
-            self.logger.info('Preprocess mustache NO')
-            if len(hf_file_list) > 0:
-                self.logger.warning('HTML Filters are only applied when preprocess mustache is ON.')
+                self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
 
         # Now we need to use pandoc to transform the "preprocessed"
         # md file to one of three output formats: 1) html,
         # 2) latex, or 3) beamer
         # We set the options accordingly
-        if self.get_output_format() == 'html':
+        if self.is_output_format('html'):
             pdoc_args.add_flag('mathjax')
             pdoc_args.add('css', self.get_cssfiles())
         elif self.get_output_format() in ['pdf', 'beamer', 'latex']:
@@ -457,7 +428,8 @@ class MDfile:
         # and no renderfile is specified.  This case is rather
         # straightforward.  Pandoc can create the output file
         # for us.  
-        if self.is_create_outputfile() and not using_renderfile:
+        if standalone:
+            self.logger.debug('Creating standalone file.')
             return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
         
         # We are left with the following choices.  We are not
@@ -467,24 +439,15 @@ class MDfile:
         # the md file will replace the {{body}} tag of the template.
 
         # First, lets ensure that the output format is html
-        assert(self.get_output_format() == 'html')
+        assert(self.is_output_format('html'))
+        assert(render_file)
+
+        self.logger.debug('Creating html content which will be used in a render file.')
 
         # Next lets use pandoc to get md to html
         r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
-
-        # Case 1: If a render file is not specified.  It means that the intention is not
-        # to create a output file.  Return the buffer. 
-        if not using_renderfile:
-            self.logger.info('Using render file NO')
-            return r
-
-        # Case 2: A render file is specified.  We need will use the 
-        # render file to create the output file.
-        self.logger.info('Using render file YES')
         self.rc.add({'body': markupsafe.Markup(r[1])})
 
-        # Lets find the renderer that we plan to use.  We have
-        # two options: mustache or jinja2
         if self.get_renderer() == 'mustache':
             render_engine = util.mustache_renderer
             self.logger.info('Using renderer: mustache')
@@ -492,11 +455,6 @@ class MDfile:
             render_engine = util.jinja2_renderer
             self.logger.info('Using renderer: jinja2')
 
-        # Render and save to the output file
-        # print(self.rc.data().keys())
-        # print(render_engine)
-        # print(render_file)
-        # print(render)
         buffer = util.render(render_file, self.rc.data(), render_engine)
         self.logger.debug('Saving to output file: %s' % output_filepath)
         if util.save_to_file(output_filepath, buffer):
@@ -582,15 +540,21 @@ class MDfile:
     def get_output_format(self):
         assert(self.buffer)
 
+        if self.output_format:
+            return self.output_format
+
         try:
             if self.extras['format']:
-                return self.extras['format']
+                self.output_format = self.extras['format']
+                return self.output_format
         except:
             pass
 
         try:
-            return self.yaml['to']
+            self.output_format = self.yaml['to']
+            return self.output_format
         except:
+            self.output_format = 'html'
             return 'html'
 
     def get_pdf_engine(self):
@@ -643,9 +607,18 @@ class MDfile:
     def pick_all_files(self, key, relpath=False):
         return self.get_files(key)
 
+    def get_output_filepath(self):
+        return self.extras['output-filepath']
+
+    def get_output_fileext(self):
+        return self.extras['output-fileext']
+
+    def is_output_format(self, output_format_str):
+        return output_format_str == self.get_output_format()
+
     def get_renderfile(self):
         file = self.pick_last_file('render')
-        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
         if file and not os.path.isfile(file):
             self.logger.warning('Cannot find render file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
@@ -653,7 +626,7 @@ class MDfile:
 
     def get_template(self):
         file = self.pick_last_file('template')
-        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
         if file and not os.path.isfile(file):
             self.logger.warning('Cannot find template file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
@@ -664,7 +637,7 @@ class MDfile:
 
     def get_bibfile(self):
         file = self.pick_last_file('bibliography')
-        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
         if file and not os.path.isfile(file):
             self.logger.warning('Cannot find bibliography file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
@@ -672,7 +645,7 @@ class MDfile:
 
     def get_cslfile(self):
         file = self.pick_last_file('csl')
-        file = os.path.join(self.rootdir, os.path.expandvars(file)) if file else None
+        file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
         if file and not os.path.isfile(file):
             self.logger.warning('Cannot find csl file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
@@ -706,7 +679,7 @@ class MDfile:
     def get_renderer(self):
         assert(self.buffer)
 
-        renderer = None
+        renderer = 'jinja2'
         try:
             renderer = self.yaml['renderer']
         except:
@@ -717,20 +690,12 @@ class MDfile:
         except:
             pass
 
-
         if not renderer in ['mustache', 'jinja2']:
             self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (renderer, self.filepath))
-            return 'mustache'
+            renderer = 'jinja2'
         
         return renderer
         
-    def get_copy_to_destination(self):
-        assert(self.buffer)
-
-        try:
-            return self.yaml['copy-to-destination']
-        except:
-            return False
 
 def version_info():
     str =  '  Mdfile2:    %s\n' % __version__
@@ -754,7 +719,6 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('mdfile', help='MD file.  Options specified on commandline override those specified in the file yaml block.')
     cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
     cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
-    cmdline_parser.add_argument('--no-output-file', action='store_true', default=False, help='Use this flag to turn off creating an output file.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
     
     cmdline_parser.add_argument('--version', action='version', version=version_info())
@@ -812,22 +776,22 @@ if __name__ == '__main__':
 
     if util.WebifyLogger.is_debug(logger):
         print('Commandline arguments:')
-        print('--format:                    ', cmdline_args.format)
-        print('--template-file:             ', template)
-        print('--render-file                ', render)
-        print('--no-output-file:            ', cmdline_args.no_output_file)
-        print('--include-in-header:         ', include_in_header)
-        print('--bibliography:              ', bibliography)
-        print('--css:                       ', css_files)
-        print('--csl:                       ', csl)
-        print('--highlight-style:           ', cmdline_args.highlight_style)
-        print('--do-not-preprocess-mustache:', cmdline_args.do_not_preprocess_mustache)
-        print('--ignore-times:              ', cmdline_args.ignore_times)
-        print('--output:                    ', cmdline_args.output)
-        print('--slide-level:               ', cmdline_args.slide_level)
-        print('--pdf-engine:                ', cmdline_args.pdf_engine)
-        print('--verbose:                   ', cmdline_args.verbose)
-        print('--templating-engine:         ', cmdline_args.templating_engine)
+        print('  --output:                    ', cmdline_args.output)
+        print('  --format:                    ', cmdline_args.format)
+        print('  --template-file:             ', template)
+        print('  --render-file                ', render)
+        print('  --include-in-header:         ', include_in_header)
+        print('  --bibliography:              ', bibliography)
+        print('  --css:                       ', css_files)
+        print('  --csl:                       ', csl)
+        print('  --highlight-style:           ', cmdline_args.highlight_style)
+        print('  --do-not-preprocess-mustache:', cmdline_args.do_not_preprocess_mustache)
+        print('  --ignore-times:              ', cmdline_args.ignore_times)
+        print('  --output:                    ', cmdline_args.output)
+        print('  --slide-level:               ', cmdline_args.slide_level)
+        print('  --pdf-engine:                ', cmdline_args.pdf_engine)
+        print('  --verbose:                   ', cmdline_args.verbose)
+        print('  --templating-engine:         ', cmdline_args.templating_engine)
 
     # Input file
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
@@ -836,41 +800,34 @@ if __name__ == '__main__':
 
     # Output file
     if cmdline_args.output == None:
-        output_filename, output_fileext = os.path.splitext(filename)
+        output_filename, _ = os.path.splitext(filename)
+        output_fileext = ''
         output_dir = cur_dir
     else:
-        if not os.path.isdir(cmdline_args.output):
-            output_filename, output_fileext = os.path.splitext(cmdline_args.output)
+        d, f = os.path.dirname(cmdline_args.output), os.path.basename(cmdline_args.output)
+        if not d:
             output_dir = cur_dir
+        elif not os.path.isdir(d):
+            logger.error('Output directory not found: %s' % d)
+            exit(-1)
         else:
+            output_dir = d
+
+        if not f:
             output_filename, output_fileext = os.path.splitext(filename)
-            output_dir = cmdline_args.output
+        else:
+            output_filename, output_fileext = os.path.splitext(f)
     output_filepath = os.path.normpath(os.path.join(output_dir, output_filename))
 
-
-    print("filepath", filepath)
-    print("filename", filename)
-    print("file_dir", file_dir)
-    print("cmdline_args.output", cmdline_args.output)
-    print("output_filename", output_filename)
-    print("output_fileext", output_fileext)
-    print("output_dir", output_dir)
-    print("output_filepath", output_filepath)
-    exit(0)
-
-    temporary_output_filename = os.path.splitext(filename)[0]+'._mdfile_tmp'
-    output_filename = cmdline_args.output if cmdline_args.output else temporary_output_filename 
-    if os.path.isdir(output_filename):
-        output_filepath = os.path.normpath(os.path.join(output_filename, temporary_output_filename))
-    else:
-        output_filepath = os.path.normpath(os.path.join(cur_dir, output_filename))
-
     if util.WebifyLogger.is_debug(logger):
-        logger.debug('filepath:        %s' % filepath)
-        logger.debug('filename:        %s' % filename)
-        logger.debug('file_dir:        %s' % file_dir)
-        logger.debug('output_filename: %s' % output_filename)
-        logger.debug('output_filepath: %s' % output_filepath)
+        logger.debug('File names:')
+        logger.debug('  filepath:        %s' % filepath)
+        logger.debug('  filename:        %s' % filename)
+        logger.debug('  file_dir:        %s' % file_dir)
+        logger.debug('  output_filename: %s' % output_filename)
+        logger.debug('  output_fileext:  %s' % output_fileext)
+        logger.debug('  output_dir:      %s' % output_dir)
+        logger.debug('  output_filepath: %s' % output_filepath)
 
     extras = { 'format': cmdline_args.format,
                'template': template,
@@ -882,12 +839,12 @@ if __name__ == '__main__':
                'ignore-times': cmdline_args.ignore_times,
                'preprocess-mustache': False if cmdline_args.do_not_preprocess_mustache else None,
                'include-in-header': include_in_header,
-               'output-file': output_filepath,
-               'no-output-file': cmdline_args.no_output_file,
                'slide-level': cmdline_args.slide_level,
                'pdf-engine': cmdline_args.pdf_engine,
                'verbose': cmdline_args.verbose,
-               'renderer': cmdline_args.templating_engine }
+               'renderer': cmdline_args.templating_engine,
+               'output-fileext': output_fileext,
+               'output-filepath': output_filepath }
 
     meta_data = {
         '__version__': __version__,
