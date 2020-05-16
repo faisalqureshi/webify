@@ -4,8 +4,3 @@ name: Faisal.
 
 ---
     
-This should be something.
-
-by
-
-{{name}}

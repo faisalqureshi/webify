@@ -340,4 +340,49 @@ optional arguments:
 
 Webify version > 3.1 supports blogging.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
 
+Consider the following yaml file that sits in folder `blog-example`
 
+```txt
+---
+blog: True
+blog_title: Example Blog
+blog_index: index.md
+```
+
+This file indicates that folder `blog-example` sets up a blog.  It also identifies a markdown file that will serve as the blog index.  All other markdown files in this folder and in all its descendent folders will be posts.  The contents of `index.md` file are:
+
+```python
+---
+render: "{{__root__}}/_templates/simple_blog.jinja"
+
+---
+
+```
+
+In this case the `index.md` file simply identifies the jinja template shown below:
+
+```jinja2
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <div class="container">
+        <h1>{{ blog_title }}</h1>
+
+        <h2>Posts</h2>
+
+        <ul>
+            {% for post in blog_posts %}
+                <li><a href="{{ post.link }}">{{ post.title }}</a></li>
+            {% endfor %}
+        </ul>
+
+    </div>
+  </body>
+</html>
+```
+
+Webify will process markdown files in folder `blog-example` and all its descendent folders and set up the rendering context that can be used when generating blog index as shown above.
+
+The generated blog is found [here](blog-example/index.html).
