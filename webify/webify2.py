@@ -18,6 +18,7 @@ logfile = 'webify2.log'
 ignorefile = '.webifyignore'
 ignore_times = False
 
+
 class DirTree:
     class DirNode:
         def __init__(self, root, path, name):
@@ -28,7 +29,8 @@ class DirTree:
             self.name = name
             self.path = path
             self.root = root
-    
+
+
         def add_file(self, name):
             _, ext = os.path.splitext(name)
             if ext.lower() == '.yaml':
@@ -40,26 +42,32 @@ class DirTree:
             else:
                 self.files['misc'].append(name)
 
+
         def add_child(self, dir_node):
             if dir_node.name == '_partials':
                 self.partials = dir_node
             else:
                 self.children.append(dir_node)
 
+
         def get_fullpath(self):
             return os.path.normpath(os.path.join(self.root, self.path, self.name))
                 
+
         def get_path(self):
             return os.path.normpath(os.path.join(self.path, self.name))
+
 
         def __repr__(self):
             s = "Path: " + self.path + ", Name: " + self.name
             return s
             
+
     def __init__(self):
         self.logger = util.WebifyLogger.get('db')
         self.rootdir = None
         
+
     def collect(self, rootdir, ignore=None):
         self.ignore = ignore
         self.rootdir = self.DirNode(root=rootdir, path='.', name='.')
@@ -85,6 +93,7 @@ class DirTree:
                     self.logger.debug('Added file        : %s' % entry.name)
                     cur_dir_node.add_file(name=entry.name)
 
+
     def __traverse__(self, dir, enter_func, proc_func, leave_func):
         self.logger.debug('Entering %s' % dir.get_fullpath())
         if enter_func: enter_func(dir)
@@ -94,10 +103,12 @@ class DirTree:
         if leave_func: leave_func(dir)
         self.logger.debug('Leaving %s' % dir.get_fullpath())
         
+
     def traverse(self, enter_func=None, proc_func=None, leave_func=None):
         rootdir = self.rootdir
         #self.__traverse__(rootdir, None, None, None)
         self.__traverse__(rootdir, enter_func, proc_func, leave_func)
+
 
 class Webify:
     def __init__(self):
@@ -106,12 +117,14 @@ class Webify:
         self.ignore = None
         self.dir_tree = DirTree()
 
+
     def set_renderer(self):
         if self.meta_data['renderer'] in [None, 'jinja2']:
             self.render = util.jinja2_renderer
         else:
             self.render = util.mustache_renderer
         
+
     def set_src(self, srcdir, meta_data):
         self.meta_data = meta_data
         self.srcdir = os.path.abspath(srcdir)
@@ -128,6 +141,7 @@ class Webify:
         self.rc.push()
         self.rc.add(meta_data)
 
+
     def set_dest(self, destdir):
         self.destdir = os.path.abspath(destdir)
         r = util.make_directory(destdir)
@@ -137,6 +151,7 @@ class Webify:
             raise ValueError('Error destination folder')
         else:
             self.logger.info('Destination directory %s: %s' % (r, destdir))
+
 
     def proc_partials(self, dir):
         data = {}
@@ -168,13 +183,16 @@ class Webify:
                 self.logger.info('Processing  MD files ...')
             else:
                 self.logger.info('No MD files found')
-            extras = { 'no-output-file': True, 'ignore-times': ignore_times }
+            extras = { 'do-not-create-output-file': True, 
+                       'ignore-times': ignore_times }
             for i in dir.partials.files['md']:
                 self.rc.push()
                 filepath = os.path.join(dir.partials.get_fullpath(), i)
                 md_file = MDfile(filepath=filepath, rootdir=dir.partials.get_fullpath(), extras=extras, rc=self.rc)
+                if self.meta_data['renderer']:
+                    md_file.set_default('renderer', self.meta_data['renderer'])
                 self.logger.info('Processing MD file: %s' % filepath)
-                ret_type, buffer, _ = md_file.load().get_buffer()
+                ret_type, buffer, _ = md_file.load().convert()
                 self.rc.pop()
                 if not ret_type == 'buffer':
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
@@ -185,6 +203,7 @@ class Webify:
             self.rc.add(data)
         else:
             self.logger.info('No _partials found')
+
 
     def proc_yaml(self, dir):
         if len(dir.files['yaml']) > 0:
@@ -197,8 +216,9 @@ class Webify:
             yaml_file.load()
             self.rc.add(yaml_file.data)
             
+
     def enter_dir(self, dir):
-        self.logger.info('Processing folder %s...' % dir.get_fullpath())
+        self.logger.info('** Processing folder %s...' % dir.get_fullpath())
 
         logger_rc =  util.WebifyLogger.get('rc')
         if util.WebifyLogger.is_debug(logger_rc):
@@ -208,6 +228,7 @@ class Webify:
 
         self.rc.push()
         self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+
 
     def proc_html(self, dir):
         if len(dir.files['html']) > 0:
@@ -222,6 +243,7 @@ class Webify:
             rendered_buf = self.render(template=buffer, context=self.rc.data())
             self.logger.info('Saving %s' % dest_filepath)
             util.save_to_file(dest_filepath, rendered_buf)
+
 
     def proc_md(self, dir):
         if len(dir.files['md']) > 0:
@@ -285,6 +307,7 @@ class Webify:
             extras['output-fileext'] = ''
             self.proc_md_file(filename, filepath, filepath_dir, extras, blog_posts, blog_dest_dir)
     
+
     def proc_md_file(self, filename, filepath, filepath_dir, extras, blog_posts, blog_dest_dir):
         self.rc.push() 
         
@@ -293,7 +316,7 @@ class Webify:
         md_file = MDfile(filepath=filepath, rootdir=filepath_dir, extras=extras, rc=self.rc)
         if self.meta_data['renderer']:
             md_file.set_default('renderer', self.meta_data['renderer'])
-        ret_type, saved_file, _ = md_file.load().get_buffer()
+        ret_type, saved_file, _ = md_file.load().convert()
         if ret_type == 'file':
             self.logger.info('Saved %s' % saved_file)
         elif ret_type == 'exists':
@@ -315,6 +338,7 @@ class Webify:
                 )
 
         self.rc.pop()
+
 
     def collect_blog_info(self, filename, saved_file, blog_index_dir, md_file):
         logger_blog = util.WebifyLogger.get('blog')
@@ -351,18 +375,22 @@ class Webify:
 
         return entry
 
+
     def get_src(self, dir, filename):
         filepath =  os.path.join(dir.get_fullpath(), filename)
         return os.path.normpath(filepath)
+
 
     def get_dest(self, dir, filename):
         dest_rel_filepath = os.path.join(dir.path, dir.name, filename)
         dest_filepath = os.path.join(self.destdir, dest_rel_filepath)
         return os.path.normpath(dest_filepath)
 
+
     def get_src_and_dest(self, dir, filename):
         return self.get_src(dir, filename), self.get_dest(dir, filename)
                 
+
     def proc_misc(self, dir):
         if len(dir.files['misc']) > 0:
             self.logger.info('Processing all other files...')
@@ -373,6 +401,7 @@ class Webify:
             filepath, dest_filepath = self.get_src_and_dest(dir, filename)
             self.logger.info('Processing %s' % filepath)
             r = util.process_file(filepath, dest_filepath, self.meta_data['force_copy'])
+
 
     def proc_dir(self, dir):
         self.proc_yaml(dir)
@@ -397,6 +426,7 @@ class Webify:
         self.proc_md(dir)
         self.proc_misc(dir)
             
+
     def leave_dir(self, dir):
         is_blog = self.rc.value('blog')
         if is_blog and self.rc.value('blog_root_dir') == self.get_src(dir, ''):
@@ -434,11 +464,13 @@ class Webify:
             logger_rc.debug('\nRendering context (leave: %s)' % dir.name)
             self.rc.print()
             logger_rc.info('-'*util.terminal.c())
-        self.logger.info('...  Done processing folder %s' % dir.get_fullpath())
+        self.logger.info('** ...  Done processing folder %s' % dir.get_fullpath())
         
+
     def traverse(self):
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
+
 
 def version_info():
     str =  '  Webify2:    %s,\n' % __version__
@@ -452,6 +484,7 @@ def version_info():
     str += '  Json:       %s, and\n' % json.__version__
     str += '  Pathspec:   %s.' % pathspec.__version__
     return str
+
 
 if __name__ == '__main__':
 
