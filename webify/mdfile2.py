@@ -184,10 +184,10 @@ class MDfile:
         #                                   'beamer',
         #                                   'pdf',
         #                                   'latex' ]
-        self.formats = { 'html':   'html',
-                         'beamer': 'pdf',
-                         'pdf':    'pdf',
-                         'latex':  'tex' }
+        self.formats = { 'html':   {'ext': '.html', 'fn': self.to_html},
+                         'beamer': {'ext': '.pdf',  'fn': self.latexify},
+                         'pdf':    {'ext': '.pdf',  'fn': self.latexify},
+                         'latex':  {'ext': '.tex',  'fn': self.latexify} }
 
         self.defaults = { 'to': 'html',
                           'renderer': 'jinja2',
@@ -220,11 +220,11 @@ class MDfile:
 
     def get_defaults(self):
         return self.defaults
-    
+
 
     def set_default(self, key, value):
         self.defaults[key] = value
-
+        
 
     def load(self):
         self.yaml = {}
@@ -265,6 +265,10 @@ class MDfile:
         if not isinstance(self.yaml, dict):
             self.logger.warning('YAML section not found in md file: %s' % self.filepath)
             self.yaml = {}
+        elif len(self.get_yaml().keys()) == 0:
+            self.logger.warning('Loaded an empty YAML section (check for missing "" around yaml values or other syntax errors): %s' % self.filepath)
+        else:
+            pass
 
         # If we want to preprocess the file using mustache renderer then do it
         # here.  This allows us to change the yaml frontmatter based upon the
@@ -282,9 +286,6 @@ class MDfile:
                 print('YAML frontmatter after pre-processing:')
                 pp.pprint(self.get_yaml())
 
-        if len(self.get_yaml().keys()) == 0:
-            self.logger.warning('Loaded an empty YAML section (check for missing "" around yaml values or other syntax errors): %s' % self.filepath)
-
         # Update the rendering context for this file
         self.rc.add(self.get_yaml())
         if util.WebifyLogger.is_debug(logger_rc):
@@ -293,7 +294,7 @@ class MDfile:
         return self
 
 
-    def get_buffer(self):
+    def convert(self):
         if not self.buffer:
             return 'error', 'Load error', self.filepath
 
@@ -305,7 +306,8 @@ class MDfile:
 
         if self.get_create_output_file():
             output_fileext = self.get_output_fileext()
-            if output_fileext and self.formats[output_format] != output_fileext[1:]:
+            format_ext = self.formats[output_format]['ext']
+            if output_fileext and format_ext != output_fileext:
                 self.logger.error('Output format "%s" doesnot match output file extension "%s": %s' % (output_format, output_fileext, self.filepath) )
                 return 'error', 'Bad output file extension', self.filepath
         elif not self.is_output_format('html'):
@@ -313,7 +315,174 @@ class MDfile:
             return 'error', 'Bad option "do not create output file"', self.filepath
         else:
             self.logger.info('Output format: "%s":' % output_format)
-        return self.convert()
+        
+        convertor = self.formats[output_format]['fn']
+        return convertor()
+
+
+    def latexify(self):
+        files = [self.filepath]
+        pdoc_args = PandocArguments()
+
+        render_file = self.get_renderfile()
+        if render_file:
+            self.logger.warning('Ignoring render file "%s" (only supported for "html" conversion): %s' % (render_file, self.filepath))
+            render_file = None            
+
+        template_file = self.get_template()
+        if template_file:
+            self.logger.info('Using pandoc template file: %s' % template_file)
+            pdoc_args.add('template', template_file)
+            files.append(template_file)        
+        else:
+            self.logger.info('Using default pandoc template for "%s" format' % self.get_output_format())
+
+        if not self.get_standalone_html():
+            self.logger.warning('Standlone html flag is ignored when render file is specified: %s' % self.filepath)
+
+        pdoc_args.add_flag('standalone')
+
+        # Lets get the bib and csl files
+        bib_file = self.get_bibfile()
+        self.logger.debug('Bibliography: %s' % bib_file)
+        if bib_file:
+            files.append(bib_file)
+            pdoc_args.add('bibliography', bib_file)
+            #pdoc_args.add_filter('pandoc-citeproc')
+
+        csl_file = self.get_cslfile()
+        self.logger.debug('CSL file: %s' % csl_file)
+        if csl_file:
+            files.append(csl_file)
+            pdoc_args.add('csl', csl_file)
+
+        # Get pandoc include files
+        include_files = self.get_pandoc_include_files()
+        pdoc_args.add('include-in-header',   include_files['include-in-header'])
+        pdoc_args.add('include-before-body', include_files['include-before-body'])
+        pdoc_args.add('include-after-body',  include_files['include-after-body'])
+        if util.WebifyLogger.is_debug(self.logger):
+            print('Pandoc include files:')
+            pp.pprint(include_files, indent=2)
+        files.extend(include_files['include-in-header'])
+        files.extend(include_files['include-before-body'])
+        files.extend(include_files['include-after-body'])
+
+        output_filepath = self.make_output_filepath_with_extension()
+        self.logger.debug('Output file: %s' % output_filepath)
+
+        if self.needs_compilation(files, output_filepath):
+            self.logger.debug('Needs compilation YES')
+        else:
+            self.logger.debug('Needs compilation NO')
+            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            return 'exists', output_filepath, self.filepath
+
+        if self.get_preprocess_buffer(): 
+            self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
+
+        pdoc_args.add('highlight-style', self.get_highlight_style())
+        pdoc_args.add_var('graphics','true')
+        pdf_engine = self.get_pdf_engine()
+        if pdf_engine:
+            pdoc_args.add('pdf-engine', pdf_engine)
+
+        if self.is_output_format('beamer'):
+            slide_level = self.get_slide_level()
+            pdoc_args.add('slide-level', slide_level)
+
+        self.logger.info('Writing to: %s' % output_filepath)
+        return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
+
+
+    def to_html(self):
+        files = [self.filepath]
+        pdoc_args = PandocArguments()
+
+        template_file = self.get_template()
+        if template_file:
+            self.logger.info('Using pandoc template file: %s' % template_file)
+            pdoc_args.add('template', template_file)
+            pdoc_args.add_flag('standalone')
+            files.append(template_file)
+        elif self.get_standalone_html():
+            self.logger.info('Using default pandoc template for "html" format')
+            pdoc_args.add_flag('standalone')            
+        else:
+            self.logger.info('Not using any pandoc template for "html" format')
+
+        render_file = self.get_renderfile()
+        if render_file:
+            self.logger.info('Using render file: %s' % render_file)
+            files.append(render_file)
+
+        include_files = self.get_pandoc_include_files()
+        pdoc_args.add('include-in-header',   include_files['include-in-header'])
+        pdoc_args.add('include-before-body', include_files['include-before-body'])
+        pdoc_args.add('include-after-body',  include_files['include-after-body'])
+        if util.WebifyLogger.is_debug(self.logger):
+            print('Pandoc include files:')
+            pp.pprint(include_files, indent=2)
+        files.extend(include_files['include-in-header'])
+        files.extend(include_files['include-before-body'])
+        files.extend(include_files['include-after-body'])
+
+        hf, hf_file_list = self.get_html_filters()
+        if len(hf_file_list) > 0:
+            files.extend(hf_file_list)
+
+        if self.get_create_output_file():        
+            output_filepath = self.make_output_filepath_with_extension()
+            self.logger.debug('Output file: %s' % output_filepath)
+        else:
+            output_filepath = None
+            self.logger.info('Not creating output file: %s' % self.filepath)
+
+        if self.needs_compilation(files, output_filepath):
+            self.logger.debug('Needs compilation YES')
+        else:
+            self.logger.debug('Needs compilation NO')
+            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            return 'exists', output_filepath, self.filepath
+
+        if self.get_preprocess_buffer(): 
+            self.logger.info('Preprocessing markdown buffer using mustache')
+            if len(hf_file_list) > 0:
+                self.logger.info('Applying HTML filter')
+                f = HTML_Filter(hf)
+                self.buffer = f.apply(self.buffer)                    
+            self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
+        
+        pdoc_args.add('highlight-style', self.get_highlight_style())
+        pdoc_args.add_flag('mathjax')
+        pdoc_args.add('css', self.get_cssfiles())
+
+        # Case 1
+        if output_filepath and not render_file:
+            self.logger.info('Writing to: %s' % output_filepath)
+            return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
+
+        # Case 2
+        r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
+
+        if render_file:
+            self.rc.add({'body': markupsafe.Markup(r[1])})
+            renderer_name, render_engine = self.get_renderer()
+            self.logger.info('Using renderer: %s' % renderer_name)
+            buffer = util.render(render_file, self.rc.data(), render_engine)
+        else:
+            buffer = markupsafe.Markup(r[1])
+
+        if output_filepath:
+            self.logger.info('Writing to: %s' % output_filepath)
+            if util.save_to_file(output_filepath, buffer):
+                return 'file', output_filepath, self.filepath
+            else:
+                self.logger.warning('Error saving to output file: %s' % output_filepath)
+                return 'error', output_filepath, self.filepath
+
+        self.logger.debug('Buffer created.')        
+        return 'buffer', buffer, self.filepath
 
 
     def compile(self, output_format, pandoc_args, output_filepath=None):
@@ -346,148 +515,148 @@ class MDfile:
     def make_output_filepath_with_extension(self):
         output_format = self.get_output_format()
         output_filepath = self.get_output_filepath()
-        return output_filepath + '.' + self.formats[output_format]
+        return output_filepath + self.formats[output_format]['ext']
 
 
-    def convert(self):
-        files = [self.filepath]
-        pdoc_args = PandocArguments()
+    # def convert(self):
+    #     files = [self.filepath]
+    #     pdoc_args = PandocArguments()
 
-        template_file = self.get_template()
-        self.logger.debug('Template file: %s' % template_file)
-        if template_file:
-            self.logger.info('Using pandoc template file: %s' % template_file)
-            pdoc_args.add('template', template_file)
-            pdoc_args.add_flag('standalone')
-            files.append(template_file)
+    #     template_file = self.get_template()
+    #     self.logger.debug('Template file: %s' % template_file)
+    #     if template_file:
+    #         self.logger.info('Using pandoc template file: %s' % template_file)
+    #         pdoc_args.add('template', template_file)
+    #         pdoc_args.add_flag('standalone')
+    #         files.append(template_file)
 
-        standalone_html = self.get_standalone_html()
-        if standalone_html and not self.is_output_format('html'):
-            self.logger.warning('Standlone html flag is only used for output format "html": %s' % self.filepath)
-            standalone_html = False
+    #     standalone_html = self.get_standalone_html()
+    #     if standalone_html and not self.is_output_format('html'):
+    #         self.logger.warning('Standlone html flag is only used for output format "html": %s' % self.filepath)
+    #         standalone_html = False
 
-        render_file = self.get_renderfile()
-        self.logger.debug('Render file: %s' % render_file)
-        if render_file:
-            if standalone_html:
-                self.logger.warning('Standlone html flag is ignored when render file is specified: %s' % self.filepath)
-                standalone_html = False
+    #     render_file = self.get_renderfile()
+    #     self.logger.debug('Render file: %s' % render_file)
+    #     if render_file:
+    #         if standalone_html:
+    #             self.logger.warning('Standlone html flag is ignored when render file is specified: %s' % self.filepath)
+    #             standalone_html = False
 
-            if not self.is_output_format('html'):
-                self.logger.warning('Ignoring render file "%s" (only supported for "html" conversion): %s' % (render_file, self.filepath))
-                render_file = None
-            else:
-                self.logger.info('Using render file: %s' % render_file)
-                files.append(render_file)
+    #         if not self.is_output_format('html'):
+    #             self.logger.warning('Ignoring render file "%s" (only supported for "html" conversion): %s' % (render_file, self.filepath))
+    #             render_file = None
+    #         else:
+    #             self.logger.info('Using render file: %s' % render_file)
+    #             files.append(render_file)
 
-        if self.is_output_format('html'):
-            if not (template_file or render_file) and standalone_html:
-                pdoc_args.add_flag('standalone')
-                self.logger.info('Using default pandoc template for "html" format')
-        else:
-            if not template_file:
-                pdoc_args.add_flag('standalone')
-                self.logger.info('Using default pandoc template for "%s" format' % self.get_output_format())
+    #     if self.is_output_format('html'):
+    #         if not (template_file or render_file) and standalone_html:
+    #             pdoc_args.add_flag('standalone')
+    #             self.logger.info('Using default pandoc template for "html" format')
+    #     else:
+    #         if not template_file:
+    #             pdoc_args.add_flag('standalone')
+    #             self.logger.info('Using default pandoc template for "%s" format' % self.get_output_format())
 
-        # Lets get the bib and csl files
-        bib_file = self.get_bibfile()
-        self.logger.debug('Bibliography: %s' % bib_file)
-        if bib_file:
-            files.append(bib_file)
-            pdoc_args.add('bibliography', bib_file)
-            #pdoc_args.add_filter('pandoc-citeproc')
+    #     # Lets get the bib and csl files
+    #     bib_file = self.get_bibfile()
+    #     self.logger.debug('Bibliography: %s' % bib_file)
+    #     if bib_file:
+    #         files.append(bib_file)
+    #         pdoc_args.add('bibliography', bib_file)
+    #         #pdoc_args.add_filter('pandoc-citeproc')
 
-        csl_file = self.get_cslfile()
-        self.logger.debug('CSL file: %s' % csl_file)
-        if csl_file:
-            files.append(csl_file)
-            pdoc_args.add('csl', csl_file)
+    #     csl_file = self.get_cslfile()
+    #     self.logger.debug('CSL file: %s' % csl_file)
+    #     if csl_file:
+    #         files.append(csl_file)
+    #         pdoc_args.add('csl', csl_file)
 
-        # Get pandoc include files
-        include_files = self.get_pandoc_include_files()
-        pdoc_args.add('include-in-header',   include_files['include-in-header'])
-        pdoc_args.add('include-before-body', include_files['include-before-body'])
-        pdoc_args.add('include-after-body',  include_files['include-after-body'])
-        if util.WebifyLogger.is_debug(self.logger):
-            print('Pandoc include files:')
-            pp.pprint(include_files, indent=2)
-        files.extend(include_files['include-in-header'])
-        files.extend(include_files['include-before-body'])
-        files.extend(include_files['include-after-body'])
+    #     # Get pandoc include files
+    #     include_files = self.get_pandoc_include_files()
+    #     pdoc_args.add('include-in-header',   include_files['include-in-header'])
+    #     pdoc_args.add('include-before-body', include_files['include-before-body'])
+    #     pdoc_args.add('include-after-body',  include_files['include-after-body'])
+    #     if util.WebifyLogger.is_debug(self.logger):
+    #         print('Pandoc include files:')
+    #         pp.pprint(include_files, indent=2)
+    #     files.extend(include_files['include-in-header'])
+    #     files.extend(include_files['include-before-body'])
+    #     files.extend(include_files['include-after-body'])
 
-        hf, hf_file_list = self.get_html_filters()
-        if len(hf_file_list) > 0:
-            files.extend(hf_file_list)
+    #     hf, hf_file_list = self.get_html_filters()
+    #     if len(hf_file_list) > 0:
+    #         files.extend(hf_file_list)
 
-        if self.get_create_output_file():        
-            output_filepath = self.make_output_filepath_with_extension()
-            self.logger.debug('Output file: %s' % output_filepath)
-        else:
-            output_filepath = None
-            self.logger.info('Not creating output file: %s' % self.filepath)
-            assert(self.is_output_format('html'))
+    #     if self.get_create_output_file():        
+    #         output_filepath = self.make_output_filepath_with_extension()
+    #         self.logger.debug('Output file: %s' % output_filepath)
+    #     else:
+    #         output_filepath = None
+    #         self.logger.info('Not creating output file: %s' % self.filepath)
+    #         assert(self.is_output_format('html'))
 
-        # See if any of the sources are newer than the output,
-        # if output exists
-        if self.needs_compilation(files, output_filepath):
-            self.logger.debug('Needs compilation YES')
-        else:
-            self.logger.debug('Needs compilation NO')
-            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
-            return 'exists', output_filepath, self.filepath
+    #     # See if any of the sources are newer than the output,
+    #     # if output exists
+    #     if self.needs_compilation(files, output_filepath):
+    #         self.logger.debug('Needs compilation YES')
+    #     else:
+    #         self.logger.debug('Needs compilation NO')
+    #         self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+    #         return 'exists', output_filepath, self.filepath
 
-        if self.get_preprocess_buffer(): 
-            if self.is_output_format('html'):
-                self.logger.info('Preprocessing markdown buffer using mustache')
-                if len(hf_file_list) > 0:
-                    self.logger.info('Applying HTML filter')
-                    f = HTML_Filter(hf)
-                    self.buffer = f.apply(self.buffer)                    
-                self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
-            else:
-                self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
+    #     if self.get_preprocess_buffer(): 
+    #         if self.is_output_format('html'):
+    #             self.logger.info('Preprocessing markdown buffer using mustache')
+    #             if len(hf_file_list) > 0:
+    #                 self.logger.info('Applying HTML filter')
+    #                 f = HTML_Filter(hf)
+    #                 self.buffer = f.apply(self.buffer)                    
+    #             self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
+    #         else:
+    #             self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
 
-        # Use pandoc to perform conversion
-        pdoc_args.add('highlight-style', self.get_highlight_style())
+    #     # Use pandoc to perform conversion
+    #     pdoc_args.add('highlight-style', self.get_highlight_style())
 
-        if self.is_output_format('html'):
-            pdoc_args.add_flag('mathjax')
-            pdoc_args.add('css', self.get_cssfiles())
-        else:
-            pdoc_args.add_var('graphics','true')
-            pdf_engine = self.get_pdf_engine()
-            if pdf_engine:
-                pdoc_args.add('pdf-engine', pdf_engine)
-            if self.is_output_format('beamer'):
-                slide_level = self.get_slide_level()
-                pdoc_args.add('slide-level', slide_level)
+    #     if self.is_output_format('html'):
+    #         pdoc_args.add_flag('mathjax')
+    #         pdoc_args.add('css', self.get_cssfiles())
+    #     else:
+    #         pdoc_args.add_var('graphics','true')
+    #         pdf_engine = self.get_pdf_engine()
+    #         if pdf_engine:
+    #             pdoc_args.add('pdf-engine', pdf_engine)
+    #         if self.is_output_format('beamer'):
+    #             slide_level = self.get_slide_level()
+    #             pdoc_args.add('slide-level', slide_level)
 
-        # Case 1: use pandoc to write the output file
-        if output_filepath:
-            self.logger.info('Writing to: %s' % output_filepath)
-            return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
+    #     # Case 1: use pandoc to write the output file
+    #     if output_filepath:
+    #         self.logger.info('Writing to: %s' % output_filepath)
+    #         return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
         
-        # Case 2: use pandoc to create a buffer (only for html)
-        r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
+    #     # Case 2: use pandoc to create a buffer (only for html)
+    #     r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
 
-        if render_file:
-            self.rc.add({'body': markupsafe.Markup(r[1])})
-            renderer_name, render_engine = self.get_renderer()
-            self.logger.info('Using renderer: %s' % renderer_name)
-            buffer = util.render(render_file, self.rc.data(), render_engine)
-        else:
-            buffer = markupsafe.Markup(r[1])
+    #     if render_file:
+    #         self.rc.add({'body': markupsafe.Markup(r[1])})
+    #         renderer_name, render_engine = self.get_renderer()
+    #         self.logger.info('Using renderer: %s' % renderer_name)
+    #         buffer = util.render(render_file, self.rc.data(), render_engine)
+    #     else:
+    #         buffer = markupsafe.Markup(r[1])
 
-        if self.get_create_output_file():
-            self.logger.info('Writing to: %s' % output_filepath)
-            if util.save_to_file(output_filepath, buffer):
-                return 'file', output_filepath, self.filepath
-            else:
-                self.logger.warning('Error saving to output file: %s' % output_filepath)
-                return 'error', output_filepath, self.filepath
+    #     if self.get_create_output_file():
+    #         self.logger.info('Writing to: %s' % output_filepath)
+    #         if util.save_to_file(output_filepath, buffer):
+    #             return 'file', output_filepath, self.filepath
+    #         else:
+    #             self.logger.warning('Error saving to output file: %s' % output_filepath)
+    #             return 'error', output_filepath, self.filepath
 
-        self.logger.debug('Buffer created.')        
-        return 'buffer', buffer, self.filepath
+    #     self.logger.debug('Buffer created.')        
+    #     return 'buffer', buffer, self.filepath
 
 
     def needs_compilation(self, files, output_filepath):
@@ -900,7 +1069,7 @@ if __name__ == '__main__':
 
     m = MDfile(filepath=filepath, rootdir=file_dir, extras=extras, rc=rc)
     m.load()
-    ret_type, ret_val, _ = m.get_buffer()
+    ret_type, ret_val, _ = m.convert()
     logger.debug('Status:  %s' % ret_type)
     logger.debug('Message: %s' % ret_val)
     if ret_type == 'file':
