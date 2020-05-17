@@ -12,6 +12,7 @@ more: >
              markdown files to create beautiful documents and websites.
 render: "{{__root__}}/_templates/main_template.html"
 web: "https://github.com/faisalqureshi/webify"
+preprocess-buffer: False
 
 ---
 
@@ -233,7 +234,7 @@ Consider the following file.
 
 ```
 ---
-template: {{__rootdir__}}/_templates/web.html
+template: {{__root__}}/_templates/web.html
 
 ---
 This is a markdown file.
@@ -242,7 +243,7 @@ This is a markdown file.
 If rendering context contains the following:
 
 ```
-__rootdir__: /Users/foo/web
+__root__: /Users/foo/web
 ```
 
 Then after mustache pre-processing this file would become:
@@ -292,15 +293,17 @@ _templates
 
 ### Copying source markdown files to the destination
 
-Webify's default behavior is to process markdown files to create 1) LaTeX articles, 2) beamer slides, or 3) html pages.  This means that webify does not copy the source markdown file to the destination.  E.g., a markdown files `example.md` will be appear as either `example.pdf` (cases 1 and 2) or `example.html` (case 3) at the destination location.  Sometimes however it is desireable to copy the source markdown file to the destination location.  This can be achieved by using the `copy_source` flag in the yaml front matter as follows.
+Webify's default behavior is to process markdown files to create 1) LaTeX articles, 2) beamer slides, or 3) html pages.  This means that webify does not copy the source markdown file to the destination.  E.g., a markdown files `example.md` will be appear as either `example.pdf` (cases 1 and 2) or `example.html` (case 3) at the destination location.  Sometimes however it is desireable to copy the source markdown file to the destination location.  This can be achieved by using the `copy-source` flag in the yaml front matter as follows.
 
 ```txt
 ---
-copy_source: True
+copy-source: True
 
 ---
 File contents ...
 ```
+
+The [markdown source](lorem-html.md) for this [html](lorem-html.html) file was copied using this mechanism.  Without this flag, `lorem-html.md` will not be available in the desitnation folder.
 
 ## Webify options
 

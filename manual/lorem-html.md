@@ -1,6 +1,6 @@
 ---
 to: html
-copy_source: True
+copy-source: True
 
 ---
 

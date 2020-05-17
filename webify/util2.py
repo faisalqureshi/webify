@@ -82,7 +82,7 @@ def copy_file(src, dest, force_copy):
     if not force_copy:
         try:
             if filecmp.cmp(src, dest):
-                return 'Skipped'
+                return 'Copy already exists at destination'
         except:
             pass
 
@@ -91,7 +91,7 @@ def copy_file(src, dest, force_copy):
         return 'Copied'
     except:
         pass
-    return 'Failed'
+    return 'Copy failed'
 
 def save_to_file(filepath, buffer):
     try:

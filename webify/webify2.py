@@ -106,13 +106,11 @@ class Webify:
         self.ignore = None
         self.dir_tree = DirTree()
 
-    def set_templating_engine(self):
-        if self.meta_data['templating_engine'] == 'jinja2':
+    def set_renderer(self):
+        if self.meta_data['renderer'] in [None, 'jinja2']:
             self.render = util.jinja2_renderer
-            self.renderer = 'jinja2'
         else:
             self.render = util.mustache_renderer
-            self.renderer = 'mustache'
         
     def set_src(self, srcdir, meta_data):
         self.meta_data = meta_data
@@ -126,7 +124,7 @@ class Webify:
             self.ignore = util.IgnoreList(srcdir=self.srcdir)
             self.ignore.read_ignore_file(os.path.abspath(os.path.join(srcdir, ignorefile)))
 
-        self.set_templating_engine()            
+        self.set_renderer()            
         self.rc.push()
         self.rc.add(meta_data)
 
@@ -148,7 +146,7 @@ class Webify:
             self.rc.push()
 
             if len(dir.partials.files['yaml']) > 0:
-                self.logger.info('Processing  YAML files...')
+                self.logger.info('Processing  YAML files ...')
             else:
                 self.logger.info('No YAML files found')
             for i in dir.partials.files['yaml']:
@@ -157,7 +155,7 @@ class Webify:
                 self.rc.add(yaml_file.data)
 
             if len(dir.partials.files['html']) > 0:
-                self.logger.info('Processing  HTML files...')
+                self.logger.info('Processing  HTML files ...')
             else:
                 self.logger.info('No HTML files found')
             for i in dir.partials.files['html']:
@@ -167,7 +165,7 @@ class Webify:
                 data[i.replace('.','_')] = markupsafe.Markup(rendered_buf)
 
             if len(dir.partials.files['md']) > 0:
-                self.logger.info('Processing  MD files...')
+                self.logger.info('Processing  MD files ...')
             else:
                 self.logger.info('No MD files found')
             extras = { 'no-output-file': True, 'ignore-times': ignore_times }
@@ -274,8 +272,7 @@ class Webify:
         # print(dir)
         # self.rc.print()
 
-        extras = { 'ignore-times': ignore_times,
-                   'renderer': self.renderer }
+        extras = { 'ignore-times': ignore_times }
         for filename in dir.files['md']:
             filepath = self.get_src(dir, filename)
             if is_blog and filepath == blog_index_filepath: continue
@@ -294,6 +291,8 @@ class Webify:
         self.logger.debug('Saving %s' % extras['output-filepath'])
 
         md_file = MDfile(filepath=filepath, rootdir=filepath_dir, extras=extras, rc=self.rc)
+        if self.meta_data['renderer']:
+            md_file.set_default('renderer', self.meta_data['renderer'])
         ret_type, saved_file, _ = md_file.load().get_buffer()
         if ret_type == 'file':
             self.logger.info('Saved %s' % saved_file)
@@ -303,12 +302,7 @@ class Webify:
             self.logger.warning('Error processing %s' % filepath)
 
         # Check if markdown file needs to be copied
-        y = md_file.get_yaml()
-        try:
-            copy_source = y['copy_source']
-        except:
-            copy_source = False
-
+        copy_source = md_file.get_value('copy-source')
         if copy_source:
             self.logger.debug('Copying %s' % extras['output-filepath']+'.md')
             util.process_file(filepath, extras['output-filepath']+'.md', self.meta_data['force_copy'])
@@ -420,7 +414,6 @@ class Webify:
                 logger_blog.warning('Blog index file not found: %s' % blog_index_filepath)
             else:
                 extras = { 'ignore-times': ignore_times,
-                           'renderer': self.renderer,
                            'output-fileext': '', 
                            'output-filepath': self.rc.value('blog_index_destpath_noext') }
 
@@ -488,7 +481,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('--debug-webify',action='store_true',default=False,help='Turns on webify debug messages')
     
-    cmdline_parser.add_argument('--templating-engine', action='store', default='jinja2', help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
+    cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
     ignore_times = cmdline_args.ignore_times
@@ -526,7 +519,7 @@ if __name__ == '__main__':
     logger = util.WebifyLogger.get('webify')
 
     # Check
-    if not cmdline_args.templating_engine in ['mustache', 'jinja2']:
+    if not cmdline_args.renderer in [None, 'mustache', 'jinja2']:
         logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateing_engine)
         exit(-4)
         
@@ -536,7 +529,7 @@ if __name__ == '__main__':
     logger.info('Current dir:  %s' % cur_dir)
     logger.info('Info:')
     logger.info(version_info())
-    logger.info('Using "%s" templating engine' % cmdline_args.templating_engine)
+    logger.info('Renderer: %s   ' % cmdline_args.renderer)
 
     srcdir = os.path.normpath(cmdline_args.srcdir)
     destdir = os.path.normpath(cmdline_args.destdir)
@@ -550,7 +543,7 @@ if __name__ == '__main__':
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
-        'templating_engine': cmdline_args.templating_engine,
+        'renderer': cmdline_args.renderer,
         'force_copy': cmdline_args.force_copy,
         'blog': False
     }
