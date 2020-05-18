@@ -198,7 +198,8 @@ class MDfile:
                           'slide-level': 1,
                           'copy-source': False,
                           'create-output-file': True,
-                          'standalone-html': False }
+                          'standalone-html': False,
+                          'ignore': False }
 
         # # This is an incomplete list of keys that can be found in a yaml frontmatter
         # self.supported_keys = [ 'standalone',
@@ -225,6 +226,10 @@ class MDfile:
     def set_default(self, key, value):
         self.defaults[key] = value
         
+
+    def ready_to_convert(self):
+        return self.buffer
+
 
     def load(self):
         self.yaml = {}
@@ -337,7 +342,8 @@ class MDfile:
         else:
             self.logger.info('Using default pandoc template for "%s" format' % self.get_output_format())
 
-        if not self.get_standalone_html():
+        if self.get_standalone_html():
+            # The default is False, so if it is true, it means that someone is messing with this flag.
             self.logger.warning('Standlone html flag is ignored when render file is specified: %s' % self.filepath)
 
         pdoc_args.add_flag('standalone')
@@ -1069,6 +1075,22 @@ if __name__ == '__main__':
 
     m = MDfile(filepath=filepath, rootdir=file_dir, extras=extras, rc=rc)
     m.load()
+
+    sd = m.get_value('date-start')
+    se = m.get_value('date-end')
+
+    import datetime
+    from dateutil import parser
+    current_time = datetime.datetime.now()
+    sd1 = parser.parse(sd)
+    se1 = parser.parse(se)
+    print(sd1)
+    print(se1)
+    print(sd1 < se1)
+    print(datetime.datetime.now() < se1)
+
+    exit(0)
+
     ret_type, ret_val, _ = m.convert()
     logger.debug('Status:  %s' % ret_type)
     logger.debug('Message: %s' % ret_val)

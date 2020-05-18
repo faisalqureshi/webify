@@ -3,3 +3,10 @@ webify.log
 *.swp
 .idea
 *.pyc
+.\#*
+
+tests/mdfile-test/a-html-document-2.html
+tests/mdfile-test/a-html-document-2.pdf
+tests/mdfile-test/foo.html
+webify/a-html-document-2.html
+tests/mdfile-test/\=3.1.4

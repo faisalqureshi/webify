@@ -144,6 +144,10 @@ class Webify:
 
     def set_dest(self, destdir):
         self.destdir = os.path.abspath(destdir)
+
+        if self.destdir == self.srcdir:
+            raise ValueError('Destination folder is the same as source folder.  This is an icredibly bad idea.')
+
         r = util.make_directory(destdir)
         if not r:
             self.logger.critical('Cannot create destination folder: %s' % destdir)
@@ -183,7 +187,7 @@ class Webify:
                 self.logger.info('Processing  MD files ...')
             else:
                 self.logger.info('No MD files found')
-            extras = { 'do-not-create-output-file': True, 
+            extras = { 'create-output-file': False, 
                        'ignore-times': ignore_times }
             for i in dir.partials.files['md']:
                 self.rc.push()
@@ -316,26 +320,33 @@ class Webify:
         md_file = MDfile(filepath=filepath, rootdir=filepath_dir, extras=extras, rc=self.rc)
         if self.meta_data['renderer']:
             md_file.set_default('renderer', self.meta_data['renderer'])
-        ret_type, saved_file, _ = md_file.load().convert()
-        if ret_type == 'file':
-            self.logger.info('Saved %s' % saved_file)
-        elif ret_type == 'exists':
-            self.logger.info('Already exists %s' % saved_file)
-        else:
-            self.logger.warning('Error processing %s' % filepath)
+        
+        md_file.load()
+        if md_file.ready_to_convert:
+            if md_file.get_value('ignore'):
+                pass
+            else:            
+                ret_type, saved_file, _ = md_file.load().convert()
 
-        # Check if markdown file needs to be copied
-        copy_source = md_file.get_value('copy-source')
-        if copy_source:
-            self.logger.debug('Copying %s' % extras['output-filepath']+'.md')
-            util.process_file(filepath, extras['output-filepath']+'.md', self.meta_data['force_copy'])
+                if ret_type == 'file':
+                    self.logger.info('Saved %s' % saved_file)
+                elif ret_type == 'exists':
+                    self.logger.info('Already exists %s' % saved_file)
+                else:
+                    self.logger.warning('Error processing %s' % filepath)
 
-        # Collecting blogging information
-        if blog_posts != None:
-            assert(blog_dest_dir)
-            blog_posts.append(
-                self.collect_blog_info(filename, saved_file, blog_dest_dir, md_file)
-                )
+                # Check if markdown file needs to be copied
+                copy_source = md_file.get_value('copy-source')
+                if copy_source:
+                    self.logger.debug('Copying %s' % extras['output-filepath']+'.md')
+                    util.process_file(filepath, extras['output-filepath']+'.md', self.meta_data['force_copy'])
+
+                # Collecting blogging information
+                if blog_posts != None:
+                    assert(blog_dest_dir)
+                    blog_posts.append(
+                        self.collect_blog_info(filename, saved_file, blog_dest_dir, md_file)
+                        )
 
         self.rc.pop()
 
