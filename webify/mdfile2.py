@@ -1076,20 +1076,20 @@ if __name__ == '__main__':
     m = MDfile(filepath=filepath, rootdir=file_dir, extras=extras, rc=rc)
     m.load()
 
-    sd = m.get_value('date-start')
-    se = m.get_value('date-end')
+    # sd = m.get_value('date-start')
+    # se = m.get_value('date-end')
 
-    import datetime
-    from dateutil import parser
-    current_time = datetime.datetime.now()
-    sd1 = parser.parse(sd)
-    se1 = parser.parse(se)
-    print(sd1)
-    print(se1)
-    print(sd1 < se1)
-    print(datetime.datetime.now() < se1)
+    # import datetime
+    # from dateutil import parser
+    # current_time = datetime.datetime.now()
+    # sd1 = parser.parse(sd)
+    # se1 = parser.parse(se)
+    # print(sd1)
+    # print(se1)
+    # print(sd1 < se1)
+    # print(datetime.datetime.now() < se1)
 
-    exit(0)
+    # exit(0)
 
     ret_type, ret_val, _ = m.convert()
     logger.debug('Status:  %s' % ret_type)

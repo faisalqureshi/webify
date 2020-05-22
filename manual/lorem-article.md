@@ -2,6 +2,7 @@
 to: pdf
 title: Generated LaTeX articles
 author: Faisal Qureshi
+copy-source: True
 
 ---
 
