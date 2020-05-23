@@ -282,7 +282,7 @@ class MDfile:
             self.logger.info('Preprocessing Yaml front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
-                s = util.mustache_renderer(yaml_str, self.rc.data())
+                s = util.mustache_renderer(yaml_str, self.rc.data(), self.filepath)
                 self.set_yaml(yaml.safe_load(s))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
@@ -457,7 +457,7 @@ class MDfile:
                 self.logger.info('Applying HTML filter')
                 f = HTML_Filter(hf)
                 self.buffer = f.apply(self.buffer)                    
-            self.buffer = util.mustache_renderer(self.buffer, self.rc.data())
+            self.buffer = util.mustache_renderer(self.buffer, self.rc.data(), self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())
         pdoc_args.add_flag('mathjax')

@@ -177,11 +177,12 @@ class Webify:
                 self.logger.info('Processing  HTML files ...')
             else:
                 self.logger.info('No HTML files found')
-            for i in dir.partials.files['html']:
-                html_file = util.HTMLfile(filepath=os.path.join(dir.partials.get_fullpath(), i))
+            for filename in dir.partials.files['html']:
+                filepath = self.get_src(dir, filename)
+                html_file = util.HTMLfile(filepath)
                 buffer = html_file.load().get_buffer()
-                rendered_buf = self.render(template=buffer, context=self.rc.data())
-                data[i.replace('.','_')] = markupsafe.Markup(rendered_buf)
+                rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
+                data[filename.replace('.','_')] = markupsafe.Markup(rendered_buf)
 
             if len(dir.partials.files['md']) > 0:
                 self.logger.info('Processing  MD files ...')
@@ -189,9 +190,9 @@ class Webify:
                 self.logger.info('No MD files found')
             extras = { 'create-output-file': False, 
                        'ignore-times': ignore_times }
-            for i in dir.partials.files['md']:
+            for filename in dir.partials.files['md']:
                 self.rc.push()
-                filepath = os.path.join(dir.partials.get_fullpath(), i)
+                filepath = self.get_src(dir, filename)
                 md_file = MDfile(filepath=filepath, rootdir=dir.partials.get_fullpath(), extras=extras, rc=self.rc)
                 if self.meta_data['renderer']:
                     md_file.set_default('renderer', self.meta_data['renderer'])
@@ -201,9 +202,9 @@ class Webify:
                 if not ret_type == 'buffer':
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
                 else:
-                    data[i.replace('.','_')] = markupsafe.Markup(buffer)
+                    data[filename.replace('.','_')] = markupsafe.Markup(buffer)
             self.logger.info('Done processing folder %s' % dir.partials.get_fullpath())
-            self.rc.pop()            
+            self.rc.pop()   
             self.rc.add(data)
         else:
             self.logger.info('No _partials found')
@@ -244,7 +245,7 @@ class Webify:
             filepath, dest_filepath = self.get_src_and_dest(dir, filename)
             html_file = util.HTMLfile(filepath)
             buffer = html_file.load().get_buffer()
-            rendered_buf = self.render(template=buffer, context=self.rc.data())
+            rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
             self.logger.info('Saving %s' % dest_filepath)
             util.save_to_file(dest_filepath, rendered_buf)
 

@@ -13,11 +13,10 @@ import shutil
 import filecmp
 import pypandoc
 import jinja2
-# from jinja2 import Template
-# import jinja2
 import fnmatch 
 
 def md_filter(str):
+    logger = WebifyLogger.get('mdfile')
     try:
         s = str.strip(' ')
         if s[0:8] == '_pandoc_':
@@ -29,8 +28,7 @@ def md_filter(str):
         else:
             pass
     except:
-        pass
-        #self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
+        self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
     return str
 
 def apply_filter(filter, data):
@@ -111,9 +109,9 @@ def render(filepath, context, renderer):
         logger.warning('Cannot load render file: %s' % filepath)
         return ''
 
-    return renderer(template, context)
+    return renderer(template, context, filepath)
 
-def jinja2_renderer(template, context):
+def jinja2_renderer(template, context, file_info):
     logger = WebifyLogger.get('render')
 
     # if WebifyLogger.is_debug(logger):
@@ -126,9 +124,9 @@ def jinja2_renderer(template, context):
 
     try:
         rendered_buf = jinja2.Template(template).render(context)
-        logger.debug('Success jinja2 render')
+        logger.debug('Success jinja2 render: %s' % file_info)
     except jinja2.exceptions.TemplateSyntaxError as e:
-        logger.warning('Error jinja2 render %s' % e)
+        logger.warning('Error jinja2 render: %s\n%s' % (file_info, e))
         if WebifyLogger.is_debug(logger) or True:
             print('Template:')
             print(template)
@@ -142,30 +140,30 @@ def jinja2_renderer(template, context):
 
     return rendered_buf
 
-def mustache_renderer(template, context):
+def mustache_renderer(template, context, file_info):
     logger = WebifyLogger.get('render')
 
-    if WebifyLogger.is_debug(logger):
-        print('Template:')  
-        print(template)
-        print('Context:')
-        pp.pprint(context)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Template:')  
+    #     print(template)
+    #     print('Context:')
+    #     pp.pprint(context)
 
     try:
         rendered_buf = pystache.render(template, context)
-        logger.debug('Success pystache render')        
+        logger.debug('Success pystache render: %s' % file_info)        
     except:
-        logger.warning('Error pystache render')
+        logger.warning('Error pystache render: %s' % file_info)
         if WebifyLogger.is_debug(logger):
             print('Template:')
             print(template)
-            print('Context:')
-            pp.pprint(context)
+            # print('Context:')
+            # pp.pprint(context)
         rendered_buf = template
 
-    if WebifyLogger.is_debug(logger):
-        print('Rendered Buf')
-        print(rendered_buf)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Rendered Buf')
+    #     print(rendered_buf)
 
     return rendered_buf
 

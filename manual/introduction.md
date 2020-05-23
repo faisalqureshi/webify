@@ -388,4 +388,41 @@ html-vids:               *None | <filename>
 ## Mac OSX
 
 1. Install [MacTeX](https://www.tug.org/mactex/)
-2. 
+2. Install [Pandoc](https://pandoc.org/installing.html)
+3. Optionally install pandoc's cite-proc citation parser
+4. Get [Webify](https://github.com/faisalqureshi/webify)
+5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environemnt.  See [here](https://docs.python.org/3/library/venv.html) for more details.
+6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
+
+## Windows
+
+1. Install [MicTeX](https://miktex.org/)
+2. Install [Pandoc](https://pandoc.org/installing.html)
+3. Optionally install pandoc's cite-proc citation parser
+4. Get [Webify](https://github.com/faisalqureshi/webify)
+5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  *Use your preferred method for setting up windows python environment.  We also have had some success with using docker containers.*
+6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile.bat` and `webify.bat`.  Use these scripts to run the utilities.
+
+## Linux
+
+1. `sudo apt-get install texlive-full`
+2. `sudo apt-get install pandoc`
+3. Get [Webify](https://github.com/faisalqureshi/webify)
+4. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environemnt.  See [here](https://docs.python.org/3/library/venv.html) for more details.
+5. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
+
+## Usage
+
+Check `python mdfile2.py --help` and `python webify2.py --help` for usage and available command line options.
+
+# Copyright
+
+Faisal Qureshi    
+Associate Professor Computer Science     
+Faculty of Science     
+Ontario Tech University     
+Oshawa ON L1C OG5     
+Web: http://faculty.uoit.ca/qureshi    
+
+
+
