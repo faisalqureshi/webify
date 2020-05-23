@@ -456,7 +456,7 @@ class MDfile:
             if len(hf_file_list) > 0:
                 self.logger.info('Applying HTML filter')
                 f = HTML_Filter(hf)
-                self.buffer = f.apply(self.buffer)                    
+                self.buffer = f.apply(self.buffer, self.filepath)                    
             self.buffer = util.mustache_renderer(self.buffer, self.rc.data(), self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())

@@ -60,7 +60,7 @@ class HTML_Filter:
     def is_video(self, filename):
         return filename.lower().endswith(self.vid_ext)
 
-    def apply(self, buffer):
+    def apply(self, buffer, file_info):
         assert(buffer)
 
         i = 0
@@ -86,7 +86,7 @@ class HTML_Filter:
                 elif self.is_video(mm[0]):
                     template = self.vid_template
                 else:
-                    self.logger.warning('Invalid image or video file %s' % context['file'])
+                    self.logger.warning('Invalid image or video file: "%s" in %s' % (context['file'], file_info))
             else:
                 context = { 'files': [] }
                 for item in mm:
@@ -101,7 +101,7 @@ class HTML_Filter:
 
             if template:
                 try:
-                    r = mustache_renderer(template, context)
+                    r = mustache_renderer(template, context, file_info)
                     self.logger.debug('Applying HTML Media Filter to object %s' % buffer[s:e])
                 except:
                     self.logger.warning('Cannot apply HTML Media Filter to object %s' % buffer[s:e])

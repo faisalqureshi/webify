@@ -12,7 +12,7 @@ more: >
              markdown files to create beautiful documents and websites.
 render: "{{__root__}}/_templates/main_template.html"
 web: "https://github.com/faisalqureshi/webify"
-preprocess-buffer: True
+preprocess-buffer: False
 html-img: "{{__root__}}/_templates/img.mustache"
 
 ---
