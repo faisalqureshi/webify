@@ -384,6 +384,10 @@ class MDfile:
             self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
+        hf, hf_file_list = self.get_html_filters()
+        if len(hf_file_list) > 0:
+            self.logger.warning('HTML medial filters are only available when converting to html: %s' % self.filepath)
+
         if self.get_preprocess_buffer(): 
             self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
 
@@ -451,12 +455,13 @@ class MDfile:
             self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
+        if len(hf_file_list) > 0:
+            self.logger.info('Applying HTML filter')
+            f = HTML_Filter(hf)
+            self.buffer = f.apply(self.buffer, self.filepath)                    
+
         if self.get_preprocess_buffer(): 
             self.logger.info('Preprocessing markdown buffer using mustache')
-            if len(hf_file_list) > 0:
-                self.logger.info('Applying HTML filter')
-                f = HTML_Filter(hf)
-                self.buffer = f.apply(self.buffer, self.filepath)                    
             self.buffer = util.mustache_renderer(self.buffer, self.rc.data(), self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())

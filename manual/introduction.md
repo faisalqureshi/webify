@@ -374,7 +374,7 @@ html-vids:               *None | <filename>
 - If `template` is not provided, default pandoc template is used.   Use `pandoc -D html5` to see the default templatze.
 - If `create-output-file` is `False`, markdown contents are saved to a buffer.  This functionality is used in `webify` during `_partials` folder processing. 
 - Yaml front matter is only preprocessed via mustache if `preprocess-frontmatter` is `True`.
-- Media filters tags `html-img`, `html-imgs`, `html-vid` and `html-vids` specify mustache templates to override the default conversion of markdown media tag `![Caption](mediafile)`.  See below for more details.
+- Media filters tags `html-img`, `html-imgs`, `html-vid` and `html-vids` specify mustache templates to override the default conversion of markdown media tag `![Caption](Image or Video file)`.  See below for more details.  Supported file extensions are `mp4`, `png`, `jpeg`, `gif` and `jpg`.
 - File contents can be preprocessed via mustache if `preprocess-buffer` is `True`.  This is done before the contents are sent to pandoc for conversion.
 - `include-in-header`, `include-before-body`, and `include-after-body` can be used to specify files whose contents will be inserted as the name suggests: in the header (between `<head>` and `</head>`), in the body (after `<body>` tag but before everything else), and just after `</body>`.  In each case, multiple files can be specified.
 - `css`: specifies the CSS file(s).
@@ -382,6 +382,45 @@ html-vids:               *None | <filename>
 #### Example
 
 - [Generated HTML](lorem-html.html) ([Source](lorem-html.md))
+
+#### Media filters
+
+Markdown supports adding an image (or possibly a video) file to the document via the following syntax:
+
+```txt
+![Caption](Media file)
+```
+
+It is often desireable to control how media is displayed.  Use `html-img`, `html-imgs`, `html-vid` and `html-vids` tags to specify mustache templates that will replace the `![Caption](Media file)` with html code before further processing via mustache or pandoc.  Check out `webify/mdfilter` folder for example templates.
+
+MDfile utility will consume the `![Caption](Media file)` and constructs the following rendering context that will be available for the mustache template that will replace this string with HTML code.
+
+```txt
+file: Media file
+type: image | video
+caption: Caption
+```
+
+The type of the media file (image or video) will determine which template (`html-img` or `html-vid`) will be used.
+
+It is also possible to use the above syntax that works for a single file to multiple files as follows:
+
+```txt
+![Caption](Media file 1 | Media file 2 | ... | Media file N)
+```
+
+In this case the rendering context is:
+
+```txt
+files: 
+  - file: Media file 1
+  - file: Media file 2
+  ...
+  - file: Media file N
+caption: Caption
+```
+
+The type of the media files (images or videos) will determine which template (`html-imgs` or `html-vids`) will be used.
 
 # Installation and Usage
 
