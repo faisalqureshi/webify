@@ -10,6 +10,7 @@ import util2 as util
 import pystache
 import markupsafe
 from mdfilters import HTML_Filter
+import datetime
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -911,7 +912,8 @@ if __name__ == '__main__':
     meta_data = {
         '__version__': __version__,
         '__filepath__': filepath.replace('\\','\\\\'),
-        '__root__': filedir.replace('\\','\\\\')
+        '__root__': filedir.replace('\\','\\\\'),
+        '__time__': datetime.datetime.now()
     }
     rc = util.RenderingContext()
     rc.push()
