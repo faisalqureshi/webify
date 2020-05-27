@@ -1,5 +1,6 @@
 ---
 title: Post 1
+standalone-html: True
 
 ---
 

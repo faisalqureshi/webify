@@ -104,7 +104,15 @@ class Webify:
         self.rc = util.RenderingContext()
         self.ignore = None
         self.dir_tree = DirTree()
-        self.blog = { 'index-filepath': None, 'root-dir': None }
+        self.reset_blog()
+
+    def reset_blog(self):
+        self.blog = { 
+            '__blog_index__': None, 
+            '__blog_rootdir__': None, 
+            '__blog_destdir__': None,
+            '__blog_posts__': None 
+            }
 
     def set_renderer(self):
         if self.meta_data['renderer'] in [None, 'jinja2']:
@@ -180,9 +188,9 @@ class Webify:
             args = { 'create-output-file': False, 
                      'ignore-times': ignore_times }
             for filename in dir.partials.files['md']:  
-                self.rc.push()
                 filepath = self.make_src_filepath(dir, filename)
                 self.logger.info('Processing MD file: %s' % filepath)
+                self.rc.push()
                 md_file = MDfile(filepath=filepath, args=args, rc=self.rc)
                 md_file = self.md_set_defaults(md_file)
                 ret_type, buffer, _ = md_file.load().convert()
@@ -192,7 +200,7 @@ class Webify:
                 else:
                     data[filename.replace('.','_')] = markupsafe.Markup(buffer)
 
-            self.logger.info('Done processing folder %s' % dir.partials.get_fullpath())
+            self.logger.info('... done processing folder %s' % dir.partials.get_fullpath())
             self.rc.pop()
 
             # Add collected data to parent's rendering context.   
@@ -213,7 +221,7 @@ class Webify:
             self.rc.add(yaml_file.data)
             
     def enter_dir(self, dir):
-        self.logger.info('** Processing folder %s...' % dir.get_fullpath())
+        self.logger.info('** Processing folder %s ...' % dir.get_fullpath())
 
         logger_rc =  util.WebifyLogger.get('rc')
         if util.WebifyLogger.is_debug(logger_rc):
@@ -228,7 +236,7 @@ class Webify:
         logger_blog = util.WebifyLogger.get('blog')
 
         cur_dir = dir.get_fullpath()
-        if not self.blog['index-filepath']:
+        if not self.blog['__blog_index__']:
             check_blog_index_filename = self.rc.value('blog-index')
             if not check_blog_index_filename:
                 return
@@ -246,24 +254,37 @@ class Webify:
                     return
                 
                 logger_blog.info('Blog found: %s' % blog_index_filepath)
-                self.blog['index-filepath'] = blog_index_filepath
-                self.blog['root-dir'] = cur_dir
+                self.blog['__blog_index__'] = blog_index_filepath
+                self.blog['__blog_rootdir__'] = cur_dir
+                self.blog['__blog_destdir__'] = self.make_output_filepath(dir, '')
+                self.blog['__blog_posts__'] = []
         else:
-            if self.blog['index-filepath'] != self.rc.value('blog-index'):
+            print(self.blog['__blog_index__'])
+            print(self.rc.value('blog-index'))
+            if self.blog['__blog_index__'] != self.rc.value('blog-index'):
                 logger_blog.warning('Blog index changed during processing a blog subolder %s' % cur_dir)
 
     def check_blog_folder(self, dir):
         cur_dir = dir.get_fullpath()
-        if cur_dir != self.blog['root-dir']:
+        if cur_dir != self.blog['__blog_rootdir__']:
             return
 
         logger_blog = util.WebifyLogger.get('blog')
-        blog_index_filepath = self.blog['index-filepath']
+        blog_index_filepath = self.blog['__blog_index__']
         logger_blog.info('Processing blog index %s' % blog_index_filepath)
-        blog_index_filename = os.path.split(blog_index_filepath)[1]
+        blog_index_filename = os.path.basename(blog_index_filepath)
         blog_index_output_filepath = self.make_output_filepath(dir, blog_index_filename)
-        self.md_convert(blog_index_filename, blog_index_filepath, blog_index_output_filepath)
-        self.blog =  { 'index-filepath': None, 'root-dir': None }
+        self.rc.push()
+        self.rc.add({'__blog_posts__': self.blog['__blog_posts__']})
+        ext = os.path.splitext(blog_index_filepath)[1]
+        if ext == '.md':
+            self.md_convert(blog_index_filename, blog_index_filepath, blog_index_output_filepath)
+        elif ext == '.html':
+            self.html_convert(blog_index_filename, blog_index_filepath, blog_index_output_filepath)
+        else:
+            self.logger.warning('Unknown blog index file found: %s' % blog_index_filepath)
+        self.rc.pop()
+        self.reset_blog()
         logger_blog.info('Leaving blog folder %s' % cur_dir)
 
     def proc_html(self, dir):
@@ -274,12 +295,17 @@ class Webify:
                 
         for filename in dir.files['html']:
             filepath = self.make_src_filepath(dir, filename)
-            html_file = util.HTMLfile(filepath)
-            buffer = html_file.load().get_buffer()
-            rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
+            if filepath == self.blog['__blog_index__']: 
+                continue
             output_filepath = self.make_output_filepath(dir, filename)
-            self.logger.info('Saving %s' % dest_filepath)
-            util.save_to_file(output_filepath, rendered_buf)
+            self.html_convert(filename, filepath, output_filepath)
+
+    def html_convert(self, filename, filepath, output_filepath):
+        html_file = util.HTMLfile(filepath)
+        buffer = html_file.load().get_buffer()
+        rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
+        self.logger.info('Saving %s' % output_filepath)
+        util.save_to_file(output_filepath, rendered_buf)
 
     def md_set_defaults(self, md_file):
         if self.meta_data['renderer']:
@@ -305,21 +331,22 @@ class Webify:
         md_file.load()
         convert, message, src, dest = self.md_inspect_frontmatter(md_file)
         if convert:
-            ret_type, saved_file, _ = md_file.load().convert()
-            if ret_type == 'file':
+            status, saved_file, _ = md_file.load().convert()
+            if status == 'file':
                 self.logger.info('Saved %s' % saved_file)
-            elif ret_type == 'exists':
+            elif status == 'exists':
                 self.logger.info('Already exists %s' % saved_file)
             else:
+                saved_file = None
                 self.logger.warning('Error processing %s' % filepath)
+                    
+            if saved_file:
+                copy_source = md_file.get_value('copy-source')
+                if copy_source:
+                    self.logger.debug('Copying %s' % args['output-filepath']+'.md')
+                    util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
 
-            # Check if markdown file needs to be copied
-            copy_source = md_file.get_value('copy-source')
-            if copy_source:
-                self.logger.debug('Copying %s' % args['output-filepath']+'.md')
-                util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
-
-            self.md_collect_blog_info(md_file, filename, saved_file)
+                self.capture_blog_information(md_file, saved_file)
         else:
             pass
         self.rc.pop()
@@ -332,53 +359,25 @@ class Webify:
 
         for filename in dir.files['md']:
             filepath = self.make_src_filepath(dir, filename)
-            if filepath == self.blog['index-filepath']: 
+            if filepath == self.blog['__blog_index__']: 
                 continue
             output_filepath = self.make_output_filepath(dir, filename)
             self.md_convert(filename, filepath, output_filepath)
 
-    def md_collect_blog_info(self, md_file, filename, saved_file):
-        blog_posts = self.rc.value('blog_posts')
+    def capture_blog_information(self, md_file, saved_file):
+        posts = self.blog['__blog_posts__']
+        if posts == None:
+            return
 
-        if blog_posts:
-            blog_posts.append(
-                self.md_collect_post_info(md_file, filename, saved_file, self.rc.value('blog_dest_dir'))
-                )
-
-    def md_collect_post_info(self, md_file, filename, saved_file, blog_index_dir):
         logger_blog = util.WebifyLogger.get('blog')
-        logger_blog.debug('Collecting post info from file %s' % filename)
+        logger_blog.debug('Collecting post info from file %s' % md_file.get_filepath())
 
         entry = {
-            'filename': filename,
-            'link': os.path.relpath(saved_file, blog_index_dir)
+            'filename': md_file.get_filename(),
+            'link': os.path.relpath(saved_file, self.blog['__blog_destdir__']),
+            'data': md_file.get_yaml()
         }
-
-        y = md_file.get_yaml()
-        try:
-            entry['title'] = y['title']
-        except:
-            entry['title'] = entry['link']
-        
-        try:
-            entry['author'] = y['author']
-        except:
-            entry['author'] = ''
-
-        try:
-            entry['date'] = y['date']
-        except:
-            entry['date'] = 'Today'
-
-        try:
-            entry['status'] = y['status']
-        except:
-            entry['status'] = 'posted'
-
-        if util.WebifyLogger.is_debug(logger_blog): 
-            print(entry)
-
-        return entry
+        posts.append(entry)
 
     def make_src_filepath(self, dir, filename):
         filepath =  os.path.join(dir.get_fullpath(), filename)

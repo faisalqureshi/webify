@@ -221,6 +221,8 @@ class MDfile:
         #                         'subtitle',
         #                         'preprocess-mustache' ]
 
+    def get_filename(self):
+        return os.path.basename(self.filepath)
 
     def get_filepath(self):
         return self.filepath

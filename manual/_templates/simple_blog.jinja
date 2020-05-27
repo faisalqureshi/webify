@@ -4,12 +4,12 @@
   </head>
   <body>
     <div class="container">
-        <h1>{{ blog_title }}</h1>
+        <h1>{{ __blog_title__ }}</h1>
         
         <h2>Posts</h2>
 
         <ul>
-            {% for post in blog_posts %}
+            {% for post in __blog_posts__ %}
                 <li><a href="{{ post.link }}">{{ post.title }}</a></li>
             {% endfor %}
         </ul>

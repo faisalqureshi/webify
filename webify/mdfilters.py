@@ -58,7 +58,6 @@ class HTML_Filter:
         return filename.lower().endswith(self.img_ext)
 
     def is_video(self, filename):
-        print(filename)
         return filename.lower().endswith(self.vid_ext)
 
     def apply(self, buffer, file_info):
