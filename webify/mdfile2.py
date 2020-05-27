@@ -222,11 +222,8 @@ class MDfile:
         #                         'preprocess-mustache' ]
 
 
-    def get_src(self):
+    def get_filepath(self):
         return self.filepath
-
-    def get_dest(self):
-        return self.make_output_filepath_with_extension()
 
     def get_defaults(self):
         return self.defaults
@@ -316,7 +313,6 @@ class MDfile:
 
         if self.get_create_output_file():
             output_fileext = self.get_output_fileext()
-            print(output_fileext)
             format_ext = self.formats[output_format]['ext']
             if output_fileext and format_ext != output_fileext:
                 self.logger.error('Output format "%s" doesnot match output file extension "%s": %s' % (output_format, output_fileext, self.filepath) )
@@ -379,7 +375,7 @@ class MDfile:
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
-        output_filepath = self.make_output_filepath_with_extension()
+        output_filepath = self.make_output_filepath()
         self.logger.debug('Output file: %s' % output_filepath)
 
         if self.needs_compilation(files, output_filepath):
@@ -446,7 +442,7 @@ class MDfile:
             files.extend(hf_file_list)
 
         if self.get_create_output_file():        
-            output_filepath = self.make_output_filepath_with_extension()
+            output_filepath = self.make_output_filepath()
             self.logger.debug('Output file: %s' % output_filepath)
         else:
             output_filepath = None
@@ -525,7 +521,7 @@ class MDfile:
 
         return ret
 
-    def make_output_filepath_with_extension(self):
+    def make_output_filepath(self):
         output_format = self.get_output_format()
         output_filepath = self.get_output_filepath()
         assert(output_filepath)
