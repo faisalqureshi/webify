@@ -12,6 +12,7 @@ import pathspec
 import datetime
 import markupsafe
 import json
+import rc as RenderingContext
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -101,7 +102,7 @@ class DirTree:
 class Webify:
     def __init__(self):
         self.logger = util.WebifyLogger.get('webify')
-        self.rc = util.RenderingContext()
+        self.rc = RenderingContext.RenderingContext()
         self.ignore = None
         self.dir_tree = DirTree()
         self.reset_blog()
@@ -157,13 +158,14 @@ class Webify:
             self.logger.info('Processing: %s' % dir.partials.get_fullpath())
             self.rc.push()
 
+
             # Load YAML
             if len(dir.partials.files['yaml']) > 0:
                 self.logger.info('Processing  YAML files ...')
             else:
                 self.logger.info('No YAML files found')
             for filename in dir.partials.files['yaml']:
-                filepath = self.make_src_filepath(dir, filename)
+                filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 yaml_file = util.YAMLfile(filepath=filepath)
                 yaml_file.load()
                 self.rc.add(yaml_file.data)
@@ -174,7 +176,7 @@ class Webify:
             else:
                 self.logger.info('No HTML files found')
             for filename in dir.partials.files['html']:
-                filepath = self.make_src_filepath(dir, filename)
+                filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 html_file = util.HTMLfile(filepath)
                 buffer = html_file.load().get_buffer()
                 rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
@@ -188,7 +190,7 @@ class Webify:
             args = { 'create-output-file': False, 
                      'ignore-times': ignore_times }
             for filename in dir.partials.files['md']:  
-                filepath = self.make_src_filepath(dir, filename)
+                filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 self.logger.info('Processing MD file: %s' % filepath)
                 self.rc.push()
                 md_file = MDfile(filepath=filepath, args=args, rc=self.rc)
@@ -241,7 +243,8 @@ class Webify:
             if not check_blog_index_filename:
                 return
             else:
-                blog_index_filepath = self.make_src_filepath(dir, check_blog_index_filename)
+                blog_index_filename = os.path.expandvars(check_blog_index_filename)
+                blog_index_filepath = self.make_src_filepath(dir, blog_index_filename)
                 blog_index_dir = os.path.split(blog_index_filepath)[0]
                 if cur_dir != blog_index_dir:
                     logger_blog.warning('Blog index file "%s" is placed outside current folder "%s".  This is not allowed.' % (check_blog_index_filename, cur_dir))
@@ -299,6 +302,7 @@ class Webify:
                 continue
             output_filepath = self.make_output_filepath(dir, filename)
             self.html_convert(filename, filepath, output_filepath)
+            self.capture_blog_information(filepath, output_filepath)
 
     def html_convert(self, filename, filepath, output_filepath):
         html_file = util.HTMLfile(filepath)
@@ -331,7 +335,7 @@ class Webify:
         md_file.load()
         convert, message, src, dest = self.md_inspect_frontmatter(md_file)
         if convert:
-            status, saved_file, _ = md_file.load().convert()
+            status, saved_file, _ = md_file.convert()
             if status == 'file':
                 self.logger.info('Saved %s' % saved_file)
             elif status == 'exists':
@@ -346,7 +350,7 @@ class Webify:
                     self.logger.debug('Copying %s' % args['output-filepath']+'.md')
                     util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
 
-                self.capture_blog_information(md_file, saved_file)
+                self.capture_blog_information(filepath, saved_file, md_file.get_yaml())
         else:
             pass
         self.rc.pop()
@@ -364,18 +368,22 @@ class Webify:
             output_filepath = self.make_output_filepath(dir, filename)
             self.md_convert(filename, filepath, output_filepath)
 
-    def capture_blog_information(self, md_file, saved_file):
+    def capture_blog_information(self, filepath, saved_file, data=None):
         posts = self.blog['__blog_posts__']
         if posts == None:
             return
 
         logger_blog = util.WebifyLogger.get('blog')
-        logger_blog.debug('Collecting post info from file %s' % md_file.get_filepath())
+        logger_blog.debug('Collecting post info from file %s' % filepath)
 
+        filename = os.path.basename(filepath)
         entry = {
-            'filename': md_file.get_filename(),
+            'filename': filename,
+            'title': filename,
             'link': os.path.relpath(saved_file, self.blog['__blog_destdir__']),
-            'data': md_file.get_yaml()
+            'data': data if data else None,
+            'type': os.path.splitext(filepath)[1],
+            'ext': os.path.splitext(saved_file)[1]
         }
         posts.append(entry)
 
@@ -398,6 +406,7 @@ class Webify:
             output_filepath = self.make_output_filepath(dir, filename)
             self.logger.info('Processing %s' % filepath)
             util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
+            self.capture_blog_information(filepath, output_filepath)
 
     def proc_dir(self, dir):
         self.proc_yaml(dir)

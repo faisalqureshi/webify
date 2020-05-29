@@ -105,6 +105,28 @@ __root__: <source directory>
 __version__: <version information>
 ```
 
+### Mustache vs Jinja Rendering
+
+Jinja is a full-featured template engine for Python.  Mustache on the other hand is logic-less template.  Mustache is much easier to use; however, it cannot really be used in complicated settings that requires some sort of logic to be executed.  
+
+The most important thing to keep in mind that while mustache can deal with keys with dashes (`-`). jinja cannot.  If you want to use keys in a jinja template, use underscore instead (`_`).
+
+For example:
+
+```txt
+object-id: 9
+```
+
+can be used in a mustache template using `{{object-id}}`; however, it cannot be used within a jinja template.  It is often preferrable to use
+
+```txt
+object_id: 9
+```
+
+which can be used in jinja template using `{{object_id}}`.
+
+Aside: you'll notice that both webify and mdfile use dashes (`-`) for certain keys internally.  This is intentional.  I find dashes (`-`) to be more readable.  Internal keys that are available to be used rendering start with a double underscore `__`.
+
 ## The `_partials` folder
 
 Any folder can contain a special sub-folder, called `_partials`.  Each time webify processes a folder, it first looks whether or not the folder contains a sub-folder, called `_partials`.  If a `_partials` sub-folder is found, then items within this folder are processed.  Items within the `_partials` sub-folder are available added to the rendering context for its parent folder.  This allows a mechanism to create common web-snippets, such as headers, footers, and navigation items, that can be used in any file that is stored in this (the parent) folder or one of its sub-folders.
@@ -254,13 +276,12 @@ Use the `preprocess-buffer` to control this behavior.  The default value for thi
 
 Webify version > 3.1 supports blogging.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
 
-Consider the following yaml file that sits in folder `blog-example`
+Consider the following `blog.yaml` file that sits in folder `blog-example`
 
 ```txt
 ---
-blog: True
-blog_title: Example Blog
-blog_index: index.md
+blog-index: index.md
+blot_title: An example blog
 ```
 
 This file indicates that folder `blog-example` sets up a blog.  It also identifies a markdown file that will serve as the blog index.  All other markdown files in this folder and in all its descendent folders will be posts.  The contents of `index.md` file are:
@@ -287,7 +308,7 @@ In this case the `index.md` file simply identifies the jinja template shown belo
         <h2>Posts</h2>
 
         <ul>
-            {% for post in blog_posts %}
+            {% for post in __blog_posts__ %}
                 <li><a href="{{ post.link }}">{{ post.title }}</a></li>
             {% endfor %}
         </ul>

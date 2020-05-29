@@ -235,56 +235,62 @@ class Terminal:
     def c(self):
         return int(self.cols)-1
 
-class RenderingContext:
-    def __init__(self):
-        self.logger = WebifyLogger.get('rc')
-        self.rc = {}
-        self.diff_stack = []
+# class RenderingContext:
+#     def __init__(self):
+#         self.logger = WebifyLogger.get('rc')
+#         self.rc = {}
+#         self.diff_stack = []
 
-    def data(self):
-        return self.rc
+#     def data(self):
+#         return self.rc
         
-    def diff(self):
-        return {'a': [], 'm': []}
+#     def diff(self):
+#         return {'a': [], 'm': []}
         
-    def push(self):
-        self.diff_stack.append(self.diff())
+#     def push(self):
+#         self.diff_stack.append(self.diff())
 
-    def add(self, data):
-        diff = self.diff_stack[-1]
+#     def add(self, data):
+#         print(data)
 
-        for k in data.keys():
-            if k in self.rc.keys():
-                diff['m'].append({k: copy.deepcopy(self.rc[k])})
-                self.rc[k] = data[k]
-            else:
-                kv = {k: data[k]}
-                diff['a'].append({k: data[k]})
-                self.rc.update(kv)
+#         diff = self.diff_stack[-1]
+
+#         for k in data.keys():
+#             if k in self.rc.keys():
+#                 diff['m'].append({k: copy.deepcopy(self.rc[k])})
+#                 self.rc[k] = data[k]
+#             else:
+#                 kv = {k: data[k]}
+#                 diff['a'].append({k: data[k]})
+#                 self.rc.update(kv)
+
+#         print(diff)
                 
-    def pop(self):
-        diff = self.diff_stack.pop()
-        for i in diff['a']:
-            for k in i.keys():
-                del self.rc[k]
-        for i in diff['m']:
-            for k in i.keys():
-                self.rc[k] = i[k]
+#     def pop(self):
+#         diff = self.diff_stack.pop()
+#         print('pop')
+#         print(diff)
+#         for i in diff['a']:
+#             for k in i.keys():
+#                 del self.rc[k]
+#         for i in diff['m']:
+#             for k in i.keys():
+#                 self.rc[k] = i[k]
 
-    def get(self):
-        return self.rc
+#     def get(self):
+#         return self.rc
 
-    def keys(self):
-        return self.rc.keys()
+#     def keys(self):
+#         return self.rc.keys()
 
-    def value(self, key):
-        try:
-            return self.rc[key]
-        except:
-            return None    
+#     def value(self, key):
+#         try:
+#             return self.rc[key]
+#         except:
+#             return None    
 
-    def print(self):
-        pp.pprint(self.rc)
+#     def print(self):
+#         pp.pprint(self.rc)
 
 
 class YAMLfile:
@@ -414,5 +420,50 @@ def make_file_processor(ext):
     else:
         return CopyFile
 
-    
+def get_values(k, d, d2=None):
+    """
+    k = key
+    d = dictionary
+    d2 = extra dictionary - check out get_files() in mdfile2.py to see how one might use an extra dictionary
+
+    Example 1:
+    d[k] = v
+    get_values(d, k) -> v
+
+    Example 2:
+    d[k] = [v1, v2, v3]
+    get_values(d, k) -> [v1, v2, v3]
+
+    Useful for processing yaml files of the form
+
+    Case 1:
+    file: file1
+
+    Case 2:
+    file:
+        - file1
+        - file2
+
+    Here the first case refers to example 1, and the second case refers to example 2.
+    """
+    try:
+        f1 = d[key] if isinstance(d[key], list) else [d[key]]
+        f1 = [x for x in f1 if x is not None]
+    except:
+        f1 = []
+    try:
+        f2 = d2[key] if isinstance(d2[key], list) else [d2[key]]
+        f2 = [x for x in f2 if x is not None]
+    except:
+        f2 = []
+    files = f1 + f2
+    return files
+
+def pick_last_value(k, d, d2=None):
+    v = get_values(k, d, d2)
+    if len(v) > 0: return v[-1]
+    return None
+
+def pick_all_values(k, d, d2=None):
+    return get_values(k, d, d2)    
         

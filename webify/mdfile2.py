@@ -11,6 +11,7 @@ import pystache
 import markupsafe
 from mdfilters import HTML_Filter
 import datetime
+import rc as RenderingContext
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -298,6 +299,7 @@ class MDfile:
 
         # Update the rendering context for this file
         self.rc.add(self.get_yaml())
+        self.rc.add({'hello': self.get_filename()})
         if util.WebifyLogger.is_debug(logger_rc):
             print('rc:')
             self.rc.print()
@@ -913,7 +915,7 @@ if __name__ == '__main__':
         '__root__': filedir.replace('\\','\\\\'),
         '__time__': datetime.datetime.now()
     }
-    rc = util.RenderingContext()
+    rc = RenderingContext.RenderingContext()
     rc.push()
     rc.add(meta_data)
 
