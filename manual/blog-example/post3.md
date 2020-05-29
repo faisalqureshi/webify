@@ -1,5 +1,7 @@
 ---
 title: Post 3
+availability:
+    start: 2 June
 
 ---
 

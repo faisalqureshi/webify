@@ -12,6 +12,7 @@ import markupsafe
 from mdfilters import HTML_Filter
 import datetime
 import rc as RenderingContext
+import dateutil.parser
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -202,7 +203,8 @@ class MDfile:
                           'create-output-file': True,
                           'standalone-html': False,
                           'ignore': False ,
-                          'ignore-times': False }
+                          'ignore-times': False,
+                          'availability': None }
 
         # # This is an incomplete list of keys that can be found in a yaml frontmatter
         # self.supported_keys = [ 'standalone',
@@ -566,6 +568,18 @@ class MDfile:
         logger.debug('\tCompilation not needed.')
         logger.debug('Function exit: needs_compilation')
         return False
+
+    def get_availability(self, cur_time):
+        x = self.get_value('availability')
+        if not x:
+            return True
+        one_day = datetime.timedelta(days=1)        
+        s = cur_time-one_day if not 'start' in x.keys() else dateutil.parser.parse(x['start'])
+        e = cur_time+one_day if not 'end' in x.keys() else dateutil.parser.parse(x['end'])
+        if s >= e:
+            self.logger.warning('Invalid availibity times found in %s' % self.filepath)
+            return False
+        return s <= cur_time and cur_time <= e
 
     def get_value(self, name):
         if name in self.args.keys() and self.args[name] != None:

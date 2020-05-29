@@ -322,7 +322,10 @@ class Webify:
 
         if md_file.get_value('ignore'):
             return False, 'ignore', filepath, output_filepath
-        
+
+        if not md_file.get_availability(meta_data['__time__']):
+            return False, 'not available', filepath, output_filepath
+
         return True, None, None, None
 
     def md_convert(self, filename, filepath,  output_filepath):
@@ -352,7 +355,14 @@ class Webify:
 
                 self.capture_blog_information(filepath, saved_file, md_file.get_yaml())
         else:
-            pass
+            if message == 'ignore':
+                self.logger.info('Ignoring: %s' % src)
+            elif message == 'not available':
+                self.logger.info('Removed due to time availability: %s' % src)
+            else:
+                pass
+            util.remove_file(dest)
+            
         self.rc.pop()
 
     def proc_md(self, dir):

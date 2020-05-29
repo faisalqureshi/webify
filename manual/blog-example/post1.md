@@ -1,6 +1,8 @@
 ---
 title: Post 1
 standalone-html: True
+availability:
+    end: 31 May
 
 ---
 

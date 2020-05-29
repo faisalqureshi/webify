@@ -2,8 +2,6 @@
 to: html
 copy-source: True
 ignore: False
-date-start: 15 may
-date-end: 20 may
 
 ---
 

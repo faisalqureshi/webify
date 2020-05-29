@@ -99,6 +99,14 @@ def save_to_file(filepath, buffer):
     except:
         return False
 
+def remove_file(filepath):
+    try:
+        os.remove(filepath)
+        return 'Deleted'
+    except:
+        pass
+    return 'Deletion failed'
+
 def render(filepath, context, renderer):
     logger = WebifyLogger.get('render')
     try:
