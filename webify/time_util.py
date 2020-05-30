@@ -1,15 +1,22 @@
 import datetime
+import dateutil
 
-current_time = datetime.datetime.now()
-print(current_time)
+def check_for_time_in_range(s, e, c):
+    sf = ef = False
+    
+    try:
+        if s == 'big-bang' or dateutil.parser.parse(s) <= c:
+            sf = True
+        if e == 'ragnarok' or dateutil.parser.parse(e) >= c:
+            ef = True
+    except:
+        return 'error'
 
-from dateutil import parser
-
-time_a = 'April 23, 2020'
-print(parser.parse(time_a))
-
-time_b = '24 April   2020 9am'
-print(parser.parse(time_b).date())
-
-time_d = '2020-01-22'
-print(parser.parse(time_d).time())
+    if sf and ef:
+        return True
+    elif sf and not ef:
+        return False
+    elif not sf and ef:
+        return False
+    elif not sf and not ef:
+        return 'error'

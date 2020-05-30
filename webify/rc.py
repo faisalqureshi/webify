@@ -28,9 +28,15 @@ class RenderingContext:
 
         for k in data.keys():
             if k in self.rc.keys():
-                if not (k in diff['m'].keys() or diff['a'] or diff['d'].keys()):
+                # print('M', k, data[k])
+                # if k == 'availability':
+                #     print('AA', diff)
+                if not (k in diff['m'].keys() or k in diff['a'] or k in diff['d'].keys()):
+                    #print('\t', self.rc[k])
                     diff['m'][k] = copy.deepcopy(self.rc[k])
                 self.rc[k] = data[k]
+                # if k == 'availability':
+                #     print('AA', diff)
             else:
                 kv = {k: data[k]}
                 if not k in diff['a']:
@@ -44,6 +50,7 @@ class RenderingContext:
         for k in diff['d'].keys():
             self.rc[k] = diff['d'][k]    
         for k in diff['m'].keys():
+            # print('R', k, diff['m'][k])
             self.rc[k] = diff['m'][k]
 
     def data(self):

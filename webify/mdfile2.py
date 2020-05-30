@@ -13,6 +13,7 @@ from mdfilters import HTML_Filter
 import datetime
 import rc as RenderingContext
 import dateutil.parser
+import time_util as tm
 
 from globals import __version__
 __logfile__ = 'mdfile.log'
@@ -388,7 +389,7 @@ class MDfile:
             self.logger.debug('Needs compilation YES')
         else:
             self.logger.debug('Needs compilation NO')
-            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            self.logger.info('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
         hf, hf_file_list = self.get_html_filters()
@@ -458,7 +459,7 @@ class MDfile:
             self.logger.debug('Needs compilation YES')
         else:
             self.logger.debug('Needs compilation NO')
-            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            self.logger.info('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
         if len(hf_file_list) > 0:
@@ -573,13 +574,14 @@ class MDfile:
         x = self.get_value('availability')
         if not x:
             return True
-        one_day = datetime.timedelta(days=1)        
-        s = cur_time-one_day if not 'start' in x.keys() else dateutil.parser.parse(x['start'])
-        e = cur_time+one_day if not 'end' in x.keys() else dateutil.parser.parse(x['end'])
-        if s >= e:
-            self.logger.warning('Invalid availibity times found in %s' % self.filepath)
+
+        s = 'big-bang' if not 'start' in x.keys() else x['start']
+        e = 'ragnarok' if not 'end' in x.keys() else x['end']
+        v = tm.check_for_time_in_range(s, e, cur_time)
+        if v == 'error':
+            self.logger.warning('Error reading availability times for %s' % self.filepath)
             return False
-        return s <= cur_time and cur_time <= e
+        return v
 
     def get_value(self, name):
         if name in self.args.keys() and self.args[name] != None:

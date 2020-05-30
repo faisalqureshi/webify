@@ -13,6 +13,7 @@ import datetime
 import markupsafe
 import json
 import rc as RenderingContext
+import time_util as tm
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -151,13 +152,24 @@ class Webify:
         else:
             self.logger.info('Destination directory %s: %s' % (r, destdir))
 
+    def check_availability(self, filepath, availability):
+        try:
+            s = availability[filepath]['start']
+            e = availability[filepath]['end']
+            v = tm.check_for_time_in_range(s, e, self.meta_data['__time__'])
+            if v == 'error':
+                self.logger('Error reading availability times for %s' % filepath)
+                return False
+            return v
+        except:
+            return True
+
     def proc_partials(self, dir):
         data = {}
         if dir.partials:
             self.logger.info('Processing _partials ...')
             self.logger.info('Processing: %s' % dir.partials.get_fullpath())
             self.rc.push()
-
 
             # Load YAML
             if len(dir.partials.files['yaml']) > 0:
@@ -233,6 +245,7 @@ class Webify:
 
         self.rc.push()
         self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.remove({'availability': None})
 
     def proc_blog(self, dir):
         logger_blog = util.WebifyLogger.get('blog')
@@ -243,15 +256,13 @@ class Webify:
             if not check_blog_index_filename:
                 return
             else:
-                blog_index_filename = os.path.expandvars(check_blog_index_filename)
-                blog_index_filepath = self.make_src_filepath(dir, blog_index_filename)
-                blog_index_dir = os.path.split(blog_index_filepath)[0]
-                if cur_dir != blog_index_dir:
-                    logger_blog.warning('Blog index file "%s" is placed outside current folder "%s".  This is not allowed.' % (check_blog_index_filename, cur_dir))
+                v, s = self.check_file_in_folder(dir, check_blog_index_filename)
+                if not v:
+                    logger_blog.warning('Error processing blog index file %s (%s)' % (check_blog_index_filename, s))
                     return
-                if not os.path.isfile(blog_index_filepath):
-                    logger_blog.warning('Cannot find blog index file %s' % blog_index_filepath)
-                    return
+                else:
+                    blog_index_filepath = s
+
                 if not os.path.splitext(blog_index_filepath)[1] in ['.html', '.md']:
                     logger_blog.warning('Only html and md files can be used as blog index %s' % blog_index_filepath)
                     return
@@ -262,8 +273,8 @@ class Webify:
                 self.blog['__blog_destdir__'] = self.make_output_filepath(dir, '')
                 self.blog['__blog_posts__'] = []
         else:
-            print(self.blog['__blog_index__'])
-            print(self.rc.value('blog-index'))
+            # print(self.blog['__blog_index__'])
+            # print(self.rc.value('blog-index'))
             if self.blog['__blog_index__'] != self.rc.value('blog-index'):
                 logger_blog.warning('Blog index changed during processing a blog subolder %s' % cur_dir)
 
@@ -290,7 +301,7 @@ class Webify:
         self.reset_blog()
         logger_blog.info('Leaving blog folder %s' % cur_dir)
 
-    def proc_html(self, dir):
+    def proc_html(self, dir, availability):
         if len(dir.files['html']) > 0:
             self.logger.info('Processing  HTML files...')
         else:
@@ -301,8 +312,12 @@ class Webify:
             if filepath == self.blog['__blog_index__']: 
                 continue
             output_filepath = self.make_output_filepath(dir, filename)
-            self.html_convert(filename, filepath, output_filepath)
-            self.capture_blog_information(filepath, output_filepath)
+            if self.check_availability(filepath, availability):
+                self.html_convert(filename, filepath, output_filepath)
+                self.capture_blog_information(filepath, output_filepath)
+            else:
+                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+                util.remove_file(output_filepath)
 
     def html_convert(self, filename, filepath, output_filepath):
         html_file = util.HTMLfile(filepath)
@@ -340,9 +355,9 @@ class Webify:
         if convert:
             status, saved_file, _ = md_file.convert()
             if status == 'file':
-                self.logger.info('Saved %s' % saved_file)
+                util.WebifyLogger.get('compiled').info('Saved %s to %s' % (filename, saved_file))
             elif status == 'exists':
-                self.logger.info('Already exists %s' % saved_file)
+                util.WebifyLogger.get('not-compiled').info('Already exists (did not compile) %s' % filepath)
             else:
                 saved_file = None
                 self.logger.warning('Error processing %s' % filepath)
@@ -356,16 +371,16 @@ class Webify:
                 self.capture_blog_information(filepath, saved_file, md_file.get_yaml())
         else:
             if message == 'ignore':
-                self.logger.info('Ignoring: %s' % src)
+                util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
             elif message == 'not available':
-                self.logger.info('Removed due to time availability: %s' % src)
+                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
             else:
                 pass
             util.remove_file(dest)
             
         self.rc.pop()
 
-    def proc_md(self, dir):
+    def proc_md(self, dir, availability):
         if len(dir.files['md']) > 0:
             self.logger.info('Processing MD files...')
         else:
@@ -376,7 +391,11 @@ class Webify:
             if filepath == self.blog['__blog_index__']: 
                 continue
             output_filepath = self.make_output_filepath(dir, filename)
-            self.md_convert(filename, filepath, output_filepath)
+            if self.check_availability(filepath, availability):
+                self.md_convert(filename, filepath, output_filepath)
+            else:
+                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+                util.remove_file(output_filepath)
 
     def capture_blog_information(self, filepath, saved_file, data=None):
         posts = self.blog['__blog_posts__']
@@ -405,7 +424,7 @@ class Webify:
         output_filepath = os.path.join(self.destdir, dir.path, dir.name, filename)
         return os.path.normpath(output_filepath)
                 
-    def proc_misc(self, dir):
+    def proc_misc(self, dir, availability):
         if len(dir.files['misc']) > 0:
             self.logger.info('Processing all other files...')
         else:
@@ -414,9 +433,54 @@ class Webify:
         for filename in dir.files['misc']:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
-            self.logger.info('Processing %s' % filepath)
-            util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
-            self.capture_blog_information(filepath, output_filepath)
+            if self.check_availability(filepath, availability):
+                self.logger.info('Processing %s' % filepath)
+                v, s = util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
+                if not v:
+                    logger.warning('%s (%s)' % (filepath, s))
+                else:
+                    self.capture_blog_information(filepath, output_filepath)
+                    if s == 'Exists':
+                        util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)
+            else:
+                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+                v, s = util.remove_file(output_filepath)
+                if not v:
+                    logger.warning('%s (%s)' % (filepath, s))
+
+    def check_file_in_folder(self, dir, filename):
+        cur_dir = dir.get_fullpath()
+        filepath = self.make_src_filepath(dir, os.path.expandvars(filename))
+        file_dir = os.path.split(filepath)[0]
+        if file_dir != cur_dir:
+            return False, 'Not in directory'
+        elif not os.path.isfile(filepath):
+            return False, 'Not a file'
+        else:
+            return True, filepath 
+
+    def load_availability_info(self, dir):
+        availability = {}
+        x = self.rc.value('availability')
+        if not x:
+            return availability
+
+        try:
+            if not isinstance(x, list):
+                x = [x]
+            for i in x:
+                v, s = self.check_file_in_folder(dir, i['file'])
+                if not v:
+                    self.logger.warning('Cannot read availability information for %s (%s)' % (i['file'], s))
+                else:
+                    availability[v] = {}
+                    availability[v]['start'] = i['start'] if 'start' in i.keys() else 'big-bang'
+                    availability[v]['end'] = i['end'] if 'end' in i.keys() else 'ragnarok'
+        except:
+            self.logger.warning('Cannot read availability information: %s' % dir.get_fullpath())
+            return availability
+
+        return availability
 
     def proc_dir(self, dir):
         self.proc_yaml(dir)
@@ -434,10 +498,12 @@ class Webify:
             self.logger.info('Making destination directory: %s' % destdir)
             util.make_directory(destdir)
 
-        self.proc_blog(dir)            
-        self.proc_html(dir)
-        self.proc_md(dir)
-        self.proc_misc(dir)
+        availability = self.load_availability_info(dir)
+
+        self.proc_blog(dir)
+        self.proc_html(dir, availability)
+        self.proc_md(dir, availability)
+        self.proc_misc(dir, availability)
             
     def leave_dir(self, dir):
         self.check_blog_folder(dir)
@@ -494,6 +560,12 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('--debug-webify',action='store_true',default=False,help='Turns on webify debug messages')
+
+    cmdline_parser.add_argument('--show-availability',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored due to availability')
+    cmdline_parser.add_argument('--show-not-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is not compiled because it already exists')
+    cmdline_parser.add_argument('--show-not-copied',action='store_true',default=False,help='Turns on messages that are displayed if a file is not copied because it already exists at the destination')
+    cmdline_parser.add_argument('--show-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is compiled')
+    cmdline_parser.add_argument('--show-ignored',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored')
     
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -530,6 +602,18 @@ if __name__ == '__main__':
     l = logging.DEBUG if cmdline_args.debug_blog else loglevel
     util.WebifyLogger.make(name='blog', loglevel=l, logfile=logfile)
 
+    l = logging.INFO if cmdline_args.show_availability else loglevel
+    util.WebifyLogger.make(name='available', loglevel=l, logfile=logfile)
+
+    l = logging.INFO if cmdline_args.show_not_compiled else loglevel
+    util.WebifyLogger.make(name='not-compiled', loglevel=l, logfile=logfile)
+
+    l = logging.INFO if cmdline_args.show_compiled else loglevel
+    util.WebifyLogger.make(name='compiled', loglevel=l, logfile=logfile)
+
+    l = logging.INFO if cmdline_args.show_ignored else loglevel
+    util.WebifyLogger.make(name='ignored', loglevel=l, logfile=logfile)
+
     logger = util.WebifyLogger.get('webify')
 
     # Check
@@ -559,7 +643,6 @@ if __name__ == '__main__':
         'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
         'renderer': cmdline_args.renderer,
         'force_copy': cmdline_args.force_copy,
-        'blog': False,
         '__time__': datetime.datetime.now()
     }
     

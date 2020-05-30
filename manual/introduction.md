@@ -188,6 +188,22 @@ File contents ...
 
 Webify will not process the above file.  The default value for `ignore` is `False`.
 
+## Time dependent processing for markdown files
+
+Use `availability` key in the front matter to enable time dependent processing.  
+
+```txt
+---
+availability:
+  start: <start time>
+  end: <end time>
+
+---
+File contents ...
+```
+
+If `start` and `end` values are specified then the file is only processed if current time false between these two times.  If only `start` is specified, then the file will be processed if the current time is after `start` time.  If only `end` is specified, then the file will be processed if the current time is before the `end` time.
+
 ## YAML front matter: pandoc filtering
 
 It is possible to apply text filters to data loaded from yaml files.  One common filter is pandoc, which uses pandoc utility to convert markdown text to html text.  This yaml file

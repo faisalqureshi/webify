@@ -14,6 +14,8 @@ import filecmp
 import pypandoc
 import jinja2
 import fnmatch 
+import file_processor 
+
 
 def md_filter(str):
     logger = WebifyLogger.get('mdfile')
@@ -69,27 +71,19 @@ def make_directory(dirpath):
     return 'Created'
 
 def copy_file(src, dest, force_copy):
-    """
-    Copy src to dest
-
-    Returns status:
-        - None: failed
-        - 1: copied
-        - 2: skipped
-    """
     if not force_copy:
         try:
             if filecmp.cmp(src, dest):
-                return 'Copy already exists at destination'
+                return True, 'Exists'
         except:
             pass
 
     try:
         shutil.copy2(src, dest)
-        return 'Copied'
+        return True, 'Copied'
     except:
         pass
-    return 'Copy failed'
+    return False, 'Copy failed'
 
 def save_to_file(filepath, buffer):
     try:
@@ -102,10 +96,10 @@ def save_to_file(filepath, buffer):
 def remove_file(filepath):
     try:
         os.remove(filepath)
-        return 'Deleted'
+        return True, 'Deleted'
     except:
         pass
-    return 'Deletion failed'
+    return False, 'Deletion failed'
 
 def render(filepath, context, renderer):
     logger = WebifyLogger.get('render')
@@ -414,8 +408,6 @@ class IgnoreList:
         self.logger.debug('Do not ignore file')
         return False
 
-from file_processor import CopyFile, JupyterNotebook
-    
 def process_file(filepath, dest_filepath, force_copy):
     _, ext = os.path.splitext(filepath)
 
@@ -424,9 +416,9 @@ def process_file(filepath, dest_filepath, force_copy):
     
 def make_file_processor(ext):
     if ext == '.ipynb':
-        return JupyterNotebook
+        return file_processor.JupyterNotebook
     else:
-        return CopyFile
+        return copy_file
 
 def get_values(k, d, d2=None):
     """
