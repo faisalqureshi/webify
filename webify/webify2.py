@@ -632,6 +632,8 @@ if __name__ == '__main__':
     srcdir = os.path.normpath(cmdline_args.srcdir)
     destdir = os.path.normpath(cmdline_args.destdir)
     
+    cur_time = datetime.datetime.now()
+
     meta_data = {
         'prog_name': prog_name,
         'prog_dir': prog_dir.replace('\\','\\\\'), # We need to do it for windows.
@@ -640,10 +642,10 @@ if __name__ == '__main__':
         'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
-        'last_updated': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+        '__last_updated__': cur_time.strftime('%Y-%m-%d %H:%M'),
         'renderer': cmdline_args.renderer,
         'force_copy': cmdline_args.force_copy,
-        '__time__': datetime.datetime.now()
+        '__time__': cur_time
     }
     
     if util.WebifyLogger.is_debug(logger):
