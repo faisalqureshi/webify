@@ -37,7 +37,7 @@ This led me to develop `webify`.  A python utility to create blog aware, static 
 
 - All other files are copied as is.
 
-Information stored in yaml files is available as the rendering context (for mustache or jinja renderers).  The rendering context for each markdown file is constructed usiing information found in:
+Information stored in yaml files is available as the rendering context (for mustache or jinja renderers).  The rendering context for each markdown file is constructed using information found in:
 
 - [A] Yaml files in ancestor folders (up to the root directory); and
 - [C] Yaml files in the current folder; and
@@ -100,16 +100,19 @@ keyword: stuff
 
 Webify adds the following entries to the top-level rendering context.
 
-```txt
+```yaml
 __root__: <source directory>
 __version__: <version information>
+__last_updated__: yyyy-MM-dd hh:mm
 ```
+
+`__root__` key contains relative path to the root folder always.
 
 ### Mustache vs Jinja Rendering
 
-Jinja is a full-featured template engine for Python.  Mustache on the other hand is logic-less template.  Mustache is much easier to use; however, it cannot really be used in complicated settings that requires some sort of logic to be executed.  
+Jinja is a full-featured template engine for Python.  Mustache on the other hand is a logic-less templating engine.  Mustache is much easier to use; however, it cannot really be used in complicated settings that require some sort of logic to be executed.  
 
-The most important thing to keep in mind that while mustache can deal with keys with dashes (`-`). jinja cannot.  If you want to use keys in a jinja template, use underscore instead (`_`).
+The most important thing to keep in mind is that while mustache can deal with keys with dashes (`-`). jinja cannot.  If you want to use keys in a jinja template, use underscore instead (`_`).
 
 For example:
 
@@ -117,7 +120,7 @@ For example:
 object-id: 9
 ```
 
-can be used in a mustache template using `{{object-id}}`; however, it cannot be used within a jinja template.  It is often preferrable to use
+can be used in a mustache template using `{{object-id}}`; however, it cannot be used within a jinja template.  Use instead
 
 ```txt
 object_id: 9
@@ -129,7 +132,7 @@ Aside: you'll notice that both webify and mdfile use dashes (`-`) for certain ke
 
 ## The `_partials` folder
 
-Any folder can contain a special sub-folder, called `_partials`.  Each time webify processes a folder, it first looks whether or not the folder contains a sub-folder, called `_partials`.  If a `_partials` sub-folder is found, then items within this folder are processed.  Items within the `_partials` sub-folder are available added to the rendering context for its parent folder.  This allows a mechanism to create common web-snippets, such as headers, footers, and navigation items, that can be used in any file that is stored in this (the parent) folder or one of its sub-folders.
+Each time webify processes a folder, it first looks whether or not the folder contains a sub-folder, called `_partials`.  If a `_partials` sub-folder is found, then items within this folder are processed.  Items within the `_partials` sub-folder are added to the rendering context for its parent folder.  This allows a mechanism to create common web-snippets, such as headers, footers, and navigation items, that can be used in any file that is stored in this (the parent) folder or one of its sub-folders.
 
 Consider the following situation.
 
@@ -188,21 +191,43 @@ File contents ...
 
 Webify will not process the above file.  The default value for `ignore` is `False`.
 
-## Time dependent processing for markdown files
+## Time depended availability
+
+It is possible to specify availability, i.e., start time and end time, for any file in the "current folder" by including this information in a yaml file as follows
+
+```yaml
+---
+availability:
+  - file: file1.md
+    start: 22 June
+    end: 23 June 6 pm
+  - file: file2.html
+    start: 4 June 12 pm
+  - file: file3.png
+    end: 31 May 2020 11:59 pm
+```
+
+Note that availability information is folder specific, and it only applies to files present in that folder.  Files for which no availability information is specified are always available.  In the above example, `file1.md` will only be available between 12 am, June 22 and 6 pm June 23.  `file2.html` will be available after 12 pm June 4.  Similary `file3.png` will be available before 11:59 pm May 31, 2020.
+
+Note also that if you are not running webify in the background, you will have to periodically run it for any changes to take effect.
+
+In addition also note that webify currently doesn't support timezone aware time processing.
+
+### Time dependent processing for markdown files
 
 Use `availability` key in the front matter to enable time dependent processing.  
 
-```txt
+```md
 ---
 availability:
-  start: <start time>
-  end: <end time>
+  start: 22 Jan 2020 10 am
+  end: 22 Jan 2020 11:30 am
 
 ---
 File contents ...
 ```
 
-If `start` and `end` values are specified then the file is only processed if current time false between these two times.  If only `start` is specified, then the file will be processed if the current time is after `start` time.  If only `end` is specified, then the file will be processed if the current time is before the `end` time.
+Folder level availability overrides file level availability information.  
 
 ## YAML front matter: pandoc filtering
 
@@ -364,6 +389,9 @@ include-before-body:     *None | <filename(s)>
 include-after-body:      *None | <filename(s)>
 bib:                     *None | <bibtex files(s)>
 csl:                     *None | <csl file>
+availability:
+  start:                 *big-bang | Date and Time
+  end:                   *ragnarok | Date and Time
 ```
 
 - `*` next to a value indicates the default value.
@@ -376,6 +404,7 @@ csl:                     *None | <csl file>
 - `include-in-header`, `include-before-body`, and `include-after-body` can be used to specify files whose contents will be inserted as the name suggests: in the header (before `\begin{document}`), in the body (after `\begin{document}` but before everything else), and just before `\end{document}`.  In each case, multiple files can be specified.
 - `bib`: specifies the bibliography file(s).
 - `csl`: specifies a [Citation Style Language](https://citationstyles.org) file that control how citations are processed.
+- `availability`: this key is only used by webify.
 
 #### Example
 
@@ -386,7 +415,7 @@ csl:                     *None | <csl file>
 
 The following figure provides an overview of markdown to HTML conversion.
 
-![Figure 2: Markdown to PDF](md-to-html.png)
+![Figure 2: Markdown to HTML](md-to-html.png)
 
 #### YAML front matter
 
@@ -405,6 +434,9 @@ html-img:                *None | <filename>
 html-imgs:               *None | <filename>
 html-vid:                *None | <filename>
 html-vids:               *None | <filename>
+availability:
+  start:                 *big-bang | Date and Time
+  end:                   *ragnarok | Date and Time
 ```
 
 - `*` next to a value indicates the default value.
@@ -415,6 +447,7 @@ html-vids:               *None | <filename>
 - File contents can be preprocessed via mustache if `preprocess-buffer` is `True`.  This is done before the contents are sent to pandoc for conversion.
 - `include-in-header`, `include-before-body`, and `include-after-body` can be used to specify files whose contents will be inserted as the name suggests: in the header (between `<head>` and `</head>`), in the body (after `<body>` tag but before everything else), and just after `</body>`.  In each case, multiple files can be specified.
 - `css`: specifies the CSS file(s).
+- `availability`: this key is only used by webify.
 
 #### Example
 
@@ -490,6 +523,16 @@ The type of the media files (images or videos) will determine which template (`h
 ## Usage
 
 Check `python mdfile2.py --help` and `python webify2.py --help` for usage and available command line options.
+
+The following commandline options, which are available for *webify*, are particularly useful for printing diagnostic information during executation.
+
+- `--show-availability`: list files that were not processed due to availability constraints
+- `--show-not-compiled`: list markdown files that were not compiled because destination file already exists 
+- `--show-compiled`: list markdown files that were compiled
+- `--show-not-copied`: list files that were not copied to the destination, because destination file already exists
+- `--show-ignored`: list markdown files that were not processed due to their ignore flag
+
+By default webify only shows *warnings* or *errors*.  Use `--verbose` flag to turn on messaging; however, I find this to be not very useful when dealing with a large set of files.  There is such a thing as too much information.  
 
 # Copyright
 

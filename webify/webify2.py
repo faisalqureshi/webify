@@ -14,6 +14,7 @@ import markupsafe
 import json
 import rc as RenderingContext
 import time_util as tm
+import w
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -517,6 +518,7 @@ class Webify:
         self.logger.info('** ...  Done processing folder %s' % dir.get_fullpath())
         
     def traverse(self):
+        print('Traversal')
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
@@ -567,6 +569,9 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--show-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is compiled')
     cmdline_parser.add_argument('--show-ignored',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored')
     
+    cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
+
+
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
@@ -664,5 +669,11 @@ if __name__ == '__main__':
         print(e)
         exit(-2)
     
-    webify.traverse()
-    exit(0)
+    if not cmdline_args.live:
+        webify.traverse()
+    else:
+        print('Webifying folder "%s" into "%s"' % (srcdir, destdir))
+        print('Press ctrl-C to exit.')
+        
+        webify.traverse()
+        w.start(w.RunWebify(webify), os.path.join(cur_dir, srcdir))

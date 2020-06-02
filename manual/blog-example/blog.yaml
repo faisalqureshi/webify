@@ -1,5 +1,10 @@
 ---
-blog-index: index.md
+index-filter:
+  - pdf
+  - tex
+index:
+  - index.md
+  - foo.md
 availability:
   - file: post4.html
     start: 22 May
