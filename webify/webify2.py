@@ -15,107 +15,21 @@ import json
 import rc as RenderingContext
 import time_util as tm
 import w
+import dirtree as dt
+import dirstack as ds
 
 from globals import __version__
 logfile = 'webify2.log'
 ignorefile = '.webifyignore'
 ignore_times = False
 
-class DirTree:
-    class DirNode:
-        def __init__(self, root, path, name):
-            self.logger = util.WebifyLogger.get('db')
-            self.files = {'yaml': [], 'html': [], 'misc': [], 'md': []}
-            self.children = []
-            self.partials = None
-            self.name = name
-            self.path = path
-            self.root = root
-
-        def add_file(self, name):
-            _, ext = os.path.splitext(name)
-            if ext.lower() == '.yaml':
-                self.files['yaml'].append(name)
-            elif ext.lower() in ['.html', '.htm']:
-                self.files['html'].append(name)
-            elif ext.lower() in ['.md', '.markdown']:
-                self.files['md'].append(name)
-            else:
-                self.files['misc'].append(name)
-
-        def add_child(self, dir_node):
-            if dir_node.name == '_partials':
-                self.partials = dir_node
-            else:
-                self.children.append(dir_node)
-
-        def get_fullpath(self):
-            return os.path.normpath(os.path.join(self.root, self.path, self.name))
-                
-        def get_path(self):
-            return os.path.normpath(os.path.join(self.path, self.name))
-
-        def __repr__(self):
-            s = "Path: " + self.path + ", Name: " + self.name
-            return s
-            
-    def __init__(self):
-        self.logger = util.WebifyLogger.get('db')
-        self.rootdir = None
-        
-    def collect(self, rootdir, ignore=None):
-        self.ignore = ignore
-        self.rootdir = self.DirNode(root=rootdir, path='.', name='.')
-
-        dirs = [self.rootdir]
-        while len(dirs) > 0:
-            cur_dir_node = dirs.pop()
-
-            self.logger.debug('Collecting directory %s' % cur_dir_node.get_fullpath())
-            for entry in os.scandir(cur_dir_node.get_fullpath()):
-                self.logger.debug('Found entry %s %s' % (cur_dir_node.get_fullpath(), entry.name))
-
-                if ignore and ignore.ignore(cur_dir_node.get_fullpath(), entry.name, entry.is_dir()):
-                    self.logger.debug('Ignoring          : %s' % entry.name)
-                    continue
-                
-                if entry.is_dir():
-                    sub_dir_node = self.DirNode(root=cur_dir_node.root, path=cur_dir_node.get_path(), name=entry.name)
-                    cur_dir_node.add_child(sub_dir_node)
-                    dirs.append(sub_dir_node)
-                    self.logger.debug('Added subdirectory: %s, %s, %s' % (cur_dir_node.root, cur_dir_node.get_path(), entry.name))
-                else:
-                    self.logger.debug('Added file        : %s' % entry.name)
-                    cur_dir_node.add_file(name=entry.name)
-
-    def __traverse__(self, dir, enter_func, proc_func, leave_func):
-        self.logger.debug('Entering %s' % dir.get_fullpath())
-        if enter_func: enter_func(dir)
-        if proc_func: proc_func(dir)
-        for i in dir.children:
-            self.__traverse__(i, enter_func, proc_func, leave_func)
-        if leave_func: leave_func(dir)
-        self.logger.debug('Leaving %s' % dir.get_fullpath())
-        
-    def traverse(self, enter_func=None, proc_func=None, leave_func=None):
-        rootdir = self.rootdir
-        self.__traverse__(rootdir, enter_func, proc_func, leave_func)
-
 class Webify:
     def __init__(self):
         self.logger = util.WebifyLogger.get('webify')
         self.rc = RenderingContext.RenderingContext()
         self.ignore = None
-        self.dir_tree = DirTree()
-        self.reset_blog()
-
-    def reset_blog(self):
-        self.blog = { 
-            '__blog_index__': None, 
-            '__blog_rootdir__': None, 
-            '__blog_destdir__': None,
-            '__blog_posts__': None 
-            }
+        self.dir_tree = dt.DirTree()
+        self.dir_stack = ds.DirStack()
 
     def set_renderer(self):
         if self.meta_data['renderer'] in [None, 'jinja2']:
@@ -234,73 +148,75 @@ class Webify:
             yaml_file = util.YAMLfile(filepath=filepath)
             yaml_file.load()
             self.rc.add(yaml_file.data)
+    
+    def capture_list_of(self, dir, availability, id):
+        for filename in dir.files[id]:
+            filepath = self.make_src_filepath(dir, filename)
+            output_filepath = self.make_output_filepath(dir, filename)
+            is_available = self.check_availability(filepath, availability)
+            self.capture_dir_listing_information(
+                filename,
+                is_available,
+                filepath,
+                output_filepath,
+                id,
+                None
+            )
+
+    def capture_list_of_md(self, dir, availability):
+        for filename in dir.files['md']:
+            filepath = self.make_src_filepath(dir, filename)
+            output_filepath = self.make_output_filepath(dir, filename)
+            is_available = self.check_availability(filepath, availability)
+
+            self.rc.push()
             
-    def enter_dir(self, dir):
-        self.logger.info('** Processing folder %s ...' % dir.get_fullpath())
-
-        logger_rc =  util.WebifyLogger.get('rc')
-        if util.WebifyLogger.is_debug(logger_rc):
-            logger_rc.info('>'*util.terminal.c())
-            logger_rc.debug('Rendering context (enter: %s)' % dir.name)
-            self.rc.print()
-
-        self.rc.push()
-        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
-        self.rc.remove({'availability': None})
-
-    def proc_blog(self, dir):
-        logger_blog = util.WebifyLogger.get('blog')
-
-        cur_dir = dir.get_fullpath()
-        if not self.blog['__blog_index__']:
-            check_blog_index_filename = self.rc.value('blog-index')
-            if not check_blog_index_filename:
-                return
+            args = { 'ignore-times': ignore_times,
+                     'output-filepath': os.path.splitext(output_filepath)[0],
+                     'output-fileext': '' }
+            md_file = MDfile(filepath=filepath, args=args)
+            md_file = self.md_set_defaults(md_file)
+            loaded_ok = md_file.load(self.rc)
+            if loaded_ok:
+                converted_output_filepath = md_file.make_output_filepath()
+                converted_filename = os.path.split(converted_output_filepath)[1]
+                should_process, _, _, _ = self.md_inspect_frontmatter(md_file)
             else:
-                v, s = self.check_file_in_folder(dir, check_blog_index_filename)
-                if not v:
-                    logger_blog.warning('Error processing blog index file %s (%s)' % (check_blog_index_filename, s))
-                    return
-                else:
-                    blog_index_filepath = s
+                converted_output_filepath = output_filepath
+                converted_filename = filename
 
-                if not os.path.splitext(blog_index_filepath)[1] in ['.html', '.md']:
-                    logger_blog.warning('Only html and md files can be used as blog index %s' % blog_index_filepath)
-                    return
-                
-                logger_blog.info('Blog found: %s' % blog_index_filepath)
-                self.blog['__blog_index__'] = blog_index_filepath
-                self.blog['__blog_rootdir__'] = cur_dir
-                self.blog['__blog_destdir__'] = self.make_output_filepath(dir, '')
-                self.blog['__blog_posts__'] = []
-        else:
-            # print(self.blog['__blog_index__'])
-            # print(self.rc.value('blog-index'))
-            if self.blog['__blog_index__'] != self.rc.value('blog-index'):
-                logger_blog.warning('Blog index changed during processing a blog subolder %s' % cur_dir)
+            if is_available and loaded_ok and should_process:
+                if md_file.get_value('copy-source'):
+                    self.capture_dir_listing_information(
+                        filename,
+                        True,
+                        filepath,
+                        output_filepath, 
+                        'md-src',
+                        None)
 
-    def check_blog_folder(self, dir):
-        cur_dir = dir.get_fullpath()
-        if cur_dir != self.blog['__blog_rootdir__']:
-            return
+                self.capture_dir_listing_information(
+                    converted_filename,
+                    True,
+                    filepath,
+                    converted_output_filepath,
+                    'md',
+                    md_file)
 
-        logger_blog = util.WebifyLogger.get('blog')
-        blog_index_filepath = self.blog['__blog_index__']
-        logger_blog.info('Processing blog index %s' % blog_index_filepath)
-        blog_index_filename = os.path.basename(blog_index_filepath)
-        blog_index_output_filepath = self.make_output_filepath(dir, blog_index_filename)
-        self.rc.push()
-        self.rc.add({'__blog_posts__': self.blog['__blog_posts__']})
-        ext = os.path.splitext(blog_index_filepath)[1]
-        if ext == '.md':
-            self.md_convert(blog_index_filename, blog_index_filepath, blog_index_output_filepath)
-        elif ext == '.html':
-            self.html_convert(blog_index_filename, blog_index_filepath, blog_index_output_filepath)
-        else:
-            self.logger.warning('Unknown blog index file found: %s' % blog_index_filepath)
-        self.rc.pop()
-        self.reset_blog()
-        logger_blog.info('Leaving blog folder %s' % cur_dir)
+            else:
+                self.capture_dir_listing_information(
+                    converted_filename,
+                    False,
+                    filepath,
+                    converted_output_filepath,
+                    'md',
+                    None)
+
+            self.rc.pop()
+
+    def proc_files(self, dir_list):
+        for i in dir_list[1]:
+            print(i)
 
     def proc_html(self, dir, availability):
         if len(dir.files['html']) > 0:
@@ -310,12 +226,9 @@ class Webify:
                 
         for filename in dir.files['html']:
             filepath = self.make_src_filepath(dir, filename)
-            if filepath == self.blog['__blog_index__']: 
-                continue
             output_filepath = self.make_output_filepath(dir, filename)
             if self.check_availability(filepath, availability):
                 self.html_convert(filename, filepath, output_filepath)
-                self.capture_blog_information(filepath, output_filepath)
             else:
                 util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
                 util.remove_file(output_filepath)
@@ -346,14 +259,19 @@ class Webify:
 
     def md_convert(self, filename, filepath,  output_filepath):
         self.rc.push()
+        status, saved_file, _ = md_file.convert(rc)
+
         args = { 'ignore-times': ignore_times,
                  'output-filepath': os.path.splitext(output_filepath)[0],
                  'output-fileext': '' }
         md_file = MDfile(filepath=filepath, args=args, rc=self.rc)
         md_file = self.md_set_defaults(md_file)
-        md_file.load()
-        convert, message, src, dest = self.md_inspect_frontmatter(md_file)
-        if convert:
+        loaded_ok = md_file.load(self.rc)
+        if loaded_ok:
+            do_something, message, src, dest = self.md_inspect_frontmatter(md_file)
+        else:
+            do_something = False
+        if do_something:
             status, saved_file, _ = md_file.convert()
             if status == 'file':
                 util.WebifyLogger.get('compiled').info('Saved %s to %s' % (filename, saved_file))
@@ -369,7 +287,7 @@ class Webify:
                     self.logger.debug('Copying %s' % args['output-filepath']+'.md')
                     util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
 
-                self.capture_blog_information(filepath, saved_file, md_file.get_yaml())
+                # self.capture_dir_listing_information(filepath, saved_file, md_file.get_yaml())
         else:
             if message == 'ignore':
                 util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
@@ -389,8 +307,6 @@ class Webify:
 
         for filename in dir.files['md']:
             filepath = self.make_src_filepath(dir, filename)
-            if filepath == self.blog['__blog_index__']: 
-                continue
             output_filepath = self.make_output_filepath(dir, filename)
             if self.check_availability(filepath, availability):
                 self.md_convert(filename, filepath, output_filepath)
@@ -398,24 +314,16 @@ class Webify:
                 util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
                 util.remove_file(output_filepath)
 
-    def capture_blog_information(self, filepath, saved_file, data=None):
-        posts = self.blog['__blog_posts__']
-        if posts == None:
-            return
-
-        logger_blog = util.WebifyLogger.get('blog')
-        logger_blog.debug('Collecting post info from file %s' % filepath)
-
-        filename = os.path.basename(filepath)
+    def capture_dir_listing_information(self, filename, is_available, filepath, output_filepath, id, func):
         entry = {
             'filename': filename,
-            'title': filename,
-            'link': os.path.relpath(saved_file, self.blog['__blog_destdir__']),
-            'data': data if data else None,
-            'type': os.path.splitext(filepath)[1],
-            'ext': os.path.splitext(saved_file)[1]
+            'is_available': is_available,
+            'filepath': filepath,
+            'output_filepath': output_filepath,
+            'id': id,
+            'func': func
         }
-        posts.append(entry)
+        self.dir_stack.top()[1].append(entry)
 
     def make_src_filepath(self, dir, filename):
         filepath =  os.path.join(dir.get_fullpath(), filename)
@@ -440,7 +348,6 @@ class Webify:
                 if not v:
                     logger.warning('%s (%s)' % (filepath, s))
                 else:
-                    self.capture_blog_information(filepath, output_filepath)
                     if s == 'Exists':
                         util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)
             else:
@@ -483,6 +390,20 @@ class Webify:
 
         return availability
 
+    def enter_dir(self, dir):
+        self.logger.info('** Processing folder %s ...' % dir.get_fullpath())
+
+        logger_rc =  util.WebifyLogger.get('rc')
+        if util.WebifyLogger.is_debug(logger_rc):
+            logger_rc.info('>'*util.terminal.c())
+            logger_rc.debug('Rendering context (enter: %s)' % dir.name)
+            self.rc.print()
+
+        self.rc.push()
+        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.remove('availability')
+        self.dir_stack.push(dir.name)
+
     def proc_dir(self, dir):
         self.proc_yaml(dir)
         self.proc_partials(dir)
@@ -499,16 +420,25 @@ class Webify:
             self.logger.info('Making destination directory: %s' % destdir)
             util.make_directory(destdir)
 
+    def leave_dir(self, dir):
         availability = self.load_availability_info(dir)
 
-        self.proc_blog(dir)
-        self.proc_html(dir, availability)
-        self.proc_md(dir, availability)
-        self.proc_misc(dir, availability)
-            
-    def leave_dir(self, dir):
-        self.check_blog_folder(dir)
+        self.logger.info('Capturing file list from %s' % dir.get_fullpath())
+        self.capture_list_of(dir, availability, 'html')
+        self.capture_list_of_md(dir, availability)
+        self.capture_list_of(dir, availability, 'misc')
+
+        print('\n\n\n\n')
+        pp.pprint(self.dir_stack.top())
+
+        self.proc_files(self.dir_stack.top())
+
+
+        # self.proc_html(dir, availability)
+        # self.proc_md(dir, availability)
+        # self.proc_misc(dir, availability)
         self.rc.pop()
+        self.copy_dir_list_to_parent()
 
         logger_rc =  util.WebifyLogger.get('rc')
         if util.WebifyLogger.is_debug(logger_rc):
@@ -517,6 +447,14 @@ class Webify:
             logger_rc.info('-'*util.terminal.c())
         self.logger.info('** ...  Done processing folder %s' % dir.get_fullpath())
         
+    def copy_dir_list_to_parent(self):
+        x = self.dir_stack.top()
+        self.dir_stack.pop()
+        y = self.dir_stack.top()
+        for i in x[1]:
+            i['filepath'] = os.path.join(x[0], i['filepath'])
+            y[1].append(i)        
+
     def traverse(self):
         print('Traversal')
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
@@ -555,7 +493,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Use log file.')
 
     cmdline_parser.add_argument('--debug-rc',action='store_true',default=False,help='Turns on rendering context debug messages')
-    cmdline_parser.add_argument('--debug-blog',action='store_true',default=False,help='Turns on blogging debug messages')
+    cmdline_parser.add_argument('--debug-dirlist',action='store_true',default=False,help='Turns on blogging debug messages')
     cmdline_parser.add_argument('--debug-db',action='store_true',default=False,help='Turns on file database debug messages')
     cmdline_parser.add_argument('--debug-db-ignore',action='store_true',default=False,help='Turns on .webifyignore debug messages')
     cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on yaml debug messages')
@@ -604,8 +542,8 @@ if __name__ == '__main__':
     l = logging.DEBUG if cmdline_args.debug_webify else loglevel
     util.WebifyLogger.make(name='webify', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_blog else loglevel
-    util.WebifyLogger.make(name='blog', loglevel=l, logfile=logfile)
+    l = logging.DEBUG if cmdline_args.debug_dirlist else loglevel
+    util.WebifyLogger.make(name='dirlist', loglevel=l, logfile=logfile)
 
     l = logging.INFO if cmdline_args.show_availability else loglevel
     util.WebifyLogger.make(name='available', loglevel=l, logfile=logfile)

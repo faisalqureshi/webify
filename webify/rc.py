@@ -6,18 +6,20 @@ class RenderingContext:
     def __init__(self):
         self.logger = util.WebifyLogger.get('rc')
         self.rc = {}
-        self.diff_stack = [self.empty_diff()]
+        self.diff_stack = [RenderingContext.empty_diff()]
         
-    def empty_diff(self):
+    @staticmethod
+    def empty_diff():
         return {'a': [], 'm': {}, 'd': {}}
 
     def push(self):
-        self.diff_stack.append(self.empty_diff())
+        self.diff_stack.append(RenderingContext.empty_diff())
 
-    def remove(self, data):
+    def remove(self, keys):
+        keys = [keys] if not isinstance(keys, list) else keys
         diff = self.diff_stack[-1]
 
-        for k in data.keys():
+        for k in keys:
             if k in self.rc.keys():
                 if not (k in diff['m'].keys() or diff['a'] or diff['d'].keys()):
                     diff['d'][k] = copy.deepcopy(self.rc[k])

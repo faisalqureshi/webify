@@ -165,14 +165,13 @@ class MDfile:
     
     Copy source markdwon file to destination.
     """
-    def __init__(self, filepath, args, rc):
+    def __init__(self, filepath, args):
 
         # Initialize the md object
         self.logger = util.WebifyLogger.get('mdfile')
         self.filepath = filepath
         self.rootdir = os.path.split(filepath)[0]
         self.args = args
-        self.rc = rc
         self.output_format = None
 
         self.logger.debug('Processing: %s' % self.filepath)
@@ -180,14 +179,7 @@ class MDfile:
         if util.WebifyLogger.is_debug(self.logger):
             print('args:')
             pp.pprint(self.args, indent=2)
-            print('rc:')
-            self.rc.print()
 
-        # We only support the following conversions
-        # self.supported_output_formats = [ 'html',
-        #                                   'beamer',
-        #                                   'pdf',
-        #                                   'latex' ]
         self.formats = { 'html':   {'ext': '.html', 'fn': self.to_html},
                          'beamer': {'ext': '.pdf',  'fn': self.latexify},
                          'pdf':    {'ext': '.pdf',  'fn': self.latexify},
@@ -207,24 +199,6 @@ class MDfile:
                           'ignore-times': False,
                           'availability': None }
 
-        # # This is an incomplete list of keys that can be found in a yaml frontmatter
-        # self.supported_keys = [ 'standalone',
-        #                         'to',
-        #                         'template',
-        #                         'render',
-        #                         'bibliography',
-        #                         'css',
-        #                         'include-after-body',
-        #                         'include-before-body',
-        #                         'include-in-header',
-        #                         'title',
-        #                         'author',
-        #                         'date',
-        #                         'institute',
-        #                         'titlegraphics',
-        #                         'subtitle',
-        #                         'preprocess-mustache' ]
-
     def get_filename(self):
         return os.path.basename(self.filepath)
 
@@ -237,14 +211,10 @@ class MDfile:
     def set_default(self, key, value):
         self.defaults[key] = value
         
-    def ready_to_convert(self):
-        return self.buffer
-
-    def load(self):
+    def load(self, rc={}):
         self.yaml = {}
 
         logger_file = util.WebifyLogger.get('file')
-        logger_rc = util.WebifyLogger.get('rc')
 
         # Read the file in to a buffer
         try:
@@ -258,7 +228,7 @@ class MDfile:
         except:
             self.logger.warning('Cannot load: %s' % self.filepath)
             self.buffer = None
-            return self
+            return False
 
         # Try to get the first yaml section from the file
         try:
@@ -284,6 +254,10 @@ class MDfile:
         else:
             pass
 
+        if util.WebifyLogger.is_debug(self.logger):
+            print('rc:')
+            rc.print()
+
         # If we want to preprocess the file using mustache renderer then do it
         # here.  This allows us to change the yaml frontmatter based upon the
         # larger rendering context.  Cool, eh. 
@@ -291,7 +265,7 @@ class MDfile:
             self.logger.info('Preprocessing Yaml front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
-                s = util.mustache_renderer(yaml_str, self.rc.data(), self.filepath)
+                s = util.mustache_renderer(yaml_str, rc.data(), self.filepath)
                 self.set_yaml(yaml.safe_load(s))
             except:
                 self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
@@ -300,17 +274,32 @@ class MDfile:
                 print('YAML frontmatter after pre-processing:')
                 pp.pprint(self.get_yaml())
 
-        # Update the rendering context for this file
-        self.rc.add(self.get_yaml())
-        self.rc.add({'hello': self.get_filename()})
-        if util.WebifyLogger.is_debug(logger_rc):
-            print('rc:')
-            self.rc.print()
-        return self
+        return True
 
-    def convert(self):
+    def convert(self, rc={}):
         if not self.buffer:
             return 'error', 'Load error', self.filepath
+
+        # This allow load and convert to be separated by 
+        # modification to rendering context.
+        # E.g.,
+        # rc.push()
+        # f = MDfile(filepath, args, rc)
+        # f.load()
+        # rc.pop()
+        # rc.push()
+        # changes to rc
+        # rc.pop()
+        # rc.push()
+        # f.convert(rc) -- convert has the same rc as passed during construction
+        # rc.pop()
+        
+
+        rc.add(self.get_yaml())
+        logger_rc = util.WebifyLogger.get('rc')
+        if util.WebifyLogger.is_debug(logger_rc):
+            print('rc:')
+            rc.print()
 
         output_format = self.get_output_format()
 
@@ -469,7 +458,7 @@ class MDfile:
 
         if self.get_preprocess_buffer(): 
             self.logger.info('Preprocessing markdown buffer using mustache')
-            self.buffer = util.mustache_renderer(self.buffer, self.rc.data(), self.filepath)
+            self.buffer = util.mustache_renderer(self.buffer, rc.data(), self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())
         pdoc_args.add_flag('mathjax')
@@ -484,10 +473,10 @@ class MDfile:
         r = self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get())
 
         if render_file:
-            self.rc.add({'body': markupsafe.Markup(r[1])})
+            rc.add({'body': markupsafe.Markup(r[1])})
             renderer_name, render_engine = self.get_renderer()
             self.logger.info('Using renderer: %s' % renderer_name)
-            buffer = util.render(render_file, self.rc.data(), render_engine)
+            buffer = util.render(render_file, rc.data(), render_engine)
         else:
             buffer = markupsafe.Markup(r[1])
 
@@ -533,6 +522,10 @@ class MDfile:
         output_filepath = self.get_output_filepath()
         assert(output_filepath)
         return output_filepath + self.formats[output_format]['ext']
+
+    def make_output_fileext(self):
+        output_format = self.get_output_format()
+        return self.formats[output_format]['ext']
 
     def needs_compilation(self, files, output_filepath):
         logger = util.WebifyLogger.get('timestamps')
@@ -620,7 +613,6 @@ class MDfile:
             return {}
 
     def set_yaml(self, data):
-        #print(data)
         self.yaml = data
 
     def get_html_filters(self):
@@ -639,7 +631,7 @@ class MDfile:
         return hf, file_list
 
     def get_output_format(self):
-        assert(self.buffer)
+        # assert(self.buffer)
 
         if self.output_format:
             return self.output_format
@@ -648,17 +640,17 @@ class MDfile:
         return self.output_format
 
     def get_pdf_engine(self):
-        assert(self.buffer)
+        # assert(self.buffer)
         return self.get_value('pdf-engine')
 
     def get_preprocess_frontmatter(self):
-        assert(self.buffer)
+        # assert(self.buffer)
         value = self.get_value('preprocess-frontmatter')
         self.logger.debug('Preprocess frontmatter: %s' % str(value))
         return value
 
     def get_preprocess_buffer(self):
-        assert(self.buffer)
+        # assert(self.buffer)
         value = self.get_value('preprocess-buffer')
         if value == None:
             if self.is_output_format('html'):
@@ -750,13 +742,13 @@ class MDfile:
         return f
 
     def get_slide_level(self):
-        assert(self.buffer)
+        # assert(self.buffer)
         value = self.get_value('slide-level')
         self.logger.debug('slide-level: %s' % str(value))
         return value
 
     def get_renderer(self):
-        assert(self.buffer)
+        # assert(self.buffer)
         value = self.get_value('renderer')
         if not value in ['mustache', 'jinja2']:
             self.logger.warning('Invalid template engine "%s" found in %s.  Valid values are "mustache" or "jinja"' % (renderer, self.filepath))
