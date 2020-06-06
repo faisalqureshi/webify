@@ -371,7 +371,7 @@ class MDfile:
             logger_file.debug('Needs compilation YES')
         else:
             logger_file.debug('Needs compilation NO')
-            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            logger_file.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
         logger_file.info('Compiling')
@@ -418,6 +418,8 @@ class MDfile:
         if render_file:
             logger_file.info('Using render file: %s' % render_file)
             files.append(render_file)
+        else:
+            logger_file.info('Not using a render file: %s' % render_file)
 
         include_files = self.get_pandoc_include_files()
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
@@ -444,7 +446,7 @@ class MDfile:
             logger_file.debug('Needs compilation YES')
         else:
             logger_file.debug('Needs compilation NO')
-            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
+            logger_file.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
         logger_file.info('Compiling')

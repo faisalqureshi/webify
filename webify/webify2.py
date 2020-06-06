@@ -17,6 +17,8 @@ import time_util as tm
 import w
 import dirtree as dt
 import dirstack as ds
+from yamlfile import YAMLfile
+from htmlfile import HTMLfile
 
 from globals import __version__
 logfile = 'webify2.log'
@@ -93,7 +95,7 @@ class Webify:
                 self.logger.info('No YAML files found')
             for filename in dir.partials.files['yaml']:
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
-                yaml_file = util.YAMLfile(filepath=filepath)
+                yaml_file = YAMLfile(filepath=filepath)
                 yaml_file.load()
                 self.rc.add(yaml_file.data)
 
@@ -104,7 +106,7 @@ class Webify:
                 self.logger.info('No HTML files found')
             for filename in dir.partials.files['html']:
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
-                html_file = util.HTMLfile(filepath)
+                html_file = HTMLfile(filepath)
                 buffer = html_file.load().get_buffer()
                 rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
                 data[filename.replace('.','_')] = markupsafe.Markup(rendered_buf)
@@ -120,9 +122,10 @@ class Webify:
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 self.logger.info('Processing MD file: %s' % filepath)
                 self.rc.push()
-                md_file = MDfile(filepath=filepath, args=args, rc=self.rc)
+                md_file = MDfile(filepath=filepath, args=args)
                 md_file = self.md_set_defaults(md_file)
-                ret_type, buffer, _ = md_file.load().convert()
+                md_file.load(self.rc)
+                ret_type, buffer, _ = md_file.convert(self.rc)
                 self.rc.pop()
                 if not ret_type == 'buffer':
                     self.logger.warning('Ignoring _partials file: %s' % filepath)
@@ -145,7 +148,7 @@ class Webify:
         
         for filename in dir.files['yaml']:
             filepath = self.make_src_filepath(dir, filename)
-            yaml_file = util.YAMLfile(filepath=filepath)
+            yaml_file = YAMLfile(filepath=filepath)
             yaml_file.load()
             self.rc.add(yaml_file.data)
     
@@ -238,7 +241,7 @@ class Webify:
     #             util.remove_file(output_filepath)
 
     def convert_html(self, filename, filepath, output_filepath):
-        html_file = util.HTMLfile(filepath)
+        html_file = HTMLfile(filepath)
         buffer = html_file.load().get_buffer()
         rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
         if util.save_to_file(output_filepath, rendered_buf):
@@ -268,7 +271,7 @@ class Webify:
 
         status, saved_file, _ = md_file_obj.convert(self.rc)
         if status == 'file':
-            util.WebifyLogger.get('compiled').info('Saved %s to %s' % (filename, saved_file))
+            util.WebifyLogger.get('compiled').info('Saved %s to %s' % (md_file_obj.get_filename(), saved_file))
         elif status == 'exists':
             util.WebifyLogger.get('not-compiled').info('Already exists (did not compile) %s' % filepath)
         else:
@@ -395,13 +398,12 @@ class Webify:
         return availability
 
     def enter_dir(self, dir):
-        self.logger.info('** Processing folder %s ...' % dir.get_fullpath())
+        self.depth_level = self.depth_level + 1
+        self.logger.info('> [%d] entering folder %s' % (self.depth_level, dir.get_fullpath()))
 
         logger_rc =  util.WebifyLogger.get('rc')
-        if util.WebifyLogger.is_debug(logger_rc):
-            logger_rc.info('>'*util.terminal.c())
-            logger_rc.debug('Rendering context (enter: %s)' % dir.name)
-            self.rc.print()
+        logger_rc.debug('Rendering context:')
+        logger_rc.debug(pp.pformat(self.rc.data()))
 
         self.rc.push()
         self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
@@ -413,9 +415,8 @@ class Webify:
         self.proc_partials(dir)
 
         logger_rc =  util.WebifyLogger.get('rc')
-        if util.WebifyLogger.is_debug(logger_rc):
-            logger_rc.debug('\nRendering context (inside: %s)' % dir.name)
-            self.rc.print()
+        logger_rc.debug('Rendering context (%s):' % dir.get_fullpath())
+        logger_rc.debug(pp.pformat(self.rc.data()))
 
         destdir = os.path.normpath(os.path.join(self.destdir, dir.path, dir.name))
         if os.path.isdir(destdir):
@@ -425,6 +426,8 @@ class Webify:
             util.make_directory(destdir)
 
     def leave_dir(self, dir):
+        self.logger.info('- [%d] back in folder %s' % (self.depth_level, dir.get_fullpath()))
+
         availability = self.load_availability_info(dir)
 
         dirlist_logger = util.WebifyLogger.get('dirlist')
@@ -450,11 +453,11 @@ class Webify:
         self.copy_dir_list_to_parent()
 
         logger_rc =  util.WebifyLogger.get('rc')
-        if util.WebifyLogger.is_debug(logger_rc):
-            logger_rc.debug('\nRendering context (leave: %s)' % dir.name)
-            self.rc.print()
-            logger_rc.info('-'*util.terminal.c())
-        self.logger.info('** ...  Done processing folder %s' % dir.get_fullpath())
+        logger_rc.debug('Rendering context:')
+        logger_rc.debug(pp.pformat(self.rc.data()))
+        
+        self.logger.info('< [%d] leaving folder %s' % (self.depth_level, dir.get_fullpath()))
+        self.depth_level = self.depth_level - 1
         
     def copy_dir_list_to_parent(self):
         x = self.dir_stack.top()
@@ -465,7 +468,7 @@ class Webify:
             y[1].append(i)        
 
     def traverse(self):
-        print('Traversal')
+        self.depth_level = 0
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
@@ -566,10 +569,10 @@ if __name__ == '__main__':
     l = logging.INFO if cmdline_args.show_ignored else loglevel
     util.WebifyLogger.make(name='ignored', loglevel=l, logfile=logfile)
 
-    util.WebifyLogger.make(name='md-file', loglevel=logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='md-buffer', loglevel=logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='md-rc', loglevel=logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='md-timestamps', loglevel=logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR, logfile=logfile)
+    util.WebifyLogger.make(name='md-buffer', loglevel=logging.ERROR, logfile=logfile)
+    util.WebifyLogger.make(name='md-rc', loglevel=logging.ERROR, logfile=logfile)
+    util.WebifyLogger.make(name='md-timestamps', loglevel=logging.ERROR, logfile=logfile)
 
     logger = util.WebifyLogger.get('webify')
 

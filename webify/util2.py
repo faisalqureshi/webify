@@ -7,7 +7,6 @@ import pystache
 import sys
 import pathspec
 import codecs
-import yaml
 import copy
 import shutil
 import filecmp
@@ -17,7 +16,7 @@ import fnmatch
 import file_processor 
 
 
-def md_filter(str):
+def filter_pandoc(str):
     logger = WebifyLogger.get('mdfile')
     try:
         s = str.strip(' ')
@@ -30,7 +29,7 @@ def md_filter(str):
         else:
             pass
     except:
-        self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
+        logger.warning('Error applying pandoc filter on key %s' % str[7:])
     return str
 
 def apply_filter(filter, data):
@@ -94,11 +93,15 @@ def save_to_file(filepath, buffer):
         return False
 
 def remove_file(filepath):
+    if not os.path.exists(filepath):
+        return True, 'Nothing to delete'
+
     try:
         os.remove(filepath)
         return True, 'Deleted'
     except:
         pass
+
     return False, 'Deletion failed'
 
 def render(filepath, context, renderer):
@@ -201,7 +204,7 @@ class WebifyLogger:
     
     @staticmethod 
     def set_level(logger, level):
-        assert level in [logging.INFO, logging.WARNING, logging.DEBUG]
+        assert level in [logging.INFO, logging.WARNING, logging.DEBUG, logging.ERROR]
         
         if level == logging.WARNING:
             h1 = logging.WARNING
@@ -245,115 +248,57 @@ class Terminal:
     def c(self):
         return int(self.cols)-1
 
-# class RenderingContext:
-#     def __init__(self):
-#         self.logger = WebifyLogger.get('rc')
-#         self.rc = {}
-#         self.diff_stack = []
+# class YAMLfile:
+#     """
+#     Yaml files play a central role in webify.  These store all rendering context.
+#     Each yaml files should only contain on yaml block.
 
-#     def data(self):
-#         return self.rc
-        
-#     def diff(self):
-#         return {'a': [], 'm': []}
-        
-#     def push(self):
-#         self.diff_stack.append(self.diff())
+#     """
+#     def __init__(self, filepath):
+#         self.logger = WebifyLogger.get('yaml')
+#         self.filepath = filepath
+#         self.data = None
 
-#     def add(self, data):
-#         print(data)
-
-#         diff = self.diff_stack[-1]
-
-#         for k in data.keys():
-#             if k in self.rc.keys():
-#                 diff['m'].append({k: copy.deepcopy(self.rc[k])})
-#                 self.rc[k] = data[k]
-#             else:
-#                 kv = {k: data[k]}
-#                 diff['a'].append({k: data[k]})
-#                 self.rc.update(kv)
-
-#         print(diff)
-                
-#     def pop(self):
-#         diff = self.diff_stack.pop()
-#         print('pop')
-#         print(diff)
-#         for i in diff['a']:
-#             for k in i.keys():
-#                 del self.rc[k]
-#         for i in diff['m']:
-#             for k in i.keys():
-#                 self.rc[k] = i[k]
-
-#     def get(self):
-#         return self.rc
-
-#     def keys(self):
-#         return self.rc.keys()
-
-#     def value(self, key):
+#     def load(self):
 #         try:
-#             return self.rc[key]
-#         except:
-#             return None    
-
-#     def print(self):
-#         pp.pprint(self.rc)
-
-
-class YAMLfile:
-    """
-    Yaml files play a central role in webify.  These store all rendering context.
-    Each yaml files should only contain on yaml block.
-
-    """
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('yaml')
-        self.filepath = filepath
-        self.data = None
-
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r') as stream:
-                self.data = yaml.safe_load(stream)
-            self.logger.info('Loaded YAML file: %s' % self.filepath)
-#            pp.pprint(self.data)
-            self.data = apply_filter(md_filter, self.data)
-#            pp.pprint(self.data)
+#             with codecs.open(self.filepath, 'r') as stream:
+#                 self.data = yaml.safe_load(stream)
+#             self.logger.info('Loaded YAML file: %s' % self.filepath)
+# #            pp.pprint(self.data)
+#             self.data = apply_filter(md_filter, self.data)
+# #            pp.pprint(self.data)
             
-        except:
-            self.logger.warning('Error loading YAML file: %s' % self.filepath)
-            self.data = {}
+#         except:
+#             self.logger.warning('Error loading YAML file: %s' % self.filepath)
+#             self.data = {}
 
-        if WebifyLogger.is_debug(self.logger):
-            self.logger.debug('Yaml file contents')
-            pp.pprint(self.data)
+#         if WebifyLogger.is_debug(self.logger):
+#             self.logger.debug('Yaml file contents')
+#             pp.pprint(self.data)
 
-class HTMLfile:
+# class HTMLfile:
 
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('html')
-        self.filepath = filepath
-        self.buffer = None
+#     def __init__(self, filepath):
+#         self.logger = WebifyLogger.get('html')
+#         self.filepath = filepath
+#         self.buffer = None
 
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
-                self.buffer = stream.read()
-            self.logger.info('Loaded html file: %s' % self.filepath)
-        except:
-            self.logger.warning('Error loading file: %s' % self.filepath)
-            self.buffer = ''
-        return self
+#     def load(self):
+#         try:
+#             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+#                 self.buffer = stream.read()
+#             self.logger.info('Loaded html file: %s' % self.filepath)
+#         except:
+#             self.logger.warning('Error loading file: %s' % self.filepath)
+#             self.buffer = ''
+#         return self
 
-    def get_buffer(self):
-        assert self.buffer
-        return self.buffer
+#     def get_buffer(self):
+#         assert self.buffer
+#         return self.buffer
 
-    def save(self, filepath):
-        pass
+#     def save(self, filepath):
+#         pass
     
 
 class IgnoreList:
