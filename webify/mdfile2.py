@@ -168,7 +168,7 @@ class MDfile:
     def __init__(self, filepath, args):
 
         # Initialize the md object
-        self.logger = util.WebifyLogger.get('mdfile')
+        self.logger = util.WebifyLogger.get('main')
         self.filepath = filepath
         self.rootdir = os.path.split(filepath)[0]
         self.args = args
@@ -176,9 +176,11 @@ class MDfile:
 
         self.logger.debug('Processing: %s' % self.filepath)
         self.logger.debug('rootdir:    %s' % self.rootdir)
-        if util.WebifyLogger.is_debug(self.logger):
-            print('args:')
-            pp.pprint(self.args, indent=2)
+        self.logger.debug(pp.pformat(self.args, indent=2))
+        
+        # if util.WebifyLogger.is_debug(self.logger):
+        #     print('args:')
+        #     pp.pprint(self.args, indent=2)
 
         self.formats = { 'html':   {'ext': '.html', 'fn': self.to_html},
                          'beamer': {'ext': '.pdf',  'fn': self.latexify},
@@ -214,17 +216,15 @@ class MDfile:
     def load(self, rc={}):
         self.yaml = {}
 
-        logger_file = util.WebifyLogger.get('file')
+        logger_file = util.WebifyLogger.get('md-file')
+        logger_buffer = util.WebifyLogger.get('md-buffer')
 
         # Read the file in to a buffer
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
-            self.logger.info('Loaded markdown file: %s' % self.filepath)
-
-            if util.WebifyLogger.is_debug(logger_file):
-                print('File contents:')
-                pp.pprint(self.buffer)
+            logger_file.info('Loaded markdown file: %s' % self.filepath)
+            logger_buffer.debug(pp.pformat(self.buffer))
         except:
             self.logger.warning('Cannot load: %s' % self.filepath)
             self.buffer = None
@@ -235,12 +235,8 @@ class MDfile:
             yamlsections = yaml.safe_load_all(self.buffer)
             for section in yamlsections:
                 self.yaml = section
-                self.logger.info('YAML section found')
-
-                if util.WebifyLogger.is_debug(logger_file):
-                    print('YAML section:')
-                    pp.pprint(self.yaml)
-
+                logger_file.info('YAML section found')
+                logger_file.debug(pp.pformat(self.yaml))
                 break # Only the first yaml section is read in
         except:
             self.logger.warning('YAML loader problems: %s' % self.filepath)
@@ -254,25 +250,22 @@ class MDfile:
         else:
             pass
 
-        if util.WebifyLogger.is_debug(self.logger):
-            print('rc:')
-            rc.print()
+        # logger_rc = util.WebifyLogger.get('rc')
+        # logger_rc.debug(pp.pformat(rc.print()))
 
         # If we want to preprocess the file using mustache renderer then do it
         # here.  This allows us to change the yaml frontmatter based upon the
         # larger rendering context.  Cool, eh. 
         if self.get_preprocess_frontmatter():
-            self.logger.info('Preprocessing Yaml front matter via mustache')
+            logger_file.info('Preprocessing YAML front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
                 s = util.mustache_renderer(yaml_str, rc.data(), self.filepath)
                 self.set_yaml(yaml.safe_load(s))
             except:
-                self.logger.warning('Failed: preprocessing Yaml front matter via mustache')
-
-            if util.WebifyLogger.is_debug(logger_file):
-                print('YAML frontmatter after pre-processing:')
-                pp.pprint(self.get_yaml())
+                self.logger.warning('Failed: preprocessing YAML front matter via mustache')
+            logger_file.debug('YAML frontmatter after preprocessing')
+            logger_file.debug(pp.pformat(self.get_yaml()))
 
         return True
 
@@ -293,13 +286,9 @@ class MDfile:
         # rc.push()
         # f.convert(rc) -- convert has the same rc as passed during construction
         # rc.pop()
-        
-
         rc.add(self.get_yaml())
-        logger_rc = util.WebifyLogger.get('rc')
-        if util.WebifyLogger.is_debug(logger_rc):
-            print('rc:')
-            rc.print()
+        util.WebifyLogger.get('md-rc').debug('rendering context for %s' % self.filepath)
+        util.WebifyLogger.get('md-rc').debug(pp.pformat(rc.data()))
 
         output_format = self.get_output_format()
 
@@ -317,14 +306,16 @@ class MDfile:
             self.logger.error('Invalid option "do not create output file" for format "html": %s' % self.filepath)
             return 'error', 'Bad option "do not create output file"', self.filepath
         else:
-            self.logger.info('Output format: "%s":' % output_format)
+            util.WebifyLogger.get('md-file').info('Output format: "%s":' % output_format)
         
         convertor = self.formats[output_format]['fn']
-        return convertor()
+        return convertor(rc)
 
-    def latexify(self):
+    def latexify(self, rc):
         files = [self.filepath]
         pdoc_args = PandocArguments()
+
+        logger_file = util.WebifyLogger.get('md-file')
 
         render_file = self.get_renderfile()
         if render_file:
@@ -333,11 +324,11 @@ class MDfile:
 
         template_file = self.get_template()
         if template_file:
-            self.logger.info('Using pandoc template file: %s' % template_file)
+            logger_file.info('Using pandoc template file: %s' % template_file)
             pdoc_args.add('template', template_file)
             files.append(template_file)        
         else:
-            self.logger.info('Using default pandoc template for "%s" format' % self.get_output_format())
+            logger_file.info('Using default pandoc template for "%s" format' % self.get_output_format())
 
         if self.get_standalone_html():
             # The default is False, so if it is true, it means that someone is messing with this flag.
@@ -364,22 +355,26 @@ class MDfile:
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
         pdoc_args.add('include-after-body',  include_files['include-after-body'])
-        if util.WebifyLogger.is_debug(self.logger):
-            print('Pandoc include files:')
-            pp.pprint(include_files, indent=2)
+        logger_file.debug('Pandoc include files:')
+        logger_file.debug(pp.pformat(include_files, indent=2))
+        # if util.WebifyLogger.is_debug(self.logger):
+        #     print('Pandoc include files:')
+        #     pp.pprint(include_files, indent=2)
         files.extend(include_files['include-in-header'])
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
 
         output_filepath = self.make_output_filepath()
-        self.logger.debug('Output file: %s' % output_filepath)
+        logger_file.debug('Output file: %s' % output_filepath)
 
         if self.needs_compilation(files, output_filepath):
-            self.logger.debug('Needs compilation YES')
+            logger_file.debug('Needs compilation YES')
         else:
-            self.logger.debug('Needs compilation NO')
-            self.logger.info('Did not compile, file already up-to-date: %s' % output_filepath)
+            logger_file.debug('Needs compilation NO')
+            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
+
+        logger_file.info('Compiling')
 
         hf, hf_file_list = self.get_html_filters()
         if len(hf_file_list) > 0:
@@ -398,37 +393,38 @@ class MDfile:
             slide_level = self.get_slide_level()
             pdoc_args.add('slide-level', slide_level)
 
-        self.logger.info('Writing to: %s' % output_filepath)
+        logger_file.info('Writing to: %s' % output_filepath)
         return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
 
-    def to_html(self):
+    def to_html(self, rc):
+        logger_file = util.WebifyLogger.get('md-file')
+
         files = [self.filepath]
         pdoc_args = PandocArguments()
 
         template_file = self.get_template()
         if template_file:
-            self.logger.info('Using pandoc template file: %s' % template_file)
+            logger_file.info('Using pandoc template file: %s' % template_file)
             pdoc_args.add('template', template_file)
             pdoc_args.add_flag('standalone')
             files.append(template_file)
         elif self.get_standalone_html():
-            self.logger.info('Using default pandoc template for "html" format')
+            logger_file.info('Using default pandoc template for "html" format')
             pdoc_args.add_flag('standalone')            
         else:
-            self.logger.info('Not using any pandoc template for "html" format')
+            logger_file.info('Not using any pandoc template for "html" format')
 
         render_file = self.get_renderfile()
         if render_file:
-            self.logger.info('Using render file: %s' % render_file)
+            logger_file.info('Using render file: %s' % render_file)
             files.append(render_file)
 
         include_files = self.get_pandoc_include_files()
         pdoc_args.add('include-in-header',   include_files['include-in-header'])
         pdoc_args.add('include-before-body', include_files['include-before-body'])
         pdoc_args.add('include-after-body',  include_files['include-after-body'])
-        if util.WebifyLogger.is_debug(self.logger):
-            print('Pandoc include files:')
-            pp.pprint(include_files, indent=2)
+        logger_file.debug('Pandoc include files:')
+        logger_file.debug(pp.pformat(include_files, indent=2))
         files.extend(include_files['include-in-header'])
         files.extend(include_files['include-before-body'])
         files.extend(include_files['include-after-body'])
@@ -439,25 +435,27 @@ class MDfile:
 
         if self.get_create_output_file():        
             output_filepath = self.make_output_filepath()
-            self.logger.debug('Output file: %s' % output_filepath)
+            logger_file.debug('Output file: %s' % output_filepath)
         else:
             output_filepath = None
-            self.logger.info('Not creating output file: %s' % self.filepath)
+            logger_file.info('Not creating output file: %s' % self.filepath)
 
         if self.needs_compilation(files, output_filepath):
-            self.logger.debug('Needs compilation YES')
+            logger_file.debug('Needs compilation YES')
         else:
-            self.logger.debug('Needs compilation NO')
-            self.logger.info('Did not compile, file already up-to-date: %s' % output_filepath)
+            logger_file.debug('Needs compilation NO')
+            self.logger.warning('Did not compile, file already up-to-date: %s' % output_filepath)
             return 'exists', output_filepath, self.filepath
 
+        logger_file.info('Compiling')
+
         if len(hf_file_list) > 0:
-            self.logger.info('Applying HTML filter')
+            logger_file.info('Applying HTML filter')
             f = HTML_Filter(hf)
             self.buffer = f.apply(self.buffer, self.filepath)                    
 
         if self.get_preprocess_buffer(): 
-            self.logger.info('Preprocessing markdown buffer using mustache')
+            logger_file.info('Preprocessing markdown buffer using mustache')
             self.buffer = util.mustache_renderer(self.buffer, rc.data(), self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())
@@ -466,7 +464,7 @@ class MDfile:
 
         # Case 1
         if output_filepath and not render_file:
-            self.logger.info('Writing to: %s' % output_filepath)
+            logger_file.info('Writing to: %s' % output_filepath)
             return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
 
         # Case 2
@@ -475,20 +473,20 @@ class MDfile:
         if render_file:
             rc.add({'body': markupsafe.Markup(r[1])})
             renderer_name, render_engine = self.get_renderer()
-            self.logger.info('Using renderer: %s' % renderer_name)
+            logger_file.info('Using renderer: %s' % renderer_name)
             buffer = util.render(render_file, rc.data(), render_engine)
         else:
             buffer = markupsafe.Markup(r[1])
 
         if output_filepath:
-            self.logger.info('Writing to: %s' % output_filepath)
+            logger_file.info('Writing to: %s' % output_filepath)
             if util.save_to_file(output_filepath, buffer):
                 return 'file', output_filepath, self.filepath
             else:
-                self.logger.warning('Error saving to output file: %s' % output_filepath)
+                logger_file.warning('Error saving to output file: %s' % output_filepath)
                 return 'error', output_filepath, self.filepath
 
-        self.logger.debug('Buffer created.')        
+        logger_file.debug('Buffer created.')        
         return 'buffer', buffer, self.filepath
 
     def compile(self, output_format, pandoc_args, output_filepath=None):
@@ -528,39 +526,38 @@ class MDfile:
         return self.formats[output_format]['ext']
 
     def needs_compilation(self, files, output_filepath):
-        logger = util.WebifyLogger.get('timestamps')
-        logger.debug('Function enter: needs_compilation')
+        logger_timestamps = util.WebifyLogger.get('md-timestamps')
+        logger_timestamps.debug('Checking timestamps.')
 
         if not output_filepath:
-            logger.debug('\tOutput filepath not specified.')
-            logger.debug('\tCompilation needed.')
+            logger_timestamps.debug('\tOutput filepath not specified.')
+            logger_timestamps.debug('\tCompilation needed.')
             return True
 
         if self.get_ignore_times():
-            logger.debug('\tIgnore times flag is True')
-            logger.debug('\tCompilation needed.')
+            logger_timestamps.debug('\tIgnore times flag is True')
+            logger_timestamps.debug('\tCompilation needed.')
             return True
         
         if output_filepath and not os.path.isfile(output_filepath): 
-            logger.debug('\tOutput filepath is not a file %s' % output_filepath)
-            logger.debug('\tCompilation needed.')
+            logger_timestamps.debug('\tOutput filepath is not a file %s' % output_filepath)
+            logger_timestamps.debug('\tCompilation needed.')
             return True
 
         # output_filepath is a file
         output_filepath_mtime =  os.path.getmtime(output_filepath)
-        logger.debug('\tOutput filepath: %s [%s]' % (output_filepath, str(output_filepath_mtime)))
+        logger_timestamps.debug('\tOutput filepath: %s [%s]' % (output_filepath, str(output_filepath_mtime)))
         for f in files:
             if os.path.isfile(f):
                 f_mtime = os.path.getmtime(f)
-                logger.debug('\tCheck: %s [%s]' % (f, str(f_mtime)))
+                logger_timestamps.debug('\tCheck: %s [%s]' % (f, str(f_mtime)))
                 if f_mtime > output_filepath_mtime:
-                    logger.debug('\tCompilation needed.')
+                    logger_timestamps.debug('\tCompilation needed.')
                     return True
             else:
-                logger.debug('\tIgnoring %s.  Not a file.' % f)
+                logger_timestamps.debug('\tIgnoring %s.  Not a file.' % f)
 
-        logger.debug('\tCompilation not needed.')
-        logger.debug('Function exit: needs_compilation')
+        logger_timestamps.debug('\tCompilation not needed.')
         return False
 
     def get_availability(self, cur_time):
@@ -587,22 +584,22 @@ class MDfile:
 
     def get_standalone_html(self):
         value = self.get_value('standalone-html')
-        self.logger.debug('standalone-html: %s' % str(value))
+        util.WebifyLogger.get('file').debug('standalone-html: %s' % str(value))
         return value
 
     def get_create_output_file(self):
         value = self.get_value('create-output-file')
-        self.logger.debug('Create output file: %s' % str(value))
+        util.WebifyLogger.get('file').debug('Create output file: %s' % str(value))
         return value
 
     def get_highlight_style(self):
         value = self.get_value('highlight-style')
-        self.logger.debug('Highlight style: %s' % value)
+        util.WebifyLogger.get('file').debug('Highlight style: %s' % value)
         return value
 
     def get_ignore_times(self):
         value = self.get_value('ignore-times')
-        self.logger.debug('Ignore compilation times: %s' % value)
+        util.WebifyLogger.get('file').debug('Ignore compilation times: %s' % value)
         return value
 
     def get_yaml(self):
@@ -625,7 +622,7 @@ class MDfile:
                 if os.path.isfile(f):
                     hf[key] = f
                     file_list.append(f)
-                    self.logger.info('Found HTML filter file: %s found in %s' % (f, self.filepath))
+                    util.WebifyLogger.get('file').info('Found HTML filter file: %s found in %s' % (f, self.filepath))
                 else:
                     self.logger.warning('Ignoring HTML filter file: %s found in %s' % (f, self.filepath))
         return hf, file_list
@@ -646,7 +643,7 @@ class MDfile:
     def get_preprocess_frontmatter(self):
         # assert(self.buffer)
         value = self.get_value('preprocess-frontmatter')
-        self.logger.debug('Preprocess frontmatter: %s' % str(value))
+        util.WebifyLogger.get('file').debug('Preprocess frontmatter: %s' % str(value))
         return value
 
     def get_preprocess_buffer(self):
@@ -657,7 +654,7 @@ class MDfile:
                 return True
             else:
                 return False
-        self.logger.debug('Preprocess buffer: %s' % str(value))
+        util.WebifyLogger.get('file').debug('Preprocess buffer: %s' % str(value))
         return value
 
     def get_files(self, key):
@@ -744,7 +741,7 @@ class MDfile:
     def get_slide_level(self):
         # assert(self.buffer)
         value = self.get_value('slide-level')
-        self.logger.debug('slide-level: %s' % str(value))
+        util.WebifyLogger.get('file').debug('slide-level: %s' % str(value))
         return value
 
     def get_renderer(self):
@@ -757,15 +754,18 @@ class MDfile:
             return 'jinja2', util.jinja2_renderer
         return 'mustache', util.mustache_renderer
 
+# def version_info():
+#     str =  '  Mdfile2:    %s\n' % __version__
+#     str += '  logfile:    %s\n' % __logfile__ 
+#     str += '  Git info:   %s\n' % util.get_gitinfo()
+#     str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
+#     str += '  Pypandoc:   %s\n' % pypandoc.__version__
+#     str += '  Pyyaml:     %s, and \n' % yaml.__version__
+#     str += '  Pystache:   %s.' % pystache.__version__
+#     return str
+
 def version_info():
-    str =  '  Mdfile2:    %s\n' % __version__
-    str += '  logfile:    %s\n' % __logfile__ 
-    str += '  Git info:   %s\n' % util.get_gitinfo()
-    str += '  Python:     %s.%s\n' % (sys.version_info[0],sys.version_info[1])
-    str += '  Pypandoc:   %s\n' % pypandoc.__version__
-    str += '  Pyyaml:     %s, and \n' % yaml.__version__
-    str += '  Pystache:   %s.' % pystache.__version__
-    return str
+    return __version__
 
 if __name__ == '__main__':
 
@@ -777,18 +777,19 @@ if __name__ == '__main__':
     # Command line arguments
     cmdline_parser = argparse.ArgumentParser()
     cmdline_parser.add_argument('mdfile', help='Markdown file.  Options specified on commandline override those in the frontmatter.')
-    cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or dir name can be specified.')
+    cmdline_parser.add_argument('-o','--output', action='store', default=None, help='Output path.  A file or a directory name.')
     cmdline_parser.add_argument('-f','--format', action='store', default=None, help='Output format: html, pdf, beamer, latex.')
     cmdline_parser.add_argument('-i', '--ignore-times', action='store_true', default=False, help='Forces the generation of the output file even if the source file has not changed')
     
-    cmdline_parser.add_argument('--standalone-html', action='store_true', default=False, help='If neither template-file nor rendder-file is specified, the default behavior is to not create a standalone html file using the default pandoc html template.  Use this flag to override this behavior.  This is ignored when renderfile is specified.')
-    cmdline_parser.add_argument('--do-not-create-output-file', action='store_true', default=False, help='Do not use output file.  This is only available when converting to html')
+    cmdline_parser.add_argument('--standalone-html', action='store_true', default=False, help='Use this option if you want to use default pandoc html5 template.')
+    cmdline_parser.add_argument('--do-not-create-output-file', action='store_true', default=False, help='Do not create an output file.  This is only available when converting to html.  This option is really only useful when using mdfile2 within webify.')
 
     cmdline_parser.add_argument('--version', action='version', version=version_info())
     cmdline_parser.add_argument('-v','--verbose', action='store_true', default=False, help='Turn verbose on.')
     cmdline_parser.add_argument('-d','--debug', action='store_true', default=False, help='Log debugging messages.')
     cmdline_parser.add_argument('-l','--log', action='store_true', default=False, help='Writes out a log file.')
 
+    cmdline_parser.add_argument('--debug-buffer', action='store_true', default=False, help='Show file buffer contents.')
     cmdline_parser.add_argument('--debug-file', action='store_true', default=False, help='Debug messages regarding file loading.')
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
     cmdline_parser.add_argument('--debug-timestamps', action='store_true', default=False, help='Debug messages regarding file timestamps.')
@@ -825,40 +826,43 @@ if __name__ == '__main__':
 
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
-    logger = util.WebifyLogger.make(name='mdfile', loglevel=loglevel, logfile=logfile)
-    util.WebifyLogger.make(name='render',     loglevel=logging.DEBUG if cmdline_args.debug_render else logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='rc',         loglevel=logging.DEBUG if cmdline_args.debug_rc else logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='file',       loglevel=logging.DEBUG if cmdline_args.debug_file else logging.WARNING, logfile=logfile)
-    util.WebifyLogger.make(name='timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else logging.WARNING, logfile=logfile)
+    logger = util.WebifyLogger.make(name='main', loglevel=loglevel, logfile=logfile)
+
+    util.WebifyLogger.make(name='render',     loglevel=logging.DEBUG if cmdline_args.debug_render else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='md-rc',         loglevel=logging.DEBUG if cmdline_args.debug_rc else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='md-file',       loglevel=logging.DEBUG if cmdline_args.debug_file else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='md-timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='md-buffer',     loglevel=logging.DEBUG if cmdline_args.debug_buffer else logging.WARNING, logfile=logfile)
     
     # Go
+    logger.info('mdfile version %s' % version_info())
     logger.debug('Prog name:    %s' % prog_name)
     logger.debug('Prog dir:     %s' % prog_dir)
     logger.debug('Current dir:  %s' % cur_dir)
-    logger.debug('Info:')
-    logger.debug(version_info())
+    logger.debug(pp.pformat(cmdline_args))
 
-    if util.WebifyLogger.is_debug(logger):
-        print('Commandline arguments:')
-        print('  --output:                       ', cmdline_args.output)
-        print('  --format:                       ', cmdline_args.format)
-        print('  --template-file:                ', template)
-        print('  --render-file                   ', render)
-        print('  --include-in-header:            ', include_in_header)
-        print('  --bibliography:                 ', bibliography)
-        print('  --css:                          ', css_files)
-        print('  --csl:                          ', csl)
-        print('  --highlight-style:              ', cmdline_args.highlight_style)
-        print('  --do-not-preprocess-frontmatter:', cmdline_args.do_not_preprocess_frontmatter)
-        print('  --do-not-preprocess-buffer:     ', cmdline_args.do_not_preprocess_buffer)
-        print('  --ignore-times:                 ', cmdline_args.ignore_times)
-        print('  --output:                       ', cmdline_args.output)
-        print('  --slide-level:                  ', cmdline_args.slide_level)
-        print('  --pdf-engine:                   ', cmdline_args.pdf_engine)
-        print('  --verbose:                      ', cmdline_args.verbose)
-        print('  --renderer:                     ', cmdline_args.renderer)
-        print('  --do-not-create-output-file:    ', cmdline_args.do_not_create_output_file)
-        print('  --standalone-html:              ', cmdline_args.standalone_html)
+
+    # if util.WebifyLogger.is_debug(logger):
+    #     print('Commandline arguments:')
+    #     print('  --output:                       ', cmdline_args.output)
+    #     print('  --format:                       ', cmdline_args.format)
+    #     print('  --template-file:                ', template)
+    #     print('  --render-file                   ', render)
+    #     print('  --include-in-header:            ', include_in_header)
+    #     print('  --bibliography:                 ', bibliography)
+    #     print('  --css:                          ', css_files)
+    #     print('  --csl:                          ', csl)
+    #     print('  --highlight-style:              ', cmdline_args.highlight_style)
+    #     print('  --do-not-preprocess-frontmatter:', cmdline_args.do_not_preprocess_frontmatter)
+    #     print('  --do-not-preprocess-buffer:     ', cmdline_args.do_not_preprocess_buffer)
+    #     print('  --ignore-times:                 ', cmdline_args.ignore_times)
+    #     print('  --output:                       ', cmdline_args.output)
+    #     print('  --slide-level:                  ', cmdline_args.slide_level)
+    #     print('  --pdf-engine:                   ', cmdline_args.pdf_engine)
+    #     print('  --verbose:                      ', cmdline_args.verbose)
+    #     print('  --renderer:                     ', cmdline_args.renderer)
+    #     print('  --do-not-create-output-file:    ', cmdline_args.do_not_create_output_file)
+    #     print('  --standalone-html:              ', cmdline_args.standalone_html)
 
     # Input file
     filepath = os.path.normpath(os.path.join(cur_dir, cmdline_args.mdfile))
@@ -887,15 +891,14 @@ if __name__ == '__main__':
             output_filename, output_fileext = os.path.splitext(f)
     output_filepath = os.path.normpath(os.path.join(output_dir, output_filename))
 
-    if util.WebifyLogger.is_debug(logger):
-        logger.debug('File names:')
-        logger.debug('  filepath:        %s' % filepath)
-        logger.debug('  filename:        %s' % filename)
-        logger.debug('  filedir:        %s' % filedir)
-        logger.debug('  output_filename: %s' % output_filename)
-        logger.debug('  output_fileext:  %s' % output_fileext)
-        logger.debug('  output_dir:      %s' % output_dir)
-        logger.debug('  output_filepath: %s' % output_filepath)
+    logger.debug('File names:')
+    logger.debug('  filepath:        %s' % filepath)
+    logger.debug('  filename:        %s' % filename)
+    logger.debug('  filedir:        %s' % filedir)
+    logger.debug('  output_filename: %s' % output_filename)
+    logger.debug('  output_fileext:  %s' % output_fileext)
+    logger.debug('  output_dir:      %s' % output_dir)
+    logger.debug('  output_filepath: %s' % output_filepath)
 
     args = { 'to': cmdline_args.format,
                'template': template,
@@ -917,35 +920,23 @@ if __name__ == '__main__':
                'create-output-file': False if cmdline_args.do_not_create_output_file else None,
                'standalone-html': cmdline_args.standalone_html }
 
+    logger.debug('args:')
+    logger.debug(pp.pformat(args))    
+
     meta_data = {
         '__version__': __version__,
         '__filepath__': filepath.replace('\\','\\\\'),
         '__root__': filedir.replace('\\','\\\\'),
         '__time__': datetime.datetime.now()
     }
+
     rc = RenderingContext.RenderingContext()
     rc.push()
     rc.add(meta_data)
 
-    m = MDfile(filepath=filepath, args=args, rc=rc)
-    m.load()
-
-    # sd = m.get_value('date-start')
-    # se = m.get_value('date-end')
-
-    # import datetime
-    # from dateutil import parser
-    # current_time = datetime.datetime.now()
-    # sd1 = parser.parse(sd)
-    # se1 = parser.parse(se)
-    # print(sd1)
-    # print(se1)
-    # print(sd1 < se1)
-    # print(datetime.datetime.now() < se1)
-
-    # exit(0)
-
-    ret_type, ret_val, _ = m.convert()
+    m = MDfile(filepath=filepath, args=args)
+    m.load(rc=rc)
+    ret_type, ret_val, _ = m.convert(rc=rc)
     logger.debug('Status:  %s' % ret_type)
     logger.debug('Message: %s' % ret_val)
     if ret_type == 'file':

@@ -106,7 +106,7 @@ def render(filepath, context, renderer):
     try:
         with codecs.open(filepath, 'r', 'utf-8') as stream:
             template = stream.read()
-            logger.info('Loaded render file: %s' % filepath)
+            logger.debug('Loaded render file: %s' % filepath)
     except:
         logger.warning('Cannot load render file: %s' % filepath)
         return ''
@@ -179,7 +179,7 @@ class WebifyLogger:
         logger.setLevel(logging.DEBUG)
         
         # Console
-        fmtstr = '[%(levelname)-8s] %(message)s'
+        fmtstr = '%(message)s'
         formatter = logging.Formatter(fmtstr)
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
@@ -213,6 +213,14 @@ class WebifyLogger:
         logger.handlers[0].setLevel(h1)
         if len(logger.handlers) > 1: logger.handlers[1].setLevel(h2)
         return logger
+
+    @staticmethod
+    def is_debug_name(name):
+        try:
+            logger = WebifyLogger.get(name)
+            return logger.handlers[0].level <= logging.DEBUG
+        except:
+            return False
 
     @staticmethod
     def is_debug(logger):

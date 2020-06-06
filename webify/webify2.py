@@ -25,7 +25,7 @@ ignore_times = False
 
 class Webify:
     def __init__(self):
-        self.logger = util.WebifyLogger.get('webify')
+        self.logger = util.WebifyLogger.get('main')
         self.rc = RenderingContext.RenderingContext()
         self.ignore = None
         self.dir_tree = dt.DirTree()
@@ -149,21 +149,17 @@ class Webify:
             yaml_file.load()
             self.rc.add(yaml_file.data)
     
-    def capture_list_of(self, dir, availability, id):
-        for filename in dir.files[id]:
+    def capture_list_of(self, dir, availability, file_type):
+        list_files = []
+        for filename in dir.files[file_type]:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
             is_available = self.check_availability(filepath, availability)
-            self.capture_dir_listing_information(
-                filename,
-                is_available,
-                filepath,
-                output_filepath,
-                id,
-                None
-            )
+            self.capture_dir_listing_information(list_files, filename, is_available, filepath, output_filepath, file_type, obj=None)
+        return list_files
 
     def capture_list_of_md(self, dir, availability):
+        list_files = []
         for filename in dir.files['md']:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
@@ -187,58 +183,68 @@ class Webify:
 
             if is_available and loaded_ok and should_process:
                 if md_file.get_value('copy-source'):
-                    self.capture_dir_listing_information(
-                        filename,
-                        True,
-                        filepath,
-                        output_filepath, 
-                        'md-src',
-                        None)
+                    self.capture_dir_listing_information(list_files, filename, True, filepath, output_filepath, 'md-src', obj=None)
 
-                self.capture_dir_listing_information(
-                    converted_filename,
-                    True,
-                    filepath,
-                    converted_output_filepath,
-                    'md',
-                    md_file)
-
+                self.capture_dir_listing_information(list_files, converted_filename, True, filepath,converted_output_filepath, 'md', obj=md_file)
             else:
-                self.capture_dir_listing_information(
-                    converted_filename,
-                    False,
-                    filepath,
-                    converted_output_filepath,
-                    'md',
-                    None)
+                self.capture_dir_listing_information(list_files, converted_filename, False, filepath, converted_output_filepath, 'md', obj=None)
 
             self.rc.pop()
+        return list_files
 
     def proc_files(self, dir_list):
-        for i in dir_list[1]:
-            print(i)
+        for i in dir_list:
+            filename = i['filename']
+            filepath = i['filepath']
+            is_available = i['is_available']
+            output_filepath = i['output_filepath']
+            file_type = i['file_type']
 
-    def proc_html(self, dir, availability):
-        if len(dir.files['html']) > 0:
-            self.logger.info('Processing  HTML files...')
-        else:
-            self.logger.info('No HTML files found')
-                
-        for filename in dir.files['html']:
-            filepath = self.make_src_filepath(dir, filename)
-            output_filepath = self.make_output_filepath(dir, filename)
-            if self.check_availability(filepath, availability):
-                self.html_convert(filename, filepath, output_filepath)
-            else:
+            if not is_available:
                 util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
-                util.remove_file(output_filepath)
+                self.logger.info('Deleting %s' % output_filepath)
+                x, m = util.remove_file(output_filepath)
+                if not x:
+                    util.WebifyLogger.get('available').warning('%s: (%s)' % (m, output_filepath))
+                continue
 
-    def html_convert(self, filename, filepath, output_filepath):
+            if file_type == 'html':
+                self.convert_html(filename, filepath, output_filepath)
+            elif file_type == 'misc':
+                self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'md-src':
+                self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'md':
+                self.convert_md(filename, filepath, output_filepath, i['obj'])
+                i['obj'] = None
+            else:
+                pass
+            
+
+
+    # def proc_html(self, dir, availability):
+    #     if len(dir.files['html']) > 0:
+    #         self.logger.info('Processing  HTML files...')
+    #     else:
+    #         self.logger.info('No HTML files found')
+                
+    #     for filename in dir.files['html']:
+    #         filepath = self.make_src_filepath(dir, filename)
+    #         output_filepath = self.make_output_filepath(dir, filename)
+    #         if self.check_availability(filepath, availability):
+    #             self.html_convert(filename, filepath, output_filepath)
+    #         else:
+    #             util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+    #             util.remove_file(output_filepath)
+
+    def convert_html(self, filename, filepath, output_filepath):
         html_file = util.HTMLfile(filepath)
         buffer = html_file.load().get_buffer()
         rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
-        self.logger.info('Saving %s' % output_filepath)
-        util.save_to_file(output_filepath, rendered_buf)
+        if util.save_to_file(output_filepath, rendered_buf):
+            self.logger.info('Saved html file %s' % output_filepath)
+        else:
+            self.logger.warning('Error saving html file %s' % output_filepath)
 
     def md_set_defaults(self, md_file):
         if self.meta_data['renderer']:
@@ -257,73 +263,63 @@ class Webify:
 
         return True, None, None, None
 
-    def md_convert(self, filename, filepath,  output_filepath):
+    def convert_md(self, filename, filepath,  output_filepath, md_file_obj):
         self.rc.push()
-        status, saved_file, _ = md_file.convert(rc)
 
-        args = { 'ignore-times': ignore_times,
-                 'output-filepath': os.path.splitext(output_filepath)[0],
-                 'output-fileext': '' }
-        md_file = MDfile(filepath=filepath, args=args, rc=self.rc)
-        md_file = self.md_set_defaults(md_file)
-        loaded_ok = md_file.load(self.rc)
-        if loaded_ok:
-            do_something, message, src, dest = self.md_inspect_frontmatter(md_file)
+        status, saved_file, _ = md_file_obj.convert(self.rc)
+        if status == 'file':
+            util.WebifyLogger.get('compiled').info('Saved %s to %s' % (filename, saved_file))
+        elif status == 'exists':
+            util.WebifyLogger.get('not-compiled').info('Already exists (did not compile) %s' % filepath)
         else:
-            do_something = False
-        if do_something:
-            status, saved_file, _ = md_file.convert()
-            if status == 'file':
-                util.WebifyLogger.get('compiled').info('Saved %s to %s' % (filename, saved_file))
-            elif status == 'exists':
-                util.WebifyLogger.get('not-compiled').info('Already exists (did not compile) %s' % filepath)
-            else:
-                saved_file = None
-                self.logger.warning('Error processing %s' % filepath)
-                    
-            if saved_file:
-                copy_source = md_file.get_value('copy-source')
-                if copy_source:
-                    self.logger.debug('Copying %s' % args['output-filepath']+'.md')
-                    util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
-
-                # self.capture_dir_listing_information(filepath, saved_file, md_file.get_yaml())
-        else:
-            if message == 'ignore':
-                util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
-            elif message == 'not available':
-                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
-            else:
-                pass
-            util.remove_file(dest)
-            
+            saved_file = None
+            self.logger.warning('Error processing %s' % filepath)
+        
         self.rc.pop()
+                    
+        #     if saved_file:
+        #         copy_source = md_file.get_value('copy-source')
+        #         if copy_source:
+        #             self.logger.debug('Copying %s' % args['output-filepath']+'.md')
+        #             util.process_file(filepath, args['output-filepath']+'.md', self.meta_data['force_copy'])
 
-    def proc_md(self, dir, availability):
-        if len(dir.files['md']) > 0:
-            self.logger.info('Processing MD files...')
-        else:
-            self.logger.info('No MD files found')
+        #         # self.capture_dir_listing_information(filepath, saved_file, md_file.get_yaml())
+        # else:
+        #     if message == 'ignore':
+        #         util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
+        #     elif message == 'not available':
+        #         util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+        #     else:
+        #         pass
+        #     util.remove_file(dest)
+            
+        # self.rc.pop()
 
-        for filename in dir.files['md']:
-            filepath = self.make_src_filepath(dir, filename)
-            output_filepath = self.make_output_filepath(dir, filename)
-            if self.check_availability(filepath, availability):
-                self.md_convert(filename, filepath, output_filepath)
-            else:
-                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
-                util.remove_file(output_filepath)
+    # def proc_md(self, dir, availability):
+    #     if len(dir.files['md']) > 0:
+    #         self.logger.info('Processing MD files...')
+    #     else:
+    #         self.logger.info('No MD files found')
 
-    def capture_dir_listing_information(self, filename, is_available, filepath, output_filepath, id, func):
+    #     for filename in dir.files['md']:
+    #         filepath = self.make_src_filepath(dir, filename)
+    #         output_filepath = self.make_output_filepath(dir, filename)
+    #         if self.check_availability(filepath, availability):
+    #             self.md_convert(filename, filepath, output_filepath)
+    #         else:
+    #             util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+    #             util.remove_file(output_filepath)
+
+    def capture_dir_listing_information(self, list_files, filename, is_available, filepath, output_filepath, file_type, obj):
         entry = {
             'filename': filename,
             'is_available': is_available,
             'filepath': filepath,
             'output_filepath': output_filepath,
-            'id': id,
-            'func': func
+            'file_type': file_type,
+            'obj': obj
         }
-        self.dir_stack.top()[1].append(entry)
+        list_files.append(entry)
 
     def make_src_filepath(self, dir, filename):
         filepath =  os.path.join(dir.get_fullpath(), filename)
@@ -333,28 +329,36 @@ class Webify:
         output_filepath = os.path.join(self.destdir, dir.path, dir.name, filename)
         return os.path.normpath(output_filepath)
                 
-    def proc_misc(self, dir, availability):
-        if len(dir.files['misc']) > 0:
-            self.logger.info('Processing all other files...')
+    def copy_misc(self, filename, filepath, output_filepath):
+        v, s = util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
+        if not v:
+            logger.warning('%s (%s)' % (filepath, s))
         else:
-            self.logger.info('No other files found')
+            if s == 'Exists':
+                util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)        
 
-        for filename in dir.files['misc']:
-            filepath = self.make_src_filepath(dir, filename)
-            output_filepath = self.make_output_filepath(dir, filename)
-            if self.check_availability(filepath, availability):
-                self.logger.info('Processing %s' % filepath)
-                v, s = util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
-                if not v:
-                    logger.warning('%s (%s)' % (filepath, s))
-                else:
-                    if s == 'Exists':
-                        util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)
-            else:
-                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
-                v, s = util.remove_file(output_filepath)
-                if not v:
-                    logger.warning('%s (%s)' % (filepath, s))
+    # def proc_misc(self, dir, availability):
+    #     if len(dir.files['misc']) > 0:
+    #         self.logger.info('Processing all other files...')
+    #     else:
+    #         self.logger.info('No other files found')
+
+    #     for filename in dir.files['misc']:
+    #         filepath = self.make_src_filepath(dir, filename)
+    #         output_filepath = self.make_output_filepath(dir, filename)
+    #         if self.check_availability(filepath, availability):
+    #             self.logger.info('Processing %s' % filepath)
+    #             v, s = util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
+    #             if not v:
+    #                 logger.warning('%s (%s)' % (filepath, s))
+    #             else:
+    #                 if s == 'Exists':
+    #                     util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)
+    #         else:
+    #             util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+    #             v, s = util.remove_file(output_filepath)
+    #             if not v:
+    #                 logger.warning('%s (%s)' % (filepath, s))
 
     def check_file_in_folder(self, dir, filename):
         cur_dir = dir.get_fullpath()
@@ -423,16 +427,21 @@ class Webify:
     def leave_dir(self, dir):
         availability = self.load_availability_info(dir)
 
-        self.logger.info('Capturing file list from %s' % dir.get_fullpath())
-        self.capture_list_of(dir, availability, 'html')
-        self.capture_list_of_md(dir, availability)
-        self.capture_list_of(dir, availability, 'misc')
+        dirlist_logger = util.WebifyLogger.get('dirlist')
 
-        print('\n\n\n\n')
-        pp.pprint(self.dir_stack.top())
+        dirlist_logger.info('Capturing file list from %s' % dir.get_fullpath())
+        list_html = self.capture_list_of(dir, availability, 'html')
+        list_md = self.capture_list_of_md(dir, availability)
+        list_misc = self.capture_list_of(dir, availability, 'misc')
+        dirlist_logger.debug(pp.pformat(self.dir_stack.top()))
 
-        self.proc_files(self.dir_stack.top())
+        self.proc_files(list_html)
+        self.proc_files(list_md)
+        self.proc_files(list_misc)
 
+        self.dir_stack.top()[1].extend(list_html)
+        self.dir_stack.top()[1].extend(list_md)
+        self.dir_stack.top()[1].extend(list_misc)
 
         # self.proc_html(dir, availability)
         # self.proc_md(dir, availability)
@@ -533,14 +542,14 @@ if __name__ == '__main__':
     l = logging.DEBUG if cmdline_args.debug_render else logging.WARNING    
     util.WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
-    util.WebifyLogger.make(name='mdfile', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
+    # util.WebifyLogger.make(name='md-file', loglevel=l, logfile=logfile)
 
     l = logging.DEBUG if cmdline_args.debug_db_ignore else loglevel
     util.WebifyLogger.make(name='db-ignore', loglevel=l, logfile=logfile)
 
     l = logging.DEBUG if cmdline_args.debug_webify else loglevel
-    util.WebifyLogger.make(name='webify', loglevel=l, logfile=logfile)
+    util.WebifyLogger.make(name='main', loglevel=l, logfile=logfile)
 
     l = logging.DEBUG if cmdline_args.debug_dirlist else loglevel
     util.WebifyLogger.make(name='dirlist', loglevel=l, logfile=logfile)
@@ -556,6 +565,11 @@ if __name__ == '__main__':
 
     l = logging.INFO if cmdline_args.show_ignored else loglevel
     util.WebifyLogger.make(name='ignored', loglevel=l, logfile=logfile)
+
+    util.WebifyLogger.make(name='md-file', loglevel=logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='md-buffer', loglevel=logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='md-rc', loglevel=logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='md-timestamps', loglevel=logging.WARNING, logfile=logfile)
 
     logger = util.WebifyLogger.get('webify')
 
