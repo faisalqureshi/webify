@@ -2,7 +2,7 @@ import logging
 import codecs
 import os
 import re
-from util2 import mustache_renderer, WebifyLogger
+import util2 as util
 
 # We have four options here.  A single image, a series of images, a single video, a series of videos.
 #
@@ -17,7 +17,7 @@ from util2 import mustache_renderer, WebifyLogger
 class HTML_Filter:
 
     def __init__(self, files):
-        self.logger = WebifyLogger.get('mdfile')
+        self.logger = util.WebifyLogger.get('mdfile')
         
         try:
             if files['html-img']:
@@ -48,7 +48,7 @@ class HTML_Filter:
                 with codecs.open(files['html-vids'], 'r', 'utf-8') as stream:
                     self.vid_grid_template = stream.read()
         except:
-            self.vid__template = None
+            self.vid_template = None
             self.logger.warning('Cannot load %s' % files['html-vids'])
 
         self.img_ext = ('.gif','.png','.jpg','.jpeg')
@@ -60,7 +60,7 @@ class HTML_Filter:
     def is_video(self, filename):
         return filename.lower().endswith(self.vid_ext)
 
-    def apply(self, buffer):
+    def apply(self, buffer, file_info):
         assert(buffer)
 
         i = 0
@@ -74,34 +74,45 @@ class HTML_Filter:
             caption = img.group(1)[2:-1]
             mediafile = img.group(2)[1:-1]
 
+            context = {}
+            if len(caption) > 0:
+                context['caption'] = caption.strip()
+
             mm = mediafile.split('|')
             if len(mm) == 1:
-                context = {'file': mm[0]}
+                filename = mm[0].strip()
+                context['file'] = filename
 
-                if len(caption) > 0:
-                    context['caption'] = caption
-
-                if self.is_image(mm[0]):
+                if self.is_image(filename):
                     template = self.img_template
-                elif self.is_video(mm[0]):
+                    context['type'] = 'image'
+                elif self.is_video(filename):
                     template = self.vid_template
+                    context['type'] = 'video'
                 else:
-                    self.logger.warning('Invalid image or video file %s' % context['file'])
+                    template = None
+                    self.logger.warning('Invalid media type: "%s" in %s' % (filename, file_info))
             else:
-                context = { 'files': [] }
-                for item in mm:
-                    context['files'].append({'file': item})
-
                 if self.is_image(mm[0]):
                     template = self.img_grid_template
                 elif self.is_video(mm[0]):
                     template = self.vid_grid_template
                 else:
-                    self.logger.warning('Invalid image or video file %s' % context['file'])
+                    template = None
+
+                context['files'] = []
+                for item in mm:
+                    filename = item.strip()
+                    context['files'].append({'file': filename})
+
+                    if not (self.is_image(filename) or self.is_video(filename)):
+                        template = None
+                        self.logger.warning('Invalid media file: "%s" in %s' % (filename, file_info))
+                        break
 
             if template:
                 try:
-                    r = mustache_renderer(template, context)
+                    r = util.mustache_renderer(template, context, file_info)
                     self.logger.debug('Applying HTML Media Filter to object %s' % buffer[s:e])
                 except:
                     self.logger.warning('Cannot apply HTML Media Filter to object %s' % buffer[s:e])

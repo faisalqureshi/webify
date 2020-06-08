@@ -7,16 +7,16 @@ import pystache
 import sys
 import pathspec
 import codecs
-import yaml
 import copy
 import shutil
 import filecmp
 import pypandoc
-from jinja2 import Template
 import jinja2
 import fnmatch 
+import file_processor 
 
-def md_filter(str):
+def filter_pandoc(str):
+    logger = WebifyLogger.get('mdfile')
     try:
         s = str.strip(' ')
         if s[0:8] == '_pandoc_':
@@ -28,22 +28,21 @@ def md_filter(str):
         else:
             pass
     except:
-        pass
-        #self.logger.warning('Error applying pandoc filter on key %s' % str[7:])
+        logger.warning('Error applying pandoc filter on key %s' % str[7:])
     return str
 
-def apply_filter(filter, data):
+def filter_dict(filter, data):
     if not data:
         return None
     if isinstance(data, dict):
         for key, value in data.items():
-            retval = apply_filter(filter, value)
+            retval = filter_dict(filter, value)
             if retval:
                 data[key] = retval
         return data
     if isinstance(data, list):
         for i in range(len(data)):
-            retval = apply_filter(filter, data[i])
+            retval = filter_dict(filter, data[i])
             if retval:
                 data[i] = retval
         return data
@@ -70,27 +69,19 @@ def make_directory(dirpath):
     return 'Created'
 
 def copy_file(src, dest, force_copy):
-    """
-    Copy src to dest
-
-    Returns status:
-        - None: failed
-        - 1: copied
-        - 2: skipped
-    """
     if not force_copy:
         try:
             if filecmp.cmp(src, dest):
-                return 'Skipped'
+                return True, 'Exists'
         except:
             pass
 
     try:
         shutil.copy2(src, dest)
-        return 'Copied'
+        return True, 'Copied'
     except:
         pass
-    return 'Failed'
+    return False, 'Copy failed'
 
 def save_to_file(filepath, buffer):
     try:
@@ -100,19 +91,31 @@ def save_to_file(filepath, buffer):
     except:
         return False
 
+def remove_file(filepath):
+    if not os.path.exists(filepath):
+        return True, 'Nothing to delete'
+
+    try:
+        os.remove(filepath)
+        return True, 'Deleted'
+    except:
+        pass
+
+    return False, 'Deletion failed'
+
 def render(filepath, context, renderer):
     logger = WebifyLogger.get('render')
     try:
         with codecs.open(filepath, 'r', 'utf-8') as stream:
             template = stream.read()
-            logger.info('Loaded render file: %s' % filepath)
+            logger.debug('Loaded render file: %s' % filepath)
     except:
         logger.warning('Cannot load render file: %s' % filepath)
         return ''
 
-    return renderer(template, context)
+    return renderer(template, context, filepath)
 
-def jinja2_renderer(template, context):
+def jinja2_renderer(template, context, file_info):
     logger = WebifyLogger.get('render')
 
     # if WebifyLogger.is_debug(logger):
@@ -124,10 +127,10 @@ def jinja2_renderer(template, context):
     #rendered_buf = Template(template).render(context)
 
     try:
-        rendered_buf = Template(template).render(context)
-        logger.debug('Success jinja2 render')
+        rendered_buf = jinja2.Template(template).render(context)
+        logger.debug('Success jinja2 render: %s' % file_info)
     except jinja2.exceptions.TemplateSyntaxError as e:
-        logger.warning('Error jinja2 render %s' % e)
+        logger.warning('Error jinja2 render: %s\n%s' % (file_info, e))
         if WebifyLogger.is_debug(logger) or True:
             print('Template:')
             print(template)
@@ -141,30 +144,30 @@ def jinja2_renderer(template, context):
 
     return rendered_buf
 
-def mustache_renderer(template, context):
+def mustache_renderer(template, context, file_info):
     logger = WebifyLogger.get('render')
 
-    if WebifyLogger.is_debug(logger):
-        print('Template:')  
-        print(template)
-        print('Context:')
-        pp.pprint(context)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Template:')  
+    #     print(template)
+    #     print('Context:')
+    #     pp.pprint(context)
 
     try:
         rendered_buf = pystache.render(template, context)
-        logger.debug('Success pystache render')        
+        logger.debug('Success pystache render: %s' % file_info)        
     except:
-        logger.warning('Error pystache render')
+        logger.warning('Error pystache render: %s' % file_info)
         if WebifyLogger.is_debug(logger):
             print('Template:')
             print(template)
-            print('Context:')
-            pp.pprint(context)
+            # print('Context:')
+            # pp.pprint(context)
         rendered_buf = template
 
-    if WebifyLogger.is_debug(logger):
-        print('Rendered Buf')
-        print(rendered_buf)
+    # if WebifyLogger.is_debug(logger):
+    #     print('Rendered Buf')
+    #     print(rendered_buf)
 
     return rendered_buf
 
@@ -200,7 +203,7 @@ class WebifyLogger:
     
     @staticmethod 
     def set_level(logger, level):
-        assert level in [logging.INFO, logging.WARNING, logging.DEBUG]
+        assert level in [logging.INFO, logging.WARNING, logging.DEBUG, logging.ERROR]
         
         if level == logging.WARNING:
             h1 = logging.WARNING
@@ -214,11 +217,35 @@ class WebifyLogger:
         return logger
 
     @staticmethod
+    def is_debug_name(name):
+        try:
+            logger = WebifyLogger.get(name)
+            return logger.handlers[0].level <= logging.DEBUG
+        except:
+            return False
+
+    @staticmethod
+    def is_info(logger):
+        try:
+            return logger.handlers[0].level <= logging.INFO
+        except:
+            return False
+
+    @staticmethod
+    def is_info_name(name):
+        try:
+            logger = WebifyLogger.get(name)
+            return logger.handlers[0].level <= logging.INFO
+        except:
+            return False
+
+    @staticmethod
     def is_debug(logger):
         try:
             return logger.handlers[0].level <= logging.DEBUG
         except:
             return False
+
 
 class Terminal:
     def __init__(self):
@@ -236,99 +263,57 @@ class Terminal:
     def c(self):
         return int(self.cols)-1
 
-class RenderingContext:
-    def __init__(self):
-        self.logger = WebifyLogger.get('rc')
-        self.rc = {}
-        self.diff_stack = []
+# class YAMLfile:
+#     """
+#     Yaml files play a central role in webify.  These store all rendering context.
+#     Each yaml files should only contain on yaml block.
 
-    def data(self):
-        return self.rc
-        
-    def diff(self):
-        return {'a': [], 'm': []}
-        
-    def push(self):
-        self.diff_stack.append(self.diff())
+#     """
+#     def __init__(self, filepath):
+#         self.logger = WebifyLogger.get('yaml')
+#         self.filepath = filepath
+#         self.data = None
 
-    def add(self, data):
-        diff = self.diff_stack[-1]
-
-        for k in data.keys():
-            if k in self.rc.keys():
-                diff['m'].append({k: copy.deepcopy(self.rc[k])})
-                self.rc[k] = data[k]
-            else:
-                kv = {k: data[k]}
-                diff['a'].append({k: data[k]})
-                self.rc.update(kv)
-                
-    def pop(self):
-        diff = self.diff_stack.pop()
-        for i in diff['a']:
-            for k in i.keys():
-                del self.rc[k]
-        for i in diff['m']:
-            for k in i.keys():
-                self.rc[k] = i[k]
-
-    def get(self):
-        return self.rc
-
-    def print(self):
-        pp.pprint(self.rc)
-
-class YAMLfile:
-    """
-    Yaml files play a central role in webify.  These store all rendering context.
-    Each yaml files should only contain on yaml block.
-
-    """
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('yaml')
-        self.filepath = filepath
-        self.data = None
-
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r') as stream:
-                self.data = yaml.safe_load(stream)
-            self.logger.info('Loaded YAML file: %s' % self.filepath)
-#            pp.pprint(self.data)
-            self.data = apply_filter(md_filter, self.data)
-#            pp.pprint(self.data)
+#     def load(self):
+#         try:
+#             with codecs.open(self.filepath, 'r') as stream:
+#                 self.data = yaml.safe_load(stream)
+#             self.logger.info('Loaded YAML file: %s' % self.filepath)
+# #            pp.pprint(self.data)
+#             self.data = apply_filter(md_filter, self.data)
+# #            pp.pprint(self.data)
             
-        except:
-            self.logger.warning('Error loading YAML file: %s' % self.filepath)
-            self.data = {}
+#         except:
+#             self.logger.warning('Error loading YAML file: %s' % self.filepath)
+#             self.data = {}
 
-        if WebifyLogger.is_debug(self.logger):
-            self.logger.debug('Yaml file contents')
-            pp.pprint(self.data)
+#         if WebifyLogger.is_debug(self.logger):
+#             self.logger.debug('Yaml file contents')
+#             pp.pprint(self.data)
 
-class HTMLfile:
+# class HTMLfile:
 
-    def __init__(self, filepath):
-        self.logger = WebifyLogger.get('html')
-        self.filepath = filepath
-        self.buffer = None
+#     def __init__(self, filepath):
+#         self.logger = WebifyLogger.get('html')
+#         self.filepath = filepath
+#         self.buffer = None
 
-    def load(self):
-        try:
-            with codecs.open(self.filepath, 'r', 'utf-8') as stream:
-                self.buffer = stream.read()
-            self.logger.info('Loaded html file: %s' % self.filepath)
-        except:
-            self.logger.warning('Error loading file: %s' % self.filepath)
-            self.buffer = ''
-        return self
+#     def load(self):
+#         try:
+#             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
+#                 self.buffer = stream.read()
+#             self.logger.info('Loaded html file: %s' % self.filepath)
+#         except:
+#             self.logger.warning('Error loading file: %s' % self.filepath)
+#             self.buffer = ''
+#         return self
 
-    def get_buffer(self):
-        assert self.buffer
-        return self.buffer
+#     def get_buffer(self):
+#         assert self.buffer
+#         return self.buffer
 
-    def save(self, filepath):
-        pass
+#     def save(self, filepath):
+#         pass
     
 
 class IgnoreList:
@@ -391,8 +376,6 @@ class IgnoreList:
         self.logger.debug('Do not ignore file')
         return False
 
-from file_processor import CopyFile, JupyterNotebook
-    
 def process_file(filepath, dest_filepath, force_copy):
     _, ext = os.path.splitext(filepath)
 
@@ -401,9 +384,54 @@ def process_file(filepath, dest_filepath, force_copy):
     
 def make_file_processor(ext):
     if ext == '.ipynb':
-        return JupyterNotebook
+        return file_processor.JupyterNotebook
     else:
-        return CopyFile
+        return copy_file
 
-    
+def get_values(k, d, d2=None):
+    """
+    k = key
+    d = dictionary
+    d2 = extra dictionary - check out get_files() in mdfile2.py to see how one might use an extra dictionary
+
+    Example 1:
+    d[k] = v
+    get_values(d, k) -> v
+
+    Example 2:
+    d[k] = [v1, v2, v3]
+    get_values(d, k) -> [v1, v2, v3]
+
+    Useful for processing yaml files of the form
+
+    Case 1:
+    file: file1
+
+    Case 2:
+    file:
+        - file1
+        - file2
+
+    Here the first case refers to example 1, and the second case refers to example 2.
+    """
+    try:
+        f1 = d[key] if isinstance(d[key], list) else [d[key]]
+        f1 = [x for x in f1 if x is not None]
+    except:
+        f1 = []
+    try:
+        f2 = d2[key] if isinstance(d2[key], list) else [d2[key]]
+        f2 = [x for x in f2 if x is not None]
+    except:
+        f2 = []
+    files = f1 + f2
+    return files
+
+def pick_last_value(k, d, d2=None):
+    v = get_values(k, d, d2)
+    if len(v) > 0: return v[-1]
+    return None
+
+def pick_all_values(k, d, d2=None):
+    return get_values(k, d, d2)    
         

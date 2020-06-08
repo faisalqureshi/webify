@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <div class="container">
+        <h1>{{ __blog_title__ }}</h1>
+        
+        <h2>Posts</h2>
+
+        <ul>
+            {% for post in __md__ %}
+                {% if (post.is_available and __me__ != post.filename and post.ext != ".md" ) %}
+                <li><a href="{{ post.filename }}">{{ post.filename }}</a></li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+
+    </div>
+  </body>
+</html>

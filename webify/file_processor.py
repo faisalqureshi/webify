@@ -1,17 +1,9 @@
-from util2 import copy_file, WebifyLogger
+import util2 as util
 import os
 
-def CopyFile(filepath, dest_filepath, force_copy):
-    logger = WebifyLogger.get('webify')
-
-    r = copy_file(filepath, dest_filepath, force_copy)
-    if r == 'Failed':
-        logger.warning('%s: %s' % (r, dest_filepath))
-    else:
-        logger.info('%s: %s' % (r, dest_filepath))
 
 def JupyterNotebook(filepath, dest_filepath, force_save):
-    logger = WebifyLogger.get('webify')
+    logger = util.WebifyLogger.get('webify')
 
     f, _ = os.path.splitext(dest_filepath)
     f += '.html'
@@ -28,8 +20,4 @@ def JupyterNotebook(filepath, dest_filepath, force_save):
     except:
         logger.warning('Jupyter notebook conversion failed: %s' % f)
         
-    r = copy_file(filepath, dest_filepath, force_save)        
-    if r == 'Failed':
-        logger.warning('%s: %s' % (r, dest_filepath))
-    else:
-        logger.info('%s: %s' % (r, dest_filepath))
+    return util.copy_file(filepath, dest_filepath, force_save)
