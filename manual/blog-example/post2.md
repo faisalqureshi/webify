@@ -2,7 +2,7 @@
 title: Post 2
 availability:
     start: 29 May
-    end: 30 May
+    end: 30 May 2040
 
 ---
 

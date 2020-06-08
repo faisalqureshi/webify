@@ -9,8 +9,10 @@
         <h2>Posts</h2>
 
         <ul>
-            {% for post in __blog_posts__ %}
-                <li><a href="{{ post.link }}">{{ post.title }}</a></li>
+            {% for post in __md__ %}
+                {% if (post.is_available and __me__ != post.filename and post.ext != ".md" ) %}
+                <li><a href="{{ post.filename }}">{{ post.filename }}</a></li>
+                {% endif %}
             {% endfor %}
         </ul>
 

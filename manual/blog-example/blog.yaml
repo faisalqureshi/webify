@@ -1,14 +1,8 @@
 ---
-index-filter:
-  - pdf
-  - tex
-index:
-  - index.md
-  - foo.md
 availability:
   - file: post4.html
     start: 22 May
-    end: 30 May
+    end: 30 May 2025
   - file: post3.md
     start: 19 May
-    end: 12 May
+    end: 12 May 2030

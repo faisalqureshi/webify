@@ -2,7 +2,7 @@
 title: Post 1
 standalone-html: True
 availability:
-    end: 7 June 
+    end: 22 June 
 copy-source: True
  
 ---
