@@ -5,9 +5,12 @@ import copy
 class RenderingContext:
     def __init__(self):
         self.logger = util.WebifyLogger.get('rc')
+        self.reset()
+
+    def reset(self):
         self.rc = {}
         self.diff_stack = [RenderingContext.empty_diff()]
-        
+
     @staticmethod
     def empty_diff():
         return {'a': [], 'm': {}, 'd': {}}

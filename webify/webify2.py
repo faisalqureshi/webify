@@ -14,18 +14,18 @@ import markupsafe
 import json
 import rc as RenderingContext
 import time_util as tm
-import w
 import dirtree as dt
 import dirstack as ds
 from yamlfile import YAMLfile
 from htmlfile import HTMLfile
 import time
 import datetime
+import running as run
 
 from globals import __version__
 logfile = 'webify2.log'
 ignorefile = '.webifyignore'
-ignore_times = False
+#ignore_times = False
 
 class Webify:
     def __init__(self):
@@ -41,8 +41,7 @@ class Webify:
         else:
             self.render = util.mustache_renderer
         
-    def set_src(self, srcdir, meta_data):
-        self.meta_data = meta_data
+    def set_src(self, srcdir):
         self.srcdir = os.path.abspath(srcdir)
         if not os.path.isdir(self.srcdir):
             self.logger.critical('Source folder not found: %s' % srcdir)
@@ -53,8 +52,10 @@ class Webify:
             self.ignore = util.IgnoreList(srcdir=self.srcdir)
             self.ignore.read_ignore_file(os.path.abspath(os.path.join(srcdir, ignorefile)))
 
-        self.set_renderer()            
-        self.rc.push()
+    def set_meta_data(self, meta_data):
+        self.meta_data = meta_data
+        self.set_renderer()
+        self.rc.reset()
         self.rc.add(meta_data)
 
     def set_dest(self, destdir):
@@ -127,7 +128,7 @@ class Webify:
             else:
                 self.logger.info('No MD files found')
             args = { 'create-output-file': False, 
-                     'ignore-times': ignore_times }
+                     'ignore-times': self.meta_data['__ignore_times__'] }
             for filename in dir.partials.files['md']:  
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 self.logger.info('Processing MD file: %s' % filepath)
@@ -180,7 +181,7 @@ class Webify:
 
             self.rc.push()
             
-            args = { 'ignore-times': ignore_times,
+            args = { 'ignore-times': self.meta_data['__ignore_times__'],
                      'output-filepath': os.path.splitext(output_filepath)[0],
                      'output-fileext': '' }
             md_file = MDfile(filepath=filepath, args=args)
@@ -241,7 +242,7 @@ class Webify:
             
     def convert_html(self, filename, filepath, output_filepath):
         if os.path.isfile(output_filepath):
-            if not ignore_times and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
+            if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
                 if util.WebifyLogger.is_info(self.logger):
                     util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
                 else:
@@ -327,7 +328,7 @@ class Webify:
         return os.path.normpath(output_filepath)
                 
     def copy_misc(self, filename, filepath, output_filepath):
-        v, s = util.process_file(filepath, output_filepath, self.meta_data['force_copy'])
+        v, s = util.process_file(filepath, output_filepath, self.meta_data['__force_copy__'])
         if not v:
             logger.warning('%s (%s)' % (filepath, s))
         else:
@@ -473,17 +474,20 @@ class Webify:
             y[1].append(i)        
 
     def traverse(self):
+        assert(self.srcdir and self.destdir and self.meta_data)
+
+        tic = time.time()
         self.depth_level = 0
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
+        toc = time.time()
+        logger.critical('Webify took {}'.format(datetime.timedelta(seconds=toc-tic)))
 
 def version_info():
     return 'Webify version %s' % __version__
 
 if __name__ == '__main__':
-    tic = time.time()
-
-    util.terminal = util.Terminal()
+    # util.terminal = util.Terminal()
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
     prog_dir = os.path.dirname(prog_name)
     cur_dir = os.getcwd()
@@ -509,6 +513,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('--debug-html',action='store_true',default=False,help='Turns on html debug messages')
     cmdline_parser.add_argument('--debug-availability',action='store_true',default=False,help='Turns on availability debug messages')
+    cmdline_parser.add_argument('--debug-live',action='store_true',default=False,help='Turns on live run debug messages')
 
     cmdline_parser.add_argument('--show-availability',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored due to availability')
     cmdline_parser.add_argument('--show-not-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is not compiled because it already exists')
@@ -518,11 +523,10 @@ if __name__ == '__main__':
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
 
-
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
-    ignore_times = cmdline_args.ignore_times
+    # ignore_times = cmdline_args.ignore_times
     
     # Setting up logging
     logfile = None if not cmdline_args.log else logfile
@@ -540,30 +544,6 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='dirlist', loglevel=logging.DEBUG if cmdline_args.debug_dirlist else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='availability', loglevel=logging.DEBUG if cmdline_args.debug_availability else loglevel, logfile=logfile)
 
-
-
-    # l = logging.DEBUG if cmdline_args.debug_rc else loglevel
-    # util.WebifyLogger.make(name='rc', loglevel=l, logfile=logfile)
-
-    # l = logging.DEBUG if cmdline_args.debug_db else loglevel
-    # util.WebifyLogger.make(name='db', loglevel=l, logfile=logfile)
-
-    # l = logging.DEBUG if cmdline_args.debug_yaml else loglevel    
-    # util.WebifyLogger.make(name='yaml', loglevel=l, logfile=logfile)
-
-    # l = logging.DEBUG if cmdline_args.debug_render else logging.WARNING    
-    # util.WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
-
-    # # l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
-    # # util.WebifyLogger.make(name='md-file', loglevel=l, logfile=logfile)
-
-    # l = logging.DEBUG if cmdline_args.debug_db_ignore else loglevel
-    # util.WebifyLogger.make(name='db-ignore', loglevel=l, logfile=logfile)
-
-    # l = logging.DEBUG if cmdline_args.debug_webify else loglevel
-    # util.WebifyLogger.make(name='main', loglevel=l, logfile=logfile)
-
-
     util.WebifyLogger.make(name='available', loglevel=logging.INFO if cmdline_args.show_availability else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='not-compiled', loglevel=logging.INFO if cmdline_args.show_not_compiled else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='compiled', loglevel=logging.INFO if cmdline_args.show_compiled else loglevel, logfile=logfile)
@@ -575,7 +555,7 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='md-rc', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-timestamps', loglevel=logging.ERROR, logfile=logfile)
 
-    logger = util.WebifyLogger.get('webify')
+    logger = util.WebifyLogger.get('main')
 
     # Check
     if not cmdline_args.renderer in [None, 'mustache', 'jinja2']:
@@ -588,13 +568,12 @@ if __name__ == '__main__':
     logger.info('Current dir:  %s' % cur_dir)
     logger.info('Info:')
     logger.info(version_info())
-    logger.info('Renderer: %s   ' % cmdline_args.renderer)
+    logger.info('Renderer:     %s' % cmdline_args.renderer)
 
     srcdir = os.path.normpath(cmdline_args.srcdir)
     destdir = os.path.normpath(cmdline_args.destdir)
     
     cur_time = datetime.datetime.now()
-
     meta_data = {
         'prog_name': prog_name,
         'prog_dir': prog_dir.replace('\\','\\\\'), # We need to do it for windows.
@@ -605,17 +584,17 @@ if __name__ == '__main__':
         '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
         '__last_updated__': cur_time.strftime('%Y-%m-%d %H:%M'),
         'renderer': cmdline_args.renderer,
-        'force_copy': cmdline_args.force_copy,
-        '__time__': cur_time
+        '__force_copy__': cmdline_args.force_copy,
+        '__time__': cur_time,
+        '__ignore_times__': cmdline_args.ignore_times
     }
-    
-    if util.WebifyLogger.is_debug(logger):
-        print('Meta data:')
-        pp.pprint(meta_data)
+    logger.debug('Meta data:')
+    logger.debug(pp.pformat(meta_data))
 
     webify = Webify()
     try:
-        webify.set_src(srcdir, meta_data)
+        webify.set_src(srcdir)
+        webify.set_meta_data(meta_data)
     except ValueError as e:
         print(e)
         exit(-1)
@@ -627,13 +606,11 @@ if __name__ == '__main__':
     
     if not cmdline_args.live:
         webify.traverse()
-        toc = time.time()
-
-        print('Webify took {}'.format(datetime.timedelta(seconds=toc-tic)))
-
     else:
-        print('Webifying folder "%s" into "%s"' % (srcdir, destdir))
-        print('Press ctrl-C to exit.')
-        
+        util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+
+        logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
+        logger.critical('Press esc to exit.')
         webify.traverse()
-        w.start(w.RunWebify(webify), os.path.join(cur_dir, srcdir))
+        run.go(webify)
