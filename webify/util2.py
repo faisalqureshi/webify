@@ -15,7 +15,6 @@ import jinja2
 import fnmatch 
 import file_processor 
 
-
 def filter_pandoc(str):
     logger = WebifyLogger.get('mdfile')
     try:

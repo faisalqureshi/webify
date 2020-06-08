@@ -240,6 +240,14 @@ class Webify:
                 pass
             
     def convert_html(self, filename, filepath, output_filepath):
+        if os.path.isfile(output_filepath):
+            if not ignore_times and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
+                if util.WebifyLogger.is_info(self.logger):
+                    util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
+                else:
+                    util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % filepath)
+                return
+
         self.rc.push()
         self.rc.add({'__me__': filename})
 
@@ -247,6 +255,10 @@ class Webify:
         buffer = html_file.load().get_buffer()
         rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
         if util.save_to_file(output_filepath, rendered_buf):
+            if util.WebifyLogger.is_info(self.logger):
+                self.logger.info('    Compiled.')
+            else:
+                util.WebifyLogger.get('compiled').info('Compiled %s to %s' % (filename, output_filepath))
             self.logger.info('    Saved')
         else:
             self.logger.warning('Error saving html file %s' % output_filepath)
