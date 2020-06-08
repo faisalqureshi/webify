@@ -2,7 +2,7 @@ import util2 as util
 import pprint as pp
 import yaml
 import codecs
-from util2 import apply_filter, filter_pandoc
+from util2 import filter_dict, filter_pandoc
 
 
 class YAMLfile:
@@ -20,11 +20,11 @@ class YAMLfile:
         try:
             with codecs.open(self.filepath, 'r') as stream:
                 self.data = yaml.safe_load(stream)
-            self.logger.info('Loaded YAML file: %s' % self.filepath)
+            self.logger.debug('Loaded YAML file: %s' % self.filepath)
 
             self.logger.debug('YAML file contents (before filter application):')
             self.logger.debug(pp.pformat(self.data))
-            self.data = apply_filter(filter_pandoc, self.data)
+            self.data = filter_dict(filter_pandoc, self.data)
         except:
             self.logger.warning('Error loading YAML file: %s' % self.filepath)
             self.data = {}

@@ -12,7 +12,7 @@ class HTMLfile:
         try:
             with codecs.open(self.filepath, 'r', 'utf-8') as stream:
                 self.buffer = stream.read()
-            self.logger.info('Loaded html file: %s' % self.filepath)
+            self.logger.debug('Loaded html file: %s' % self.filepath)
         except:
             self.logger.warning('Error loading file: %s' % self.filepath)
             self.buffer = ''

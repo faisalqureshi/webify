@@ -158,7 +158,7 @@ class Webify:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
             is_available = self.check_availability(filepath, availability)
-            self.capture_dir_listing_information(list_files, filename, is_available, filepath, output_filepath, file_type, obj=None)
+            self.capture_dir_listing_information(list_files, filename, filename, is_available, filepath, output_filepath, file_type, obj=None, data=None)
         return list_files
 
     def capture_list_of_md(self, dir, availability):
@@ -186,17 +186,19 @@ class Webify:
 
             if is_available and loaded_ok and should_process:
                 if md_file.get_value('copy-source'):
-                    self.capture_dir_listing_information(list_files, filename, True, filepath, output_filepath, 'md-src', obj=None)
+                    self.capture_dir_listing_information(list_files, filename, filename, True, filepath, output_filepath, 'md-src', obj=None, data=None)
 
-                self.capture_dir_listing_information(list_files, converted_filename, True, filepath,converted_output_filepath, 'md', obj=md_file)
+                self.capture_dir_listing_information(list_files, filename, converted_filename, True, filepath,converted_output_filepath, 'md', obj=md_file, data=md_file.get_yaml())
             else:
-                self.capture_dir_listing_information(list_files, converted_filename, False, filepath, converted_output_filepath, 'md', obj=None)
+                self.capture_dir_listing_information(list_files, filename, converted_filename, False, filepath, converted_output_filepath, 'md', obj=None, data=None)
 
             self.rc.pop()
         return list_files
 
-    def proc_files(self, dir_list):
+    def proc_files(self, dir, dir_list):
+
         for i in dir_list:
+            src_filename = i['src_filename']
             filename = i['filename']
             filepath = i['filepath']
             is_available = i['is_available']
@@ -204,13 +206,18 @@ class Webify:
             file_type = i['file_type']
 
             if not is_available:
-                util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
-                self.logger.info('Deleting %s' % output_filepath)
+                if util.WebifyLogger.is_info(self.logger):
+                    self.logger.info('x: %s' % filename) 
+                else:
+                    util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
                 x, m = util.remove_file(output_filepath)
-                if not x:
+                if x:
+                    self.logger.info('   Removed %s' % output_filepath)
+                else:
                     util.WebifyLogger.get('available').warning('%s: (%s)' % (m, output_filepath))
                 continue
 
+            self.logger.info('x: %s -> %s' % (src_filename, filename))
             if file_type == 'html':
                 self.convert_html(filename, filepath, output_filepath)
             elif file_type == 'misc':
@@ -245,7 +252,7 @@ class Webify:
         buffer = html_file.load().get_buffer()
         rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
         if util.save_to_file(output_filepath, rendered_buf):
-            self.logger.info('Saved html file %s' % output_filepath)
+            self.logger.info('   Saved')
         else:
             self.logger.warning('Error saving html file %s' % output_filepath)
 
@@ -271,9 +278,15 @@ class Webify:
 
         status, saved_file, _ = md_file_obj.convert(self.rc)
         if status == 'file':
-            util.WebifyLogger.get('compiled').info('Saved %s to %s' % (md_file_obj.get_filename(), saved_file))
+            if util.WebifyLogger.is_info(self.logger):
+                self.logger.info('   Compiled.')
+            else:
+                util.WebifyLogger.get('compiled').info('Compiled %s to %s' % (md_file_obj.get_filename(), saved_file))
         elif status == 'exists':
-            util.WebifyLogger.get('not-compiled').info('Already exists (did not compile) %s' % filepath)
+            if util.WebifyLogger.is_info(self.logger):
+                util.WebifyLogger.get('not-compiled').info('   Destination file already exists.  Did not compile.')
+            else:
+                util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % filepath)
         else:
             saved_file = None
             self.logger.warning('Error processing %s' % filepath)
@@ -313,15 +326,18 @@ class Webify:
     #             util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
     #             util.remove_file(output_filepath)
 
-    def capture_dir_listing_information(self, list_files, filename, is_available, filepath, output_filepath, file_type, obj):
+    def capture_dir_listing_information(self, list_files, filename, converted_filename, is_available, filepath, output_filepath, file_type, obj, data):
         entry = {
-            'filename': filename,
+            'src_filename': filename,
+            'filename': converted_filename,
             'is_available': is_available,
             'filepath': filepath,
             'output_filepath': output_filepath,
             'file_type': file_type,
-            'obj': obj
+            'obj': obj,
+            'data': data
         }
+        self.logger.info('%s: %s' % ('+' if is_available else '-', filename))
         list_files.append(entry)
 
     def make_src_filepath(self, dir, filename):
@@ -338,7 +354,10 @@ class Webify:
             logger.warning('%s (%s)' % (filepath, s))
         else:
             if s == 'Exists':
-                util.WebifyLogger.get('not-copied').info('Already exists (did not copy) %s' % filepath)        
+                if util.WebifyLogger.is_info(self.logger):
+                    util.WebifyLogger.get('not-copied').info('   Destination file already exists.  Did not copy.')
+                else:
+                    util.WebifyLogger.get('not-copied').info('Did not copy.  Destination file already exists.  (%s)' % filepath)        
 
     # def proc_misc(self, dir, availability):
     #     if len(dir.files['misc']) > 0:
@@ -438,9 +457,11 @@ class Webify:
         list_misc = self.capture_list_of(dir, availability, 'misc')
         dirlist_logger.debug(pp.pformat(self.dir_stack.top()))
 
-        self.proc_files(list_html)
-        self.proc_files(list_md)
-        self.proc_files(list_misc)
+        if len(list_misc) > 0 or len(list_md) > 0 or len(list_html) > 0:
+            self.logger.info('Saving files to %s' % self.make_output_filepath(dir, ''))
+            self.proc_files(dir, list_html)
+            self.proc_files(dir, list_md)
+            self.proc_files(dir, list_misc)
 
         self.dir_stack.top()[1].extend(list_html)
         self.dir_stack.top()[1].extend(list_md)
@@ -472,18 +493,21 @@ class Webify:
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
 
+# def version_info():
+#     str =  '  Webify2:    %s,\n' % __version__
+#     str += '  logfile:    %s,\n' % logfile 
+#     str += '  ignorefile: %s,\n' % ignorefile
+#     str += '  Git info:   %s,\n' % util.get_gitinfo()
+#     str += '  Python:     %s.%s,\n' % (sys.version_info[0],sys.version_info[1])
+#     str += '  Pypandoc:   %s,\n' % pypandoc.__version__
+#     str += '  Pyyaml:     %s,\n' % yaml.__version__
+#     str += '  Pystache:   %s,\n' % pystache.__version__
+#     str += '  Json:       %s, and\n' % json.__version__
+#     str += '  Pathspec:   %s.' % pathspec.__version__
+#     return str
+
 def version_info():
-    str =  '  Webify2:    %s,\n' % __version__
-    str += '  logfile:    %s,\n' % logfile 
-    str += '  ignorefile: %s,\n' % ignorefile
-    str += '  Git info:   %s,\n' % util.get_gitinfo()
-    str += '  Python:     %s.%s,\n' % (sys.version_info[0],sys.version_info[1])
-    str += '  Pypandoc:   %s,\n' % pypandoc.__version__
-    str += '  Pyyaml:     %s,\n' % yaml.__version__
-    str += '  Pystache:   %s,\n' % pystache.__version__
-    str += '  Json:       %s, and\n' % json.__version__
-    str += '  Pathspec:   %s.' % pathspec.__version__
-    return str
+    return 'Webify version %s' % __version__
 
 if __name__ == '__main__':
 
@@ -511,7 +535,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-yaml',action='store_true',default=False,help='Turns on yaml debug messages')
     cmdline_parser.add_argument('--debug-render',action='store_true',default=False,help='Turns on render debug messages')
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
-    cmdline_parser.add_argument('--debug-webify',action='store_true',default=False,help='Turns on webify debug messages')
+    cmdline_parser.add_argument('--debug-html',action='store_true',default=False,help='Turns on html debug messages')
 
     cmdline_parser.add_argument('--show-availability',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored due to availability')
     cmdline_parser.add_argument('--show-not-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is not compiled because it already exists')
@@ -530,44 +554,47 @@ if __name__ == '__main__':
     # Setting up logging
     logfile = None if not cmdline_args.log else logfile
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
-    loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
-    util.WebifyLogger.make(name='html', loglevel=loglevel, logfile=logfile)    
+    loglevel = logging.DEBUG if cmdline_args.debug else loglevel
+    
+    util.WebifyLogger.make(name='main', loglevel=loglevel, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_rc else loglevel
-    util.WebifyLogger.make(name='rc', loglevel=l, logfile=logfile)
+    util.WebifyLogger.make(name='html', loglevel=logging.DEBUG if cmdline_args.debug_html else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='rc', loglevel=logging.DEBUG if cmdline_args.debug_rc else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='db', loglevel=logging.DEBUG if cmdline_args.debug_db else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='yaml', loglevel=logging.DEBUG if cmdline_args.debug_yaml else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='render', loglevel=logging.DEBUG if cmdline_args.debug_render else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='db_ignore', loglevel=logging.DEBUG if cmdline_args.debug_db_ignore else loglevel, logfile=logfile)    
+    util.WebifyLogger.make(name='dirlist', loglevel=logging.DEBUG if cmdline_args.debug_dirlist else loglevel, logfile=logfile)    
 
-    l = logging.DEBUG if cmdline_args.debug_db else loglevel
-    util.WebifyLogger.make(name='db', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_yaml else loglevel    
-    util.WebifyLogger.make(name='yaml', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_render else logging.WARNING    
-    util.WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_rc else loglevel
+    # util.WebifyLogger.make(name='rc', loglevel=l, logfile=logfile)
 
-    # l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
-    # util.WebifyLogger.make(name='md-file', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_db else loglevel
+    # util.WebifyLogger.make(name='db', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_db_ignore else loglevel
-    util.WebifyLogger.make(name='db-ignore', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_yaml else loglevel    
+    # util.WebifyLogger.make(name='yaml', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_webify else loglevel
-    util.WebifyLogger.make(name='main', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_render else logging.WARNING    
+    # util.WebifyLogger.make(name='render', loglevel=l, logfile=logfile)
 
-    l = logging.DEBUG if cmdline_args.debug_dirlist else loglevel
-    util.WebifyLogger.make(name='dirlist', loglevel=l, logfile=logfile)
+    # # l = logging.DEBUG if cmdline_args.debug_md else logging.WARNING  
+    # # util.WebifyLogger.make(name='md-file', loglevel=l, logfile=logfile)
 
-    l = logging.INFO if cmdline_args.show_availability else loglevel
-    util.WebifyLogger.make(name='available', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_db_ignore else loglevel
+    # util.WebifyLogger.make(name='db-ignore', loglevel=l, logfile=logfile)
 
-    l = logging.INFO if cmdline_args.show_not_compiled else loglevel
-    util.WebifyLogger.make(name='not-compiled', loglevel=l, logfile=logfile)
+    # l = logging.DEBUG if cmdline_args.debug_webify else loglevel
+    # util.WebifyLogger.make(name='main', loglevel=l, logfile=logfile)
 
-    l = logging.INFO if cmdline_args.show_compiled else loglevel
-    util.WebifyLogger.make(name='compiled', loglevel=l, logfile=logfile)
 
-    l = logging.INFO if cmdline_args.show_ignored else loglevel
-    util.WebifyLogger.make(name='ignored', loglevel=l, logfile=logfile)
+    util.WebifyLogger.make(name='available', loglevel=logging.INFO if cmdline_args.show_availability else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='not-compiled', loglevel=logging.INFO if cmdline_args.show_not_compiled else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='compiled', loglevel=logging.INFO if cmdline_args.show_compiled else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='ignored', loglevel=logging.INFO if cmdline_args.show_ignored else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='not-copied', loglevel=logging.INFO if cmdline_args.show_not_copied else loglevel, logfile=logfile)
 
     util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-buffer', loglevel=logging.ERROR, logfile=logfile)

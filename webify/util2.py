@@ -32,18 +32,18 @@ def filter_pandoc(str):
         logger.warning('Error applying pandoc filter on key %s' % str[7:])
     return str
 
-def apply_filter(filter, data):
+def filter_dict(filter, data):
     if not data:
         return None
     if isinstance(data, dict):
         for key, value in data.items():
-            retval = apply_filter(filter, value)
+            retval = filter_dict(filter, value)
             if retval:
                 data[key] = retval
         return data
     if isinstance(data, list):
         for i in range(len(data)):
-            retval = apply_filter(filter, data[i])
+            retval = filter_dict(filter, data[i])
             if retval:
                 data[i] = retval
         return data
@@ -226,11 +226,27 @@ class WebifyLogger:
             return False
 
     @staticmethod
+    def is_info(logger):
+        try:
+            return logger.handlers[0].level <= logging.INFO
+        except:
+            return False
+
+    @staticmethod
+    def is_info_name(name):
+        try:
+            logger = WebifyLogger.get(name)
+            return logger.handlers[0].level <= logging.INFO
+        except:
+            return False
+
+    @staticmethod
     def is_debug(logger):
         try:
             return logger.handlers[0].level <= logging.DEBUG
         except:
             return False
+
 
 class Terminal:
     def __init__(self):

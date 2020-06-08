@@ -825,7 +825,6 @@ if __name__ == '__main__':
     
     # Setting up logging
     logfile = None if not cmdline_args.log else __logfile__
-
     loglevel = logging.INFO  if cmdline_args.verbose else logging.WARNING
     loglevel = logging.DEBUG if cmdline_args.debug   else loglevel
     logger = util.WebifyLogger.make(name='main', loglevel=loglevel, logfile=logfile)
