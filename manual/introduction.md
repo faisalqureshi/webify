@@ -517,6 +517,8 @@ The type of the media files (images or videos) will determine which template (`h
 
 Check `python mdfile2.py --help` and `python webify2.py --help` for usage and available command line options.
 
+Use the `--live` option to keep it active in the background.  (This is still somewhat experimental.)  In live view, enter 'h' to see the available options.
+
 The following commandline options, which are available for *webify*, are particularly useful for printing diagnostic information during executation.
 
 - `--show-availability`: list files that were not processed due to availability constraints
@@ -530,7 +532,7 @@ By default webify only shows *warnings* or *errors*.  Use `--verbose` flag to tu
 # Copyright
 
 Faisal Qureshi    
-Associate Professor
+Associate Professor  
 Computer Science     
 Faculty of Science     
 Ontario Tech University     
