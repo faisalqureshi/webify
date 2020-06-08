@@ -23,17 +23,17 @@ I was aware of the LaTeX ecosystem for creating technical documentation.  I have
 
 - [Markdown](http://johnmacfarlane.net) is a lightweight text markup language, which can be used to specify simple formatting instructions.  A number of markdown extensions also support mathematical notations using LaTeX and code blocks.  
 
-- [Pandoc](https://pandoc.org/index.html) is a document conversion utility written by [John MacFarlane](http://johnmacfarlane.net).  Pandoc supports conversion between a wide variety of markdown languages.  Most importantly for me, pandoc can convert markdown documents to HTML and PDF.  Pandoc uses a number of typesetting engines, including pdflatex, xelatex, and lualatex, to convert markdown documents into PDF, and pandoc is able to create both LaTeX-type articles and beamer-style presentations from markdown documents.  In addition, pandoc supports markdown code-listing and LaTeX mathematical notation extensions.
+- [Pandoc](https://pandoc.org/index.html) is a document conversion utility written by [John MacFarlane](http://johnmacfarlane.net).  Pandoc supports conversion from/to a document written in markdown to other popular formats, including html, LaTeX, beamer slides, Microsoft Word, etc.  Most importantly for me, pandoc can convert markdown documents to HTML and PDF.  Pandoc uses a number of typesetting engines, including pdflatex, xelatex, and lualatex, to convert markdown documents into PDF, and pandoc is able to create both LaTeX-type articles and beamer-style presentations from markdown documents.  In addition, pandoc supports markdown code-listing and LaTeX mathematical notation extensions.
 
-I decided to go with markdown+pandoc combination.  From henceforth I will develop my course content in markdown, and I would use pandoc to convert my notes into the desired format (html, LaTeX articles, or a beamer slides).  This combination, I felt, met my requirement of using plain text to create course content.
+I decided to go with markdown+pandoc combination.  *From henceforth I shall develop my course content in markdown, and I would use pandoc to convert my notes into the desired format (html, LaTeX articles, or a beamer slides)*.  This combination, I felt, met my requirement of using plain text to create course content.
 
 # Webify Python Utility
 
-This led me to develop `webify`.  A python utility to create blog aware, static websites from plain text.  Webify "duplicates" each file found in the source directory at the destination directory according to the following three rules:
+This led me to develop `webify`.  A python utility to create blog aware, static websites from plaintext.  Webify "duplicates" each file found in the source directory at the destination directory according to the following three rules:
 
 - A markdown file is converted to the desired format using pandoc utility.  Currently, webify supports markdown-to-html, markdown-to-LaTeX-article (pdf), and beamer-slideshow (pdf) conversions.  When markdown file is converted to html, the process also allows for the possibility of consuming markdown contents within a [mustache](https://mustache.github.io) or [jinja](https://jinja.palletsprojects.com/en/2.11.x/) template.
 
-- An html file is processed using mustache or jinja templating engines.
+- An html file is processed through mustache or jinja templating engine.
 
 - All other files are copied as is.
 
@@ -47,7 +47,7 @@ In case of key collisions, the following preference ordering is used: A < C < F.
 
 ![Figure 1: Rendering context construction for markdown and HTML files](rc.png)
 
-Webify is similar to [Jekyll](https://jekyllrb.com) in many respects.  However, there is a key difference.  Webify supports plaintext to LaTeX articles and Beamer slideshow conversion.  I did not find a straightforward way to accomplish this when I played around with Jekyll.  To be fair, webify doesn't provide a *liveview* option that is available in jekyll.  In addition, webify currently has a rather basic support for blogging.
+Webify is similar to [Jekyll](https://jekyllrb.com) in many respects.  However, there is a key difference.  Webify supports plaintext to LaTeX articles and Beamer slideshow conversion.  I did not find a straightforward way to accomplish this when I played around with Jekyll.  
 
 ## The rendering context
 
@@ -110,9 +110,9 @@ __last_updated__: yyyy-MM-dd hh:mm
 
 ### Mustache vs Jinja Rendering
 
-Jinja is a full-featured template engine for Python.  Mustache on the other hand is a logic-less templating engine.  Mustache is much easier to use; however, it cannot really be used in complicated settings that require some sort of logic to be executed.  
+Jinja is a full-featured templating engine for Python.  Mustache on the other hand is a logic-less templating engine.  Mustache is much easier to use; however, it cannot really be used in complicated settings that require some sort of logic to be executed.  
 
-The most important thing to keep in mind is that while mustache can deal with keys with dashes (`-`). jinja cannot.  If you want to use keys in a jinja template, use underscore instead (`_`).
+The most important thing to keep in mind is that while mustache can deal with keys with dashes (`-`); where as, jinja cannot.  If you want to use keys in a jinja template, use underscore instead (`_`).
 
 For example:
 
@@ -128,11 +128,11 @@ object_id: 9
 
 which can be used in jinja template using `{{object_id}}`.
 
-Aside: you'll notice that both webify and mdfile use dashes (`-`) for certain keys internally.  This is intentional.  I find dashes (`-`) to be more readable.  Internal keys that are available to be used rendering start with a double underscore `__`.
+Aside: you'll notice that both webify and mdfile use dashes (`-`) for certain keys internally.  This is intentional.  I find dashes (`-`) to be more readable.  Internal keys that are available to be used during rendering start with a double underscore `__`.
 
 ## The `_partials` folder
 
-Each time webify processes a folder, it first looks whether or not the folder contains a sub-folder, called `_partials`.  If a `_partials` sub-folder is found, then items within this folder are processed.  Items within the `_partials` sub-folder are added to the rendering context for its parent folder.  This allows a mechanism to create common web-snippets, such as headers, footers, and navigation items, that can be used in any file that is stored in this (the parent) folder or one of its sub-folders.
+Each time webify processes a folder, it first looks whether or not the folder contains a sub-folder, called `_partials`.  If a `_partials` sub-folder is found, then items within this folder are processed.  Items within the `_partials` sub-folder are added to the rendering context for its parent folder.  This allows a mechanism to create common web-snippets, such as headers, footers, and navigation items, that can be used in any file that is stored in this (the parent of `_partials`) folder or one of its sub-folders.
 
 Consider the following situation.
 
@@ -209,7 +209,7 @@ availability:
 
 Note that availability information is folder specific, and it only applies to files present in that folder.  Files for which no availability information is specified are always available.  In the above example, `file1.md` will only be available between 12 am, June 22 and 6 pm June 23.  `file2.html` will be available after 12 pm June 4.  Similary `file3.png` will be available before 11:59 pm May 31, 2020.
 
-Note also that if you are not running webify in the background, you will have to periodically run it for any changes to take effect.
+Note also that if you are not running webify in the background (check out the `--live` option), you will have to periodically run it for any changes to take effect.
 
 In addition also note that webify currently doesn't support timezone aware time processing.
 
@@ -296,13 +296,13 @@ Regards.
 If the rendering context contains 
 
 ```txt
-name: John
+name: Marie
 ```
 
 then the file contents will become
 
 ```txt
-Dear John:
+Dear Marie:
 
 Please check out webify [here](https://github.com/faisalqureshi/webify).
 
@@ -315,51 +315,44 @@ Use the `preprocess-buffer` to control this behavior.  The default value for thi
 
 ## Blogging
 
-Webify version > 3.1 supports blogging.  When blogging is enabled for a folder, all markdown files in this folder and all its descended sub-folders are collected and added to a blogging rendering context.  A special blog index markdown file is processed last, and the blogging rendering context is available to create a blog index.
+Webify version > 3.1 supports blogging by adding the following special keys to the rendering context.  Each key contains file lists that can be used within a jinja template to construct a blog index page.  
 
-Consider the following `blog.yaml` file that sits in folder `blog-example`
+- `__md__`: list of markdown files found in the current folder
+- `__html__`: list of html files found in the current folder
+- `__misc__`: list of all other files found in the current folder
+- `__files__`: list of all files found in the current folder and all its descendent trees.
 
-```txt
----
-blog-index: index.md
-blot_title: An example blog
+Each file object in these lists contains the following keys:
+
+- `src_filename`
+- `filename`
+- `is_available`
+- `filepath`
+- `output_filepath`
+- `file_type`
+- `obj`
+- `data`
+- `ext`
+
+The relevant keys for constructing a blog index are: `filename` and `is_available`.  `data` key allows one to look into the yaml front matter for any markdown file.  This field can be used to get information about the markdown file, such as title, author, date, etc.
+
+Any html or markdown file can use these lists to construct blog index pages.  A special key `__me__` identifies this markdown or html file.  The following jinja snippet, for example, constructs a simple blog index.
+
+```jinja
+{% for post in __md__ %}
+    {% if (post.is_available and __me__ != post.filename and post.ext != ".md" ) %}
+    <li><a href="{{ post.filename }}">{{ post.filename }}</a></li>
+    {% endif %}
+{% endfor %}
 ```
 
-This file indicates that folder `blog-example` sets up a blog.  It also identifies a markdown file that will serve as the blog index.  All other markdown files in this folder and in all its descendent folders will be posts.  The contents of `index.md` file are:
+## Live view
 
-```python
----
-render: "{{__root__}}/_templates/simple_blog.jinja"
+It is possible to run webify in the background.  This combined with `<meta http-equiv="refresh" content="5">` in the header of the generated html files creates a live view environment that is easy to use.  Check out the `--live` switch.
 
----
-
+```bash
+webify.bat --live src-folder destination-folder
 ```
-
-In this case the `index.md` file simply identifies the jinja template shown below:
-
-```jinja2
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-  </head>
-  <body>
-    <div class="container">
-        <h1>{{ blog_title }}</h1>
-
-        <h2>Posts</h2>
-
-        <ul>
-            {% for post in __blog_posts__ %}
-                <li><a href="{{ post.link }}">{{ post.title }}</a></li>
-            {% endfor %}
-        </ul>
-
-    </div>
-  </body>
-</html>
-```
-
-Webify will process markdown files in folder `blog-example` and all its descendent folders and set up the rendering context that can be used when generating blog index as shown above.  Check [here](blog-example/index.html) for an example blog.
 
 ## MDFile Python Utility
 
@@ -537,7 +530,8 @@ By default webify only shows *warnings* or *errors*.  Use `--verbose` flag to tu
 # Copyright
 
 Faisal Qureshi    
-Associate Professor Computer Science     
+Associate Professor
+Computer Science     
 Faculty of Science     
 Ontario Tech University     
 Oshawa ON L1C OG5     

@@ -410,7 +410,7 @@ class MDfile:
             files.append(template_file)
         elif self.get_standalone_html():
             logger_file.info('Using default pandoc template for "html" format')
-            pdoc_args.add_flag('standalone')            
+            pdoc_args.add_flag('standalone')
         else:
             logger_file.info('Not using any pandoc template for "html" format')
 
@@ -499,6 +499,11 @@ class MDfile:
         cwd = os.getcwd()
         os.chdir(self.rootdir)
     
+        logger_pandoc = util.WebifyLogger.get('pandoc')
+        logger_pandoc.debug("output format: %s" % output_format)
+        logger_pandoc.debug("pandoc args:")
+        logger_pandoc.debug(pp.pformat(pandoc_args))
+
         try:
             ret_val = pypandoc.convert_text(self.buffer, to=output_format, format='md', outputfile=output_filepath, extra_args=pandoc_args)
             ret_val = output_filepath if output_filepath else ret_val
@@ -796,6 +801,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-render', action='store_true', default=False, help='Debug messages regarding template rendering.')
     cmdline_parser.add_argument('--debug-timestamps', action='store_true', default=False, help='Debug messages regarding file timestamps.')
     cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug messages regarding yaml front matter and rendering context.')
+    cmdline_parser.add_argument('--debug-pandoc', action='store_true', default=False, help='Debug messages regarding pandoc.')
     
     cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
     cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
@@ -834,6 +840,7 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='md-file',       loglevel=logging.DEBUG if cmdline_args.debug_file else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='md-timestamps', loglevel=logging.DEBUG if cmdline_args.debug_timestamps else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='md-buffer',     loglevel=logging.DEBUG if cmdline_args.debug_buffer else logging.WARNING, logfile=logfile)
+    util.WebifyLogger.make(name='pandoc',     loglevel=logging.DEBUG if cmdline_args.debug_pandoc else loglevel, logfile=logfile)
     
     # Go
     logger.info('mdfile version %s' % version_info())
@@ -919,7 +926,7 @@ if __name__ == '__main__':
                'output-fileext': output_fileext,
                'output-filepath': output_filepath,
                'create-output-file': False if cmdline_args.do_not_create_output_file else None,
-               'standalone-html': cmdline_args.standalone_html }
+               'standalone-html': None if not cmdline_args.standalone_html else cmdline_args.standalone_html}
 
     logger.debug('args:')
     logger.debug(pp.pformat(args))    

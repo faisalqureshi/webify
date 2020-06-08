@@ -559,7 +559,7 @@ if __name__ == '__main__':
 
     # Check
     if not cmdline_args.renderer in [None, 'mustache', 'jinja2']:
-        logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateing_engine)
+        logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateqing_engine)
         exit(-4)
         
     # Go        
@@ -611,6 +611,6 @@ if __name__ == '__main__':
         util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
-        logger.critical('Press esc to exit.')
+        logger.critical('Press q to exit.')
         webify.traverse()
         run.go(webify)
