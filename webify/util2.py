@@ -103,71 +103,43 @@ def remove_file(filepath):
 
     return False, 'Deletion failed'
 
-def render(filepath, context, renderer):
+def render(renderer, render_filepath, context, src_filepath):
     logger = WebifyLogger.get('render')
     try:
-        with codecs.open(filepath, 'r', 'utf-8') as stream:
+        with codecs.open(render_filepath, 'r', 'utf-8') as stream:
             template = stream.read()
-            logger.debug('Loaded render file: %s' % filepath)
+            logger.debug('Loaded render file:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
     except:
-        logger.warning('Cannot load render file: %s' % filepath)
+        logger.debug('Error loading render file:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
         return ''
 
-    return renderer(template, context, filepath)
+    return renderer(template, render_filepath, context, src_filepath)
 
-def jinja2_renderer(template, context, file_info):
+def jinja2_renderer(template, render_filepath, context, src_filepath):
     logger = WebifyLogger.get('render')
-
-    # if WebifyLogger.is_debug(logger):
-    #     print('Template:')  
-    #     print(template)
-    #     print('Context:')
-    #     pp.pprint(context)
-
-    #rendered_buf = Template(template).render(context)
 
     try:
         rendered_buf = jinja2.Template(template).render(context)
-        logger.debug('Success jinja2 render: %s' % file_info)
+        logger.debug('Success jinja2 render:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
     except jinja2.exceptions.TemplateSyntaxError as e:
-        logger.warning('Error jinja2 render: %s\n%s' % (file_info, e))
-        if WebifyLogger.is_debug(logger) or True:
-            print('Template:')
-            print(template)
-            #print('Context:')
-            #pp.pprint(context)
+        logger.warning('Error jinja2 render:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
+        logger.debug('Template:')
+        logger.debug(template)
         rendered_buf = template
-
-    # if WebifyLogger.is_debug(logger):
-    #     print('Rendered Buf')
-    #     print(rendered_buf)
 
     return rendered_buf
 
-def mustache_renderer(template, context, file_info):
+def mustache_renderer(template, render_filepath, context, src_filepath):
     logger = WebifyLogger.get('render')
-
-    # if WebifyLogger.is_debug(logger):
-    #     print('Template:')  
-    #     print(template)
-    #     print('Context:')
-    #     pp.pprint(context)
 
     try:
         rendered_buf = pystache.render(template, context)
-        logger.debug('Success pystache render: %s' % file_info)        
+        logger.debug('Success mustache render:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
     except:
-        logger.warning('Error pystache render: %s' % file_info)
-        if WebifyLogger.is_debug(logger):
-            print('Template:')
-            print(template)
-            # print('Context:')
-            # pp.pprint(context)
+        logger.warning('Error mustache render:\n  src:    %s\n  render: %s' % (src_filepath, render_filepath))
+        logger.debug('Template:')
+        logger.debug(template)
         rendered_buf = template
-
-    # if WebifyLogger.is_debug(logger):
-    #     print('Rendered Buf')
-    #     print(rendered_buf)
 
     return rendered_buf
 

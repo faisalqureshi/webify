@@ -119,7 +119,7 @@ class Webify:
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 html_file = HTMLfile(filepath)
                 buffer = html_file.load().get_buffer()
-                rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
+                rendered_buf = self.render(template=buffer, render_filepath=filepath, context=self.rc.data(), src_filepath=filepath)
                 data[filename.replace('.','_')] = markupsafe.Markup(rendered_buf)
 
             # Load Markdown
@@ -254,7 +254,7 @@ class Webify:
 
         html_file = HTMLfile(filepath)
         buffer = html_file.load().get_buffer()
-        rendered_buf = self.render(template=buffer, context=self.rc.data(), file_info=filepath)
+        rendered_buf = self.render(template=buffer, render_filepath=filepath, context=self.rc.data(), src_filepath=filepath)
         if util.save_to_file(output_filepath, rendered_buf):
             if util.WebifyLogger.is_info(self.logger):
                 self.logger.info('    Compiled.')

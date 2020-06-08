@@ -259,7 +259,7 @@ class MDfile:
             logger_file.info('Preprocessing YAML front matter via mustache')
             try:
                 yaml_str = yaml.dump(self.get_yaml())
-                s = util.mustache_renderer(yaml_str, rc.data(), self.filepath)
+                s = util.mustache_renderer(template=yaml_str, render_filepath=self.filepath, context=rc.data(), src_filepath=self.filepath)
                 self.set_yaml(yaml.safe_load(s))
             except:
                 self.logger.warning('Failed: preprocessing YAML front matter via mustache')
@@ -457,7 +457,7 @@ class MDfile:
 
         if self.get_preprocess_buffer(): 
             logger_file.info('Preprocessing markdown buffer using mustache')
-            self.buffer = util.mustache_renderer(self.buffer, rc.data(), self.filepath)
+            self.buffer = util.mustache_renderer(template=self.buffer, render_filepath=self.filepath, context=rc.data(), src_filepath=self.filepath)
         
         pdoc_args.add('highlight-style', self.get_highlight_style())
         pdoc_args.add_flag('mathjax')
@@ -475,7 +475,7 @@ class MDfile:
             rc.add({'body': markupsafe.Markup(r[1])})
             renderer_name, render_engine = self.get_renderer()
             logger_file.info('Using renderer: %s' % renderer_name)
-            buffer = util.render(render_file, rc.data(), render_engine)
+            buffer = util.render(render_engine, render_file, rc.data(), self.filepath)
         else:
             buffer = markupsafe.Markup(r[1])
 

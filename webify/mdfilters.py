@@ -60,7 +60,7 @@ class HTML_Filter:
     def is_video(self, filename):
         return filename.lower().endswith(self.vid_ext)
 
-    def apply(self, buffer, file_info):
+    def apply(self, buffer, src_filepath):
         assert(buffer)
 
         i = 0
@@ -91,7 +91,7 @@ class HTML_Filter:
                     context['type'] = 'video'
                 else:
                     template = None
-                    self.logger.warning('Invalid media type: "%s" in %s' % (filename, file_info))
+                    self.logger.warning('Invalid media type: "%s" in %s' % (filename, src_filepath))
             else:
                 if self.is_image(mm[0]):
                     template = self.img_grid_template
@@ -107,12 +107,12 @@ class HTML_Filter:
 
                     if not (self.is_image(filename) or self.is_video(filename)):
                         template = None
-                        self.logger.warning('Invalid media file: "%s" in %s' % (filename, file_info))
+                        self.logger.warning('Invalid media file: "%s" in %s' % (filename, src_filepath))
                         break
 
             if template:
                 try:
-                    r = util.mustache_renderer(template, context, file_info)
+                    r = util.mustache_renderer(template=template, render_filepath=src_filepath, context=context, src_filepath=src_filepath)
                     self.logger.debug('Applying HTML Media Filter to object %s' % buffer[s:e])
                 except:
                     self.logger.warning('Cannot apply HTML Media Filter to object %s' % buffer[s:e])
