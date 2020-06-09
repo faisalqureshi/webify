@@ -2,6 +2,7 @@
 to: html
 copy-source: True
 ignore: False
+standalone: True
 
 ---
 

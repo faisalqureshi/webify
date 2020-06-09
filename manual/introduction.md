@@ -165,7 +165,7 @@ _templates
 
 ## Copying source markdown files to the destination
 
-Webify's default behavior is to process markdown files to create 1) LaTeX articles, 2) beamer slides, or 3) html pages.  This means that webify does not copy the source markdown file to the destination.  E.g., a markdown files `example.md` will be appear as either `example.pdf` (cases 1 and 2) or `example.html` (case 3) at the destination location.  Sometimes however it is desireable to copy the source markdown file to the destination location.  This can be achieved by using the `copy-source` flag in the yaml front matter as follows.
+Webify's default behaviour is to process markdown files to create 1) LaTeX articles, 2) beamer slides, or 3) html pages.  This means that webify does not copy the source markdown file to the destination.  E.g., a markdown files `example.md` will be appear as either `example.pdf` (cases 1 and 2) or `example.html` (case 3) at the destination location.  Sometimes however it is desirable to copy the source markdown file to the destination location.  This can be achieved by using the `copy-source` flag in the yaml front matter as follows.
 
 ```txt
 ---
@@ -175,7 +175,7 @@ copy-source: True
 File contents ...
 ```
 
-The [markdown source](lorem-html.md) for this [html](lorem-html.html) file was copied using this mechanism.  Without this flag, `lorem-html.md` will not be available in the desitnation folder.
+The [markdown source](lorem-html.md) for this [html](lorem-html.html) file was copied using this mechanism.  Without this flag, `lorem-html.md` will not be available in the destination folder.
 
 ## Ignoring markdown files
 
@@ -207,7 +207,7 @@ availability:
     end: 31 May 2020 11:59 pm
 ```
 
-Note that availability information is folder specific, and it only applies to files present in that folder.  Files for which no availability information is specified are always available.  In the above example, `file1.md` will only be available between 12 am, June 22 and 6 pm June 23.  `file2.html` will be available after 12 pm June 4.  Similary `file3.png` will be available before 11:59 pm May 31, 2020.
+Note that availability information is folder specific, and it only applies to files present in that folder.  Files for which no availability information is specified are always available.  In the above example, `file1.md` will only be available between 12 am, June 22 and 6 pm June 23.  `file2.html` will be available after 12 pm June 4.  Similarly `file3.png` will be available before 11:59 pm May 31, 2020.
 
 Note also that if you are not running webify in the background (check out the `--live` option), you will have to periodically run it for any changes to take effect.
 
@@ -279,7 +279,7 @@ This is a markdown file.
 
 A typical use of mustache preprocessing is to specify site-wide template or render files.  This can be achieved by specifying the paths of these files with respect to the root folder of the site. 
 
-Use the `preprocess-frontmatter` to control this behavior.  The default value for this key is `True`.
+Use the `preprocess-frontmatter` to control this behaviour.  The default value for this key is `True`.
 
 ## Markdown file contents: mustache preprocessing
 
@@ -433,7 +433,7 @@ availability:
 ```
 
 - `*` next to a value indicates the default value.
-- If `template` is not provided, default pandoc template is used.   Use `pandoc -D html5` to see the default templatze.
+- If `template` is not provided, default pandoc template is used.   Use `pandoc -D html5` to see the default template.
 - If `create-output-file` is `False`, markdown contents are saved to a buffer.  This functionality is used in `webify` during `_partials` folder processing. 
 - Yaml front matter is only preprocessed via mustache if `preprocess-frontmatter` is `True`.
 - Media filters tags `html-img`, `html-imgs`, `html-vid` and `html-vids` specify mustache templates to override the default conversion of markdown media tag `![Caption](Image or Video file)`.  See below for more details.  Supported file extensions are `mp4`, `png`, `jpeg`, `gif` and `jpg`.
@@ -454,7 +454,7 @@ Markdown supports adding an image (or possibly a video) file to the document via
 ![Caption](Media file)
 ```
 
-It is often desireable to control how media is displayed.  Use `html-img`, `html-imgs`, `html-vid` and `html-vids` tags to specify mustache templates that will replace the `![Caption](Media file)` with html code before further processing via mustache or pandoc.  Check out `webify/mdfilter` folder for example templates.
+It is often desirable to control how media is displayed.  Use `html-img`, `html-imgs`, `html-vid` and `html-vids` tags to specify mustache templates that will replace the `![Caption](Media file)` with html code before further processing via mustache or pandoc.  Check out `webify/mdfilter` folder for example templates.
 
 MDfile utility will consume the `![Caption](Media file)` and constructs the following rendering context that will be available for the mustache template that will replace this string with HTML code.
 
@@ -493,7 +493,7 @@ The type of the media files (images or videos) will determine which template (`h
 2. Install [Pandoc](https://pandoc.org/installing.html)
 3. Optionally install pandoc's cite-proc citation parser
 4. Get [Webify](https://github.com/faisalqureshi/webify)
-5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environemnt.  See [here](https://docs.python.org/3/library/venv.html) for more details.
+5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
 
 ## Windows
@@ -510,7 +510,7 @@ The type of the media files (images or videos) will determine which template (`h
 1. `sudo apt-get install texlive-full`
 2. `sudo apt-get install pandoc`
 3. Get [Webify](https://github.com/faisalqureshi/webify)
-4. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environemnt.  See [here](https://docs.python.org/3/library/venv.html) for more details.
+4. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 5. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
 
 ## Usage
@@ -519,7 +519,7 @@ Check `python mdfile2.py --help` and `python webify2.py --help` for usage and av
 
 Use the `--live` option to keep it active in the background.  (This is still somewhat experimental.)  In live view, enter 'h' to see the available options.
 
-The following commandline options, which are available for *webify*, are particularly useful for printing diagnostic information during executation.
+The following command line options, which are available for *webify*, are particularly useful for printing diagnostic information during execution.
 
 - `--show-availability`: list files that were not processed due to availability constraints
 - `--show-not-compiled`: list markdown files that were not compiled because destination file already exists 
