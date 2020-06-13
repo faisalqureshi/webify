@@ -6,6 +6,7 @@ import sys
 import time
 from webify2 import Webify
 import threading
+import webbrowser
 
 lock = threading.Lock()
 
@@ -71,12 +72,55 @@ lock = threading.Lock()
 #         print("- 'a': webify (force compilation and file copying)")
 #         return True
 
+class BrowserController:
+    def __init__(self, browser_name='safari'):
+        self.logger = util.WebifyLogger.get('browser')
+        try:
+            self.browser = webbrowser.get(browser_name)
+            if not self.browser:
+                raise ValueError
+            self.logger.debug('Success creating browser controller %s' % browser_name)
+        except:
+            self.browser = None
+            self.logger.warning('Cannot create browser controller %s' % browser_name)
+        self.url = None
+        self.enabled = True
+
+    def enable(self):
+        self.enabled = True
+
+    def disable(self):
+        self.enabled = False
+
+    def toggle(self):
+        self.enabled = not self.enabled
+        if self.enabled:
+            self.logger.critical('Browser referesh turned on')
+        else:
+            self.logger.critical('Browser referesh turned off')
+
+    def set_url(self, url):
+        self.url = url
+        self.logger.critical('Watching %s' % url)
+
+    def refresh(self):
+        if self.enabled and self.browser:
+            if self.url:
+                try:
+                    self.browser.open(self.url, new=0, autoraise=False)
+                    self.logger.debug('Success opening url %s' % self.url)
+                except:
+                    self.logger.warning('Cannot open url %s' % self.url)
+            else:
+                self.logger.warning('Cannot refresh browser.  No url specified.')
+
 class KeyboardListener:
-    def __init__(self, dir_observer, webify):
+    def __init__(self, dir_observer, webify, browser_controller):
         self.logger = util.WebifyLogger.get('keyboard')
         self.dir_observer = dir_observer
         self.webify = webify
         self.alive = True
+        self.browser_controller = browser_controller
 
     def handler(self):
         while self.alive:
@@ -94,6 +138,10 @@ class KeyboardListener:
                 self.press_c()
             elif ch.upper() == 'H':
                 self.help()
+            elif ch.upper() == 'W':
+                self.press_w()
+            elif ch.upper() == 'B':
+                self.press_b()
             else:
                 self.logger.critical("Unrecognized command.  Enter 'h' to see list of available commands.")
 
@@ -101,6 +149,12 @@ class KeyboardListener:
         self.alive = False
         self.dir_observer.stop()
         return False
+
+    def press_w(self):
+        with lock:
+            url = input('Enter URL to watch: http://')
+            self.browser_controller.set_url('http://'+url)
+        return True
 
     def press_r(self):
         with lock:
@@ -126,6 +180,10 @@ class KeyboardListener:
             self.webify.traverse()
         return True
 
+    def press_b(self):
+        with lock:
+            self.browser_controller.toggle()
+
     def press_a(self):
         with lock:
             self.logger.critical('Recompiling (ignoring times & copying misc files)')
@@ -142,15 +200,18 @@ class KeyboardListener:
         print("- 'c': webify (force file copying)")
         print("- 'i': webify (force compilation)")
         print("- 'a': webify (force compilation and file copying)")
+        print("- 'w': enter url to watch (useful for live updates)")
+        print("- 'b': toggle browser refresh")
         return True
 
 class DirChangeHandler(FileSystemEventHandler):
-    def __init__(self, webify):
+    def __init__(self, webify, browser_controller):
         super().__init__()
         self.logger = util.WebifyLogger.get('watchdir')
         self.webify = webify
         self.last_time = time.time()
         self.time_resolution = 1 # second
+        self.browser_controller = browser_controller
 
     def on_moved(self, event):
         super(DirChangeHandler, self).on_moved(event)
@@ -180,11 +241,14 @@ class DirChangeHandler(FileSystemEventHandler):
                 self.webify.meta_data['__force_copy__'] = False
                 self.webify.traverse()
                 self.last_time = time.time()
+                self.browser_controller.refresh()
 
-def go(webify):
+def go(webify, browser_name):
     path = webify.srcdir if webify else '.'
 
-    dir_changes_event_handler = DirChangeHandler(webify=webify)
+    browser_controller = BrowserController(browser_name=browser_name)
+
+    dir_changes_event_handler = DirChangeHandler(webify=webify, browser_controller=browser_controller)
 
     dir_observer = Observer()
     dir_observer.schedule(dir_changes_event_handler, path, recursive=True)
@@ -193,7 +257,7 @@ def go(webify):
     # keyboard_listener = KeyboardListener(dir_observer, webify=webify)
     # keyboard_listener.start()
 
-    kl = KeyboardListener(dir_observer, webify=webify)
+    kl = KeyboardListener(dir_observer, webify=webify, browser_controller=browser_controller)
     kl_thread = threading.Thread(target=kl.handler)
     kl_thread.start()
 

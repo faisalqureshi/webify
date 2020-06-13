@@ -522,6 +522,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--show-ignored',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored')
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
+    cmdline_parser.add_argument('--live-browser',action='store',default='safari',help='Specifies the browser to use for live monitoring.  Default is safari.')
+
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -609,8 +611,10 @@ if __name__ == '__main__':
     else:
         util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        util.WebifyLogger.make(name='browser', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
+        logger.critical('Using "%s" browser for live viewing' % cmdline_args.live_browser)
         logger.critical('Press q to exit.')
         webify.traverse()
-        run.go(webify)
+        run.go(webify, cmdline_args.live_browser)
