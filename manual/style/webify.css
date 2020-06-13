@@ -1,0 +1,13 @@
+@media screen and (max-width: 991px) {
+     /* start of large tablet styles */
+     .img-fluid {
+       max-width: 100%;
+     }
+}
+
+@media screen and (min-width: 992px) {
+     /* start of large tablet styles */
+     .img-fluid {
+       max-width: 50%;
+     }
+}
