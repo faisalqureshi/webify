@@ -523,7 +523,7 @@ if __name__ == '__main__':
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
     cmdline_parser.add_argument('--live-browser',action='store',default='safari',help='Specifies the browser to use for live monitoring.  Default is safari.')
-
+    cmdline_parser.add_argument('--live-upload-script',action='store',default=None,help='Specifies the upload script.  This can be used to upload the compiled website to a server.  Default is upload.sh file in the src folder.')
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -563,7 +563,7 @@ if __name__ == '__main__':
     if not cmdline_args.renderer in [None, 'mustache', 'jinja2']:
         logger.error('Invalid templating engine %s.  See help' % cmdline_args.templateqing_engine)
         exit(-4)
-        
+
     # Go        
     logger.info('Prog name:    %s' % prog_name)
     logger.info('Prog dir:     %s' % prog_dir)
@@ -571,6 +571,7 @@ if __name__ == '__main__':
     logger.info('Info:')
     logger.info(version_info())
     logger.info('Renderer:     %s' % cmdline_args.renderer)
+    
 
     srcdir = os.path.normpath(cmdline_args.srcdir)
     destdir = os.path.normpath(cmdline_args.destdir)
@@ -593,6 +594,10 @@ if __name__ == '__main__':
     logger.debug('Meta data:')
     logger.debug(pp.pformat(meta_data))
 
+    # if cmdline_args.live_upload_script == None:
+    #     upload_script = os.path.join(srcdir, default_upload_script)
+
+
     webify = Webify()
     try:
         webify.set_src(srcdir)
@@ -612,6 +617,7 @@ if __name__ == '__main__':
         util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='browser', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        util.WebifyLogger.make(name='upload', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
         logger.critical('Using "%s" browser for live viewing' % cmdline_args.live_browser)

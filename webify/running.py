@@ -7,6 +7,7 @@ import time
 from webify2 import Webify
 import threading
 import webbrowser
+import subprocess
 
 lock = threading.Lock()
 
@@ -28,7 +29,7 @@ lock = threading.Lock()
 #             self.alive = False
 #             return False
 #         elif key == KeyCode.from_char('h') or key == KeyCode.from_char('H'):
-#             return self.press_h()
+#             return self.`press_`h()
 #         elif key == KeyCode.from_char('r') or key == KeyCode.from_char('R'):
 #             return self.press_r()
 #         elif key == KeyCode.from_char('i') or key == KeyCode.from_char('I'):
@@ -71,6 +72,21 @@ lock = threading.Lock()
 #         print("- 'i': webify (force compilation)")
 #         print("- 'a': webify (force compilation and file copying)")
 #         return True
+
+class UploadScript:
+    def __init__(self, shell_script):
+        self.logger = util.WebifyLogger.get('upload')
+        self.shell_script = shell_script
+
+    def run(self):
+        try:
+            self.logger.info('Uploading script: %s' % self.shell_script)
+            x = subprocess.run([self.shell_script])
+            x.check_returncode()           
+        except subprocess.CalledProcessError as e:
+            self.logger.warning('Upload script failed: %s (%s)' % (self.shell_script, e))
+        except:
+            self.logger.warning('Upload script failed: %s' % (self.shell_script))
 
 class BrowserController:
     def __init__(self, browser_name='safari'):
@@ -121,6 +137,7 @@ class KeyboardListener:
         self.webify = webify
         self.alive = True
         self.browser_controller = browser_controller
+        self.upload_script = UploadScript("/Users/faisal/webify/manual/upload.h")
 
     def handler(self):
         while self.alive:
@@ -142,6 +159,8 @@ class KeyboardListener:
                 self.press_w()
             elif ch.upper() == 'B':
                 self.press_b()
+            elif ch.upper() == 'U':
+                self.press_u()
             else:
                 self.logger.critical("Unrecognized command.  Enter 'h' to see list of available commands.")
 
@@ -149,6 +168,10 @@ class KeyboardListener:
         self.alive = False
         self.dir_observer.stop()
         return False
+
+    def press_u(self):
+        with lock:
+            self.upload_script.run()
 
     def press_w(self):
         with lock:
