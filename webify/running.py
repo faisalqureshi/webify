@@ -7,7 +7,8 @@ import time
 from webify2 import Webify
 import threading
 import webbrowser
-import subprocess
+import browser
+import upload
 
 lock = threading.Lock()
 
@@ -42,21 +43,21 @@ lock = threading.Lock()
 #             return True
 
 #     def press_r(self):
-#         self.logger.critical('Recompiling')
+#         self.logger.critical('compiling')
 #         self.webify.meta_data['__ignore_times__'] = False
 #         self.webify.meta_data['__force_copy__'] = False
 #         self.webify.traverse()
 #         return True
 
 #     def press_i(self):
-#         self.logger.critical('Recompiling (ignoring times)')
+#         self.logger.critical('compiling (ignoring times)')
 #         self.webify.meta_data['__ignore_times__'] = True
 #         self.webify.meta_data['__force_copy__'] = False
 #         self.webify.traverse()
 #         return True
 
 #     def press_a(self):
-#         self.logger.critical('Recompiling (ignoring times)')
+#         self.logger.critical('compiling (ignoring times)')
 #         self.webify.meta_data['__ignore_times__'] = True
 #         self.webify.meta_data['__force_copy__'] = True
 #         self.webify.traverse()
@@ -73,71 +74,100 @@ lock = threading.Lock()
 #         print("- 'a': webify (force compilation and file copying)")
 #         return True
 
-class UploadScript:
-    def __init__(self, shell_script):
-        self.logger = util.WebifyLogger.get('upload')
-        self.shell_script = shell_script
+# class UploadScript:
+#     def __init__(self, shell_script):
+#         self.logger = util.WebifyLogger.get('upload')
+#         self.shell_script = shell_script
 
-    def run(self):
-        try:
-            self.logger.info('Uploading script: %s' % self.shell_script)
-            x = subprocess.run([self.shell_script])
-            x.check_returncode()           
-        except subprocess.CalledProcessError as e:
-            self.logger.warning('Upload script failed: %s (%s)' % (self.shell_script, e))
-        except:
-            self.logger.warning('Upload script failed: %s' % (self.shell_script))
+#     def run(self):
+#         if self.shell_script == None:
+#             self.logger.info('No upload shell script specified.')
+#             return
 
-class BrowserController:
-    def __init__(self, browser_name='safari'):
-        self.logger = util.WebifyLogger.get('browser')
-        try:
-            self.browser = webbrowser.get(browser_name)
-            if not self.browser:
-                raise ValueError
-            self.logger.debug('Success creating browser controller %s' % browser_name)
-        except:
-            self.browser = None
-            self.logger.warning('Cannot create browser controller %s' % browser_name)
-        self.url = None
-        self.enabled = True
+#         try:
+#             self.logger.info('Running upload shell script: %s' % self.shell_script)
+#             x = subprocess.run([self.shell_script])
+#             x.check_returncode()           
+#         except subprocess.CalledProcessError as e:
+#             self.logger.warning('Upload shell script failed: %s (%s)' % (self.shell_script, e))
+#         except:
+#             self.logger.warning('Upload shell script failed: %s' % (self.shell_script))
 
-    def enable(self):
-        self.enabled = True
+# class BrowserController:
+#     def __init__(self, browser_name):
+#         self.logger = util.WebifyLogger.get('browser')
+        
+#         self.browser_name = browser_name
+#         self.browser = None
+#         self.enabled = False
+#         self.url = None
 
-    def disable(self):
-        self.enabled = False
+#         if self.browser_name == None:
+#             self.logger.info('No live browser specified')
+#             return
 
-    def toggle(self):
-        self.enabled = not self.enabled
-        if self.enabled:
-            self.logger.critical('Browser referesh turned on')
-        else:
-            self.logger.critical('Browser referesh turned off')
+#         self.browser = self.check_if_available(self.browser_name, self.logger)
+#         self.enabled = True if self.browser else False
 
-    def set_url(self, url):
-        self.url = url
-        self.logger.critical('Watching %s' % url)
+#     @staticmethod
+#     def check_if_available(browser_name, logger):
+#         browser = None
+#         try:
+#             browser = webbrowser.get(browser_name)
+#             logger.info('Using live browser: %s' % browser_name)
+#             if not browser:
+#                 raise ValueError
+#         except webbrowser.Error as err:
+#             logger.warning('Cannot create live browser: %s (%s)' % (browser_name, err))            
+#         except ValueError as err:
+#             logger.warning('Cannot create live browser: %s (%s)' % (browser_name, err))
+#         return browser
 
-    def refresh(self):
-        if self.enabled and self.browser:
-            if self.url:
-                try:
-                    self.browser.open(self.url, new=0, autoraise=False)
-                    self.logger.debug('Success opening url %s' % self.url)
-                except:
-                    self.logger.warning('Cannot open url %s' % self.url)
-            else:
-                self.logger.warning('Cannot refresh browser.  No url specified.')
+#     def enable(self):
+#         if not self.browser:
+#             self.logger.warning('No live browser avaialable.  Cannot enable live viewing')
+#             return
+#         self.enabled = True
+
+#     def disable(self):
+#         self.enabled = False
+
+#     def toggle(self):
+#         if not self.browser:
+#             self.logger.warning('No live browser avaialable.  Cannot enable live viewing')
+#             return
+#         self.enabled = not self.enabled
+#         self.logger.critical('Browser referesh turned %s' % ('on' if self.enabled else 'off'))
+
+#     def set_url(self, url):
+#         if not self.browser:
+#             self.logger.warning('No live browser avaialable.  Cannot enable live viewing')
+#             return
+
+#         self.url = url
+#         self.logger.critical('Watching %s' % url)
+
+#     def refresh(self):
+#         if self.enabled and self.browser:
+#             if self.url:
+#                 try:
+#                     self.browser.open(self.url, new=0, autoraise=False)
+#                     self.logger.debug('Success opening url %s' % self.url)
+#                 except:
+#                     self.logger.warning('Cannot open url %s' % self.url)
+#             else:
+#                 self.logger.warning('Cannot refresh browser.  No url specified.')
+#         else:
+#             self.logger.debug('Live browser: enabled=%s, browser=%s' % (self.enabled, self.browser))
 
 class KeyboardListener:
-    def __init__(self, dir_observer, webify, browser_controller):
+    def __init__(self, dir_observer, webify, browser_controller, uploader):
         self.logger = util.WebifyLogger.get('keyboard')
         self.dir_observer = dir_observer
         self.webify = webify
         self.alive = True
         self.browser_controller = browser_controller
-        self.upload_script = UploadScript("/Users/faisal/webify/manual/upload.h")
+        self.uploader = uploader
 
     def handler(self):
         while self.alive:
@@ -170,49 +200,63 @@ class KeyboardListener:
         return False
 
     def press_u(self):
+        self.logger.debug('running uploader script, waiting for lock')
         with lock:
-            self.upload_script.run()
+            self.uploader.run()
+        self.logger.debug('finished running uploader script, released lock')
 
     def press_w(self):
+        self.logger.debug('getting url from user, waiting for lock')
         with lock:
             url = input('Enter URL to watch: http://')
             self.browser_controller.set_url('http://'+url)
+        self.logger.debug('finished getting url from user, released lock')
         return True
 
     def press_r(self):
+        self.logger.debug('compiling, waiting for lock')
         with lock:
-            self.logger.critical('Recompiling')
+            self.logger.critical('compiling')
             self.webify.meta_data['__ignore_times__'] = False
             self.webify.meta_data['__force_copy__'] = False
             self.webify.traverse()
+        self.logger.debug('finished compiling, released lock')
         return True
 
     def press_i(self):
+        self.logger.debug('compiling ignoring times, waiting for lock')
         with lock:
-            self.logger.critical('Recompiling (ignoring times)')
+            self.logger.critical('compiling (ignoring times)')
             self.webify.meta_data['__ignore_times__'] = True
             self.webify.meta_data['__force_copy__'] = False
             self.webify.traverse()
+        self.logger.debug('finished compiling, released lock')
         return True
 
     def press_c(self):
+        self.logger.debug('compiling with force copy, waiting for lock')
         with lock:
-            self.logger.critical('Recompiling (copying misc files)')
+            self.logger.critical('compiling (copying misc files)')
             self.webify.meta_data['__ignore_times__'] = False
             self.webify.meta_data['__force_copy__'] = True
             self.webify.traverse()
+        self.logger.debug('finished compiling, released lock')
         return True
 
     def press_b(self):
+        self.logger.debug('toggling browser live view, waiting for lock')
         with lock:
             self.browser_controller.toggle()
+        self.logger.debug('finished toggling browser live view, released lock')
 
     def press_a(self):
+        self.logger.debug('compiling all, waiting for lock')
         with lock:
-            self.logger.critical('Recompiling (ignoring times & copying misc files)')
+            self.logger.critical('compiling (ignoring times & copying misc files)')
             self.webify.meta_data['__ignore_times__'] = True
             self.webify.meta_data['__force_copy__'] = True
             self.webify.traverse()
+        self.logger.debug('finished compiling, released lock')
         return True
 
     def help(self):
@@ -225,16 +269,18 @@ class KeyboardListener:
         print("- 'a': webify (force compilation and file copying)")
         print("- 'w': enter url to watch (useful for live updates)")
         print("- 'b': toggle browser refresh")
+        print("- 'u': run upload shell script")
         return True
 
 class DirChangeHandler(FileSystemEventHandler):
-    def __init__(self, webify, browser_controller):
+    def __init__(self, webify, browser_controller, uploader):
         super().__init__()
         self.logger = util.WebifyLogger.get('watchdir')
         self.webify = webify
         self.last_time = time.time()
-        self.time_resolution = 1 # second
+        self.time_resolution = 5 # second
         self.browser_controller = browser_controller
+        self.uploader = uploader
 
     def on_moved(self, event):
         super(DirChangeHandler, self).on_moved(event)
@@ -257,30 +303,36 @@ class DirChangeHandler(FileSystemEventHandler):
         what = 'directory' if event.is_directory else 'file'
         self.logger.debug('Modified %s: %s' % (what, event.src_path))
 
-        with lock:
-            if time.time() - self.last_time > self.time_resolution:
-                self.logger.critical('Recompiling')
+        if time.time() - self.last_time > self.time_resolution:
+            self.logger.debug('starting reompiling, waiting for lock')
+            with lock:
+                self.logger.critical('Compiling')
                 self.webify.meta_data['__ignore_times__'] = False
                 self.webify.meta_data['__force_copy__'] = False
                 self.webify.traverse()
                 self.last_time = time.time()
                 self.browser_controller.refresh()
+            self.logger.debug('finished compiling, released lock')
 
-def go(webify, browser_name):
-    path = webify.srcdir if webify else '.'
+def go(webify, upload_shell_script):
+    util.WebifyLogger.get('browser').debug('Setting live view browser')
+    browser_controller = browser.BrowserController()
 
-    browser_controller = BrowserController(browser_name=browser_name)
+    util.WebifyLogger.get('upload').debug('Setting upload shell script')
+    uploader = upload.UploadScript(shell_script=upload_shell_script)
 
-    dir_changes_event_handler = DirChangeHandler(webify=webify, browser_controller=browser_controller)
+    util.WebifyLogger.get('watchdir').debug('Setting directory watch')
+    dir_changes_event_handler = DirChangeHandler(webify=webify, browser_controller=browser_controller, uploader=uploader)
 
     dir_observer = Observer()
-    dir_observer.schedule(dir_changes_event_handler, path, recursive=True)
+    dir_observer.schedule(dir_changes_event_handler, webify.get_src(), recursive=True)
     dir_observer.start()
 
     # keyboard_listener = KeyboardListener(dir_observer, webify=webify)
     # keyboard_listener.start()
 
-    kl = KeyboardListener(dir_observer, webify=webify, browser_controller=browser_controller)
+    util.WebifyLogger.get('keyboard').debug('Setting up keyboard handler')
+    kl = KeyboardListener(dir_observer, webify=webify, browser_controller=browser_controller, uploader=uploader)
     kl_thread = threading.Thread(target=kl.handler)
     kl_thread.start()
 
@@ -294,4 +346,4 @@ def go(webify, browser_name):
     kl_thread.join()
 
 if __name__ == '__main__':
-    go(None)
+    pass

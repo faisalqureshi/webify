@@ -23,9 +23,9 @@ import datetime
 import running as run
 
 from globals import __version__
+
 logfile = 'webify2.log'
 ignorefile = '.webifyignore'
-#ignore_times = False
 
 class Webify:
     def __init__(self):
@@ -41,6 +41,12 @@ class Webify:
         else:
             self.render = util.mustache_renderer
         
+    def get_src(self):
+        return self.srcdir
+
+    def get_dest(self):
+        return self.destdir
+
     def set_src(self, srcdir):
         self.srcdir = os.path.abspath(srcdir)
         if not os.path.isdir(self.srcdir):
@@ -486,6 +492,15 @@ class Webify:
 def version_info():
     return 'Webify version %s' % __version__
 
+def check_cmdline_args(is_live, cmdline_args):
+    logger = util.WebifyLogger.get('main')
+    
+    if is_live:
+        pass
+    else:
+        if cmdline_args.upload_script != None:
+            logger.warning('Upload script is only supported in "--live" mode: %s' % cmdline_args.upload_script)
+
 if __name__ == '__main__':
     # util.terminal = util.Terminal()
     prog_name = os.path.normpath(os.path.join(os.getcwd(), sys.argv[0]))
@@ -522,13 +537,11 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--show-ignored',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored')
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
-    cmdline_parser.add_argument('--live-browser',action='store',default='safari',help='Specifies the browser to use for live monitoring.  Default is safari.')
-    cmdline_parser.add_argument('--live-upload-script',action='store',default=None,help='Specifies the upload script.  This can be used to upload the compiled website to a server.  Default is upload.sh file in the src folder.')
+    cmdline_parser.add_argument('--upload-script',action='store',default=None,help='Specifies that shell script copies the compiled website to the hosting server')
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
     cmdline_args = cmdline_parser.parse_args()
-    # ignore_times = cmdline_args.ignore_times
     
     # Setting up logging
     logfile = None if not cmdline_args.log else logfile
@@ -572,7 +585,6 @@ if __name__ == '__main__':
     logger.info(version_info())
     logger.info('Renderer:     %s' % cmdline_args.renderer)
     
-
     srcdir = os.path.normpath(cmdline_args.srcdir)
     destdir = os.path.normpath(cmdline_args.destdir)
     
@@ -611,6 +623,12 @@ if __name__ == '__main__':
         print(e)
         exit(-2)
     
+    # if cmdline_args.check_live_browser != None:
+    #     run.BrowserController.check_if_available(cmdline_args.check_live_browser, logger)
+    #     exit(0)
+
+    check_cmdline_args(is_live=cmdline_args.live, cmdline_args=cmdline_args)
+
     if not cmdline_args.live:
         webify.traverse()
     else:
@@ -620,7 +638,17 @@ if __name__ == '__main__':
         util.WebifyLogger.make(name='upload', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
-        logger.critical('Using "%s" browser for live viewing' % cmdline_args.live_browser)
+
+        upload_script = None if cmdline_args.upload_script == None else os.path.join(srcdir, cmdline_args.upload_script)
+        if upload_script:
+            if not os.path.isfile(upload_script):
+                util.WebifyLogger.get('upload').warning('Cannot find upload script: %s' % upload_script)
+                upload_script = None
+            else:
+                logger.critical('Using uploader script: %s' % upload_script)
+        else:
+            logger.info('Not using an uploader script')
+
         logger.critical('Press q to exit.')
         webify.traverse()
-        run.go(webify, cmdline_args.live_browser)
+        run.go(webify=webify, upload_shell_script=upload_script)
