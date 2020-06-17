@@ -35,6 +35,7 @@ class Webify:
         self.dir_tree = dt.DirTree()
         self.dir_stack = ds.DirStack()
         self.next_run_offset = None
+        self.next_run_time = None
 
     def get_next_run_offset(self):
         return self.next_run_offset
@@ -87,17 +88,35 @@ class Webify:
 
         logger_availability.debug('Checking availability (md) for %s' % mdfile.get_filepath())
         s, e = mdfile.get_availability()
-        logger_availability.debug(s)
-        logger_availability.debug(e)
+        return self.check_availability_(s, e, mdfile.get_filepath())
+        
+        # logger_availability.debug(s)
+        # logger_availability.debug(e)
+        # ts, te = tm.parse(s), tm.parse(e)
+        # self.save_next_run_offset(ts, te, mdfile.get_filepath())
+        # v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
+        # logger_availability.debug('v: %s' % v)
+        # if v == 'error':
+        #     self.logger.warning('Error reading availability times for %s' % mdfile.get_filepath())
+        #     return False
+        # return v
+
+    def check_availability_(self, s, e, filepath):
+        logger_availability = util.WebifyLogger.get('availability')
+
         ts, te = tm.parse(s), tm.parse(e)
-        self.save_next_run_offset(ts, te, mdfile.get_filepath())
+        logger_availability.debug('start: %s\nend: %s' % (ts, te))
+        
+        if not tm.check_valid_start_and_end(ts, te):
+            logger_availability.warning('Availability start time is after end time: %s' % filepath)
+            return False
+        self.save_next_run_offset(ts, te, filepath)
         v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
         logger_availability.debug('v: %s' % v)
         if v == 'error':
-            self.logger('Error reading availability times for %s' % mdfile.get_filepath())
+            self.logger.warning('Error reading availability times for %s' % filepath)
             return False
         return v
-
 
     def check_availability(self, filepath, availability):
         logger_availability = util.WebifyLogger.get('availability')
@@ -108,15 +127,16 @@ class Webify:
         try:
             s = availability[filepath]['start']
             e = availability[filepath]['end']
-            ts, te = tm.parse(s), tm.parse(e)
-            self.save_next_run_offset(ts, te, filepath)
-            logger_availability.debug('start: %s\nend: %s' % (s, e))
-            v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
-            logger_availability.debug('v: %s' % v)
-            if v == 'error':
-                self.logger('Error reading availability times for %s' % filepath)
-                return False
-            return v
+            return self.check_availability_(s, e, filepath)
+            # ts, te = tm.parse(s), tm.parse(e)
+            # self.save_next_run_offset(ts, te, filepath)
+            # logger_availability.debug('start: %s\nend: %s' % (s, e))
+            # v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
+            # logger_availability.debug('v: %s' % v)
+            # if v == 'error':
+            #     self.logger.warning('Error reading availability times for %s' % filepath)
+            #     return False
+            # return v
         except:
             logger_availability.debug('Find no availability info for file %s' % filepath)
             return True
@@ -411,48 +431,65 @@ class Webify:
 
         return availability
 
-    def save_next_run_offset(self, ts, te, filepath):
+    def find_next_time_to_run(self, ts, te, filepath):
         logger = util.WebifyLogger.get('next-run')
         logger.debug('ESTIMATING next run offset: %s' % filepath)
 
-        ct = self.meta_data['__time__'].timestamp()
+        tc = self.meta_data['__time__']
+        next_time = tm.find_next_time(ts, te, tc)
+        logger.debug('ts: %s, te: %s, next: %s' % (ts, te, next_time))
+        
+        if next_time != None:
+            if self.next_run_time == None or self.next_run_time > next_time:
+                self.next_run_time = next_time 
 
-        if not tm.check_valid_start_and_end(ts, te):
-            logger.debug('End time cannot be before start time: %s' % filepath)
-            return
+        logger.debug('Next time run time: %s' % self.next_run_time)
 
-        if ts != -2:
-            ds = ts.timestamp() - ct
-        else:
-            ds = -2
-            logger.debug('Start time is big-bang.')
+    def save_next_run_offset(self, ts, te, filepath):
+        self.find_next_time_to_run(ts, te, filepath)
 
-        if te != -1:
-            de = te.timestamp() - ct
-        else:
-            de = -1
-            logger.debug('End time is ragnarok.')
+    # def save_next_run_offset(self, ts, te, filepath):
+    #     logger = util.WebifyLogger.get('next-run')
+    #     logger.debug('ESTIMATING next run offset: %s' % filepath)
 
-        logger.debug('ts: %s, ds: %s' % (ts, ds))
-        logger.debug('te: %s, de: %s' % (te, de))
+    #     ct = self.meta_data['__time__'].timestamp()
 
-        offset = 0
-        if ds < 0 and de < 0:
-            logger.debug('Ignoring start and end times.  Both have either passed or are not relevant.')
-            return
+    #     if not tm.check_valid_start_and_end(ts, te):
+    #         logger.debug('End time cannot be before start time: %s' % filepath)
+    #         return
 
-        if ds > 0:
-            offset = ds
-            logger.debug('Start time is in the future')
-        elif de > 0:
-            offset = de
-            logger.debug('End time is in the future')
+    #     if ts != -2:
+    #         ds = ts.timestamp() - ct
+    #     else:
+    #         ds = -2
+    #         logger.debug('Start time is big-bang.')
 
-        logger.debug('Offset: %s' % offset)
-        logger.debug('Current next run offset is: %s' % self.next_run_offset)
-        if self.next_run_offset == -1 or offset < self.next_run_offset:
-            self.next_run_offset = offset
-            logger.debug('Next run offset updated from file %s (%s)' %(filepath, self.next_run_offset))
+    #     if te != -1:
+    #         de = te.timestamp() - ct
+    #     else:
+    #         de = -1
+    #         logger.debug('End time is ragnarok.')
+
+    #     logger.debug('ts: %s, ds: %s' % (ts, ds))
+    #     logger.debug('te: %s, de: %s' % (te, de))
+
+    #     offset = 0
+    #     if ds < 0 and de < 0:
+    #         logger.debug('Ignoring start and end times.  Both have either passed or are not relevant.')
+    #         return
+
+    #     if ds > 0:
+    #         offset = ds
+    #         logger.debug('Start time is in the future')
+    #     elif de > 0:
+    #         offset = de
+    #         logger.debug('End time is in the future')
+
+    #     logger.debug('Offset: %s' % offset)
+    #     logger.debug('Current next run offset is: %s' % self.next_run_offset)
+    #     if self.next_run_offset == -1 or offset < self.next_run_offset:
+    #         self.next_run_offset = offset
+    #         logger.debug('Next run offset updated from file %s (%s)' %(filepath, self.next_run_offset))
 
     # def proc_run_again_after(self, s, e):
     #     cur_time = self.meta_data['__time__']

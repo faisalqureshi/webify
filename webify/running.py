@@ -175,7 +175,7 @@ class WebifyLive:
         self.webify = webify        
 
         if webify.get_next_run_offset() > 0:
-            self.next_run = threading.Timer(webify.get_next_run_offset(), self.run_webify)
+            self.next_run = threading.Timer(webify.get_next_run_offset()+60, self.run_webify)
             self.next_run.start()
         else:
             self.next_run = None
