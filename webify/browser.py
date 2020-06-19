@@ -5,7 +5,8 @@ import sys
 class BrowserController:
     def __init__(self):
         self.logger = util.WebifyLogger.get('browser')
-        
+        self.logger.debug('Setting live view browser')
+
         self.browser = self.check_if_available(self.logger)
         self.url = None
         self.enabled = True if self.browser else False

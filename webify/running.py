@@ -9,18 +9,22 @@ import threading
 import webbrowser
 import browser
 import upload
+import datetime
+import os
 
 lock = threading.Lock()
 
-
 class KeyboardListener:
-    def __init__(self, dir_observer, webify, browser_controller, uploader):
+    def __init__(self, dir_observer, run_webify, browser_controller, uploader):
         self.logger = util.WebifyLogger.get('keyboard')
+        self.logger.debug('Setting up keyboard handler')
+
         self.dir_observer = dir_observer
-        self.webify = webify
-        self.alive = True
+        self.run_webify = run_webify
         self.browser_controller = browser_controller
         self.uploader = uploader
+
+        self.alive = True
 
     def handler(self):
         while self.alive:
@@ -50,7 +54,7 @@ class KeyboardListener:
     def quit(self):
         self.alive = False
         self.dir_observer.stop()
-        print('X')
+        self.run_webify.stop()
         return False
 
     def press_u(self):
@@ -69,31 +73,25 @@ class KeyboardListener:
 
     def press_r(self):
         self.logger.debug('compiling, waiting for lock')
-        with lock:
-            self.logger.critical('compiling')
-            self.webify.meta_data['__ignore_times__'] = False
-            self.webify.meta_data['__force_copy__'] = False
-            self.webify.traverse()
+        self.run_webify.run(when='now', ignore_times=False, force_copy=False)
         self.logger.debug('finished compiling, released lock')
         return True
 
     def press_i(self):
         self.logger.debug('compiling ignoring times, waiting for lock')
-        with lock:
-            self.logger.critical('compiling (ignoring times)')
-            self.webify.meta_data['__ignore_times__'] = True
-            self.webify.meta_data['__force_copy__'] = False
-            self.webify.traverse()
+        self.run_webify.run(when='now', ignore_times=True, force_copy=False)
         self.logger.debug('finished compiling, released lock')
         return True
 
     def press_c(self):
         self.logger.debug('compiling with force copy, waiting for lock')
-        with lock:
-            self.logger.critical('compiling (copying misc files)')
-            self.webify.meta_data['__ignore_times__'] = False
-            self.webify.meta_data['__force_copy__'] = True
-            self.webify.traverse()
+        self.run_webify.run(when='now', ignore_times=False, force_copy=True)
+        self.logger.debug('finished compiling, released lock')
+        return True
+
+    def press_a(self):
+        self.logger.debug('compiling all, waiting for lock')
+        self.run_webify.run(when='now', ignore_times=True, force_copy=True)
         self.logger.debug('finished compiling, released lock')
         return True
 
@@ -102,16 +100,6 @@ class KeyboardListener:
         with lock:
             self.browser_controller.toggle()
         self.logger.debug('finished toggling browser live view, released lock')
-
-    def press_a(self):
-        self.logger.debug('compiling all, waiting for lock')
-        with lock:
-            self.logger.critical('compiling (ignoring times & copying misc files)')
-            self.webify.meta_data['__ignore_times__'] = True
-            self.webify.meta_data['__force_copy__'] = True
-            self.webify.traverse()
-        self.logger.debug('finished compiling, released lock')
-        return True
 
     def help(self):
         print('Keyboard shortcuts:')
@@ -127,74 +115,143 @@ class KeyboardListener:
         return True
 
 class DirChangeHandler(FileSystemEventHandler):
-    def __init__(self, webify, browser_controller, uploader):
+    def __init__(self, watched_dir, run_webify):
         super().__init__()
         self.logger = util.WebifyLogger.get('watchdir')
-        self.webify = webify
+        self.logger.info('Setting up directory watch for %s' % watched_dir)
+        self.watched_dir = watched_dir
+        self.run_webify = run_webify
+
         self.last_time = time.time()
         self.time_resolution = 5 # second
-        self.browser_controller = browser_controller
-        self.uploader = uploader
 
     def on_moved(self, event):
         super(DirChangeHandler, self).on_moved(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.debug('Moved %s: from %s to %s' % (what, event.src_path,
-                     event.dest_path))
+        self.logger.debug('Moved %s: from %s to %s' % (what, event.src_path, event.dest_path))
 
     def on_created(self, event):
         super(DirChangeHandler, self).on_created(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.debug('Created %s: %s' % (what, event.src_path))
+        self.logger.critical('Created %s: %s' % (what, event.src_path))
+        if os.stat(event.src_path).st_size > 0:
+            self.run_webify.run(when='after', ignore_times=False, force_copy=False, time_or_duration=5)
 
     def on_deleted(self, event):
         super(DirChangeHandler, self).on_deleted(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.debug('Deleted %s: %s' % (what, event.src_path))
+        self.logger.critical('Deleted %s: %s' % (what, event.src_path))
 
     def on_modified(self, event):
         super(DirChangeHandler, self).on_modified(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.debug('Modified %s: %s' % (what, event.src_path))
+        self.logger.critical('Modified %s: %s' % (what, event.src_path))
+        
+        if not event.is_directory:
+            if os.path.splitext(event.src_path)[1] in ['.md', '.html', '.yaml', '.css', '.mustache', '.jinja']:
+                self.run_webify.run(when='after', ignore_times=False, force_copy=False, time_or_duration=5)
 
-        if time.time() - self.last_time > self.time_resolution:
-            self.logger.debug('starting reompiling, waiting for lock')
-            with lock:
-                self.logger.critical('Compiling')
-                self.webify.meta_data['__ignore_times__'] = False
-                self.webify.meta_data['__force_copy__'] = False
-                self.webify.traverse()
-                self.last_time = time.time()
-                self.browser_controller.refresh()
-            self.logger.debug('finished compiling, released lock')
+class RunWebify:
+    def __init__(self, webify, browser_controller):
+        self.webify = webify
+        self.browser_controller = browser_controller
+
+        self.logger = util.WebifyLogger.get('run-webify')
+        self.timer_thread = None
+        self.next_time = None
+
+    def stop(self):
+        with lock:
+            if self.timer_thread:
+                self.logger.warning('Canceling a scheduled run.')
+                self.timer_thread.cancel()
+
+    def run(self, when, ignore_times, force_copy, time_or_duration=None):
+        with lock:
+            self.logger.debug('RunWebify signal: %s, tm_or_dur: %s' % (when, time_or_duration))
+
+            cur_time = datetime.datetime.now()
+            if when == 'now':
+                requested_time = cur_time
+            elif when == 'after':
+                requested_time = cur_time + datetime.timedelta(seconds=time_or_duration)
+            elif when == 'at':
+                requested_time = time_or_duration
+            else:
+                self.logger.warning('Run webify signal: unknown %s' % time_or_duration)
+                requested_time = cur_time
+
+            self.logger.debug('current time: %s', cur_time)
+            self.logger.debug('requested time: %s', requested_time)
+
+            if self.timer_thread:
+                self.logger.debug('A run is already scheduled at %s' % self.next_time)
+                if self.next_time > requested_time:
+                    self.logger.debug('The requested run time is earlier then scheduled run.  Cancelling the scheduled run.')
+                    self.timer_thread.cancel()
+                    self.next_time = None
+                else:
+                    self.logger.debug('The requested run time is after the scheduled run.  Keeping the scheduled run.')
+                    return
+
+            if requested_time == cur_time:
+                self.logger.debug('The requested run time is the same as the current time.  Attempting execution.')
+                self.go(ignore_times, force_copy)
+                self.schedule_next(ignore_times, force_copy)
+            else:
+                t = requested_time - cur_time
+                self.logger.debug('Scheduling a run at %s, which is after %s seconds' % (requested_time, t))
+                self.timer_thread = threading.Timer(t.total_seconds(), self.go_with_lock, [ignore_times, force_copy])
+                self.timer_thread.start()
+                self.logger.critical('Enter choice: ')
+
+    def go_with_lock(self, ignore_times, force_copy):
+        with lock:
+            self.logger.debug('Scheduled run at %s' % self.next_time)
+            self.go(ignore_times, force_copy)
+            self.next_time = None
+            self.schedule_next(ignore_times, force_copy)
+            self.logger.critical('Enter choice: ')
+
+    def schedule_next(self, ignore_times, force_copy):
+        nrt = self.webify.next_run_time
+        if nrt == None:
+            return
+        if self.next_time != None and nrt > self.next_time:
+            return
+        if self.timer_thread:
+            self.next_time = None
+            self.timer_thread.cancel()
+
+        self.next_time = nrt 
+        self.logger.debug('Scheduling next run at %s' % self.next_time)
+        self.timer_thread = threading.Timer((self.next_time - datetime.datetime.now()).total_seconds(), self.go_with_lock, [ignore_times, force_copy])
+        self.timer_thread.start()
+
+    def go(self, ignore_times, force_copy):
+        self.logger.debug('Executing webify.traverse()')
+        cur_time = datetime.datetime.now()
+        self.webify.meta_data['__ignore_times__'] = ignore_times
+        self.webify.meta_data['__force_copy__'] = force_copy
+        self.webify.meta_data['__last_updated__'] = cur_time.strftime('%Y-%m-%d %H:%M')
+        self.webify.meta_data['__time__'] = cur_time
+        self.webify.traverse()
+        self.browser_controller.refresh()
 
 class WebifyLive:
     def __init__(self, webify, upload_shell_script):
-        self.logger = util.WebifyLogger.get('webify-live')
 
-        self.webify = webify        
-
-        if webify.get_next_run_offset() > 0:
-            self.next_run = threading.Timer(webify.get_next_run_offset()+60, self.run_webify)
-            self.next_run.start()
-        else:
-            self.next_run = None
-
-        util.WebifyLogger.get('browser').debug('Setting live view browser')
         browser_controller = browser.BrowserController()
-
-        util.WebifyLogger.get('upload').debug('Setting upload shell script')
         uploader = upload.UploadScript(shell_script=upload_shell_script)
 
-        util.WebifyLogger.get('watchdir').debug('Setting directory watch')
-        dir_changes_event_handler = DirChangeHandler(webify=webify, browser_controller=browser_controller, uploader=uploader)
+        self.run_webify = RunWebify(webify=webify, browser_controller=browser_controller)
 
+        watched_dir = webify.get_src()
         dir_observer = Observer()
-        dir_observer.schedule(dir_changes_event_handler, webify.get_src(), recursive=True)
+        dir_observer.schedule(DirChangeHandler(watched_dir=watched_dir, run_webify=self.run_webify), watched_dir, recursive=True)
         dir_observer.start()
 
-        util.WebifyLogger.get('keyboard').debug('Setting up keyboard handler')
-        kl = KeyboardListener(dir_observer, webify=webify, browser_controller=browser_controller, uploader=uploader)
+        kl = KeyboardListener(dir_observer, run_webify=self.run_webify, browser_controller=browser_controller, uploader=uploader)
         kl_thread = threading.Thread(target=kl.handler)
         kl_thread.start()
 
@@ -203,20 +260,14 @@ class WebifyLive:
                 time.sleep(1)
         except KeyboardInterrupt:
             dir_observer.stop()
-            kl_thread.stop()
+            # kl_thread.stop()
 
-        if self.next_run: 
-            self.next_run.cancel()
+        # if self.next_run: 
+        #     self.next_run.cancel()
         dir_observer.join()
         kl_thread.join()
-
-    def run_webify(self):
-        print('foo')
-        with lock:
-            self.logger.critical('Timed auto compilation')
-            self.webify.meta_data['__ignore_times__'] = False
-            self.webify.meta_data['__force_copy__'] = False
-            self.webify.traverse()
+        if self.run_webify.timer_thread:
+            self.run_webify.timer_thread.join()
 
 if __name__ == '__main__':
     pass

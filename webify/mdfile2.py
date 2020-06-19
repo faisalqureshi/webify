@@ -568,18 +568,7 @@ class MDfile:
 
     def get_availability(self):
         x = self.get_value('availability')
-        if not x:
-            return 'big-bang', 'ragnarok'
-
-        s = 'big-bang' if not 'start' in x.keys() else x['start']
-        e = 'ragnarok' if not 'end' in x.keys() else x['end']
-        return s, e
-
-        # v = tm.check_for_time_in_range(s, e, cur_time)
-        # if v == 'error':
-        #     self.logger.warning('Error reading availability times for %s' % self.filepath)
-        #     return False
-        # return v
+        return tm.read_time('start', x), tm.read_time('end', x)
 
     def get_value(self, name):
         if name in self.args.keys() and self.args[name] != None:

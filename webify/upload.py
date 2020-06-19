@@ -5,7 +5,7 @@ class UploadScript:
     def __init__(self, shell_script):
         self.logger = util.WebifyLogger.get('upload')
         self.shell_script = shell_script
-        self.logger.debug('Upload script: %s' % self.shell_script)
+        self.logger.info('Upload script: %s' % self.shell_script)
 
     def run(self):
         if self.shell_script == None:

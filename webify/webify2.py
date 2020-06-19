@@ -34,11 +34,7 @@ class Webify:
         self.ignore = None
         self.dir_tree = dt.DirTree()
         self.dir_stack = ds.DirStack()
-        self.next_run_offset = None
         self.next_run_time = None
-
-    def get_next_run_offset(self):
-        return self.next_run_offset
 
     def set_renderer(self):
         if self.meta_data['renderer'] in [None, 'jinja2']:
@@ -83,34 +79,16 @@ class Webify:
         else:
             self.logger.info('Destination directory %s: %s' % (r, destdir))
 
-    def check_availability_md(self, mdfile):
-        logger_availability = util.WebifyLogger.get('availability')
-
-        logger_availability.debug('Checking availability (md) for %s' % mdfile.get_filepath())
-        s, e = mdfile.get_availability()
-        return self.check_availability_(s, e, mdfile.get_filepath())
-        
-        # logger_availability.debug(s)
-        # logger_availability.debug(e)
-        # ts, te = tm.parse(s), tm.parse(e)
-        # self.save_next_run_offset(ts, te, mdfile.get_filepath())
-        # v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
-        # logger_availability.debug('v: %s' % v)
-        # if v == 'error':
-        #     self.logger.warning('Error reading availability times for %s' % mdfile.get_filepath())
-        #     return False
-        # return v
-
     def check_availability_(self, s, e, filepath):
         logger_availability = util.WebifyLogger.get('availability')
 
         ts, te = tm.parse(s), tm.parse(e)
-        logger_availability.debug('start: %s\nend: %s' % (ts, te))
+        logger_availability.debug('%s - start: %s\nend: %s' % (filepath, ts, te))
         
         if not tm.check_valid_start_and_end(ts, te):
             logger_availability.warning('Availability start time is after end time: %s' % filepath)
             return False
-        self.save_next_run_offset(ts, te, filepath)
+        self.find_next_time_to_run(ts, te, filepath)
         v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
         logger_availability.debug('v: %s' % v)
         if v == 'error':
@@ -118,6 +96,13 @@ class Webify:
             return False
         return v
 
+    def check_availability_md(self, mdfile):
+        logger_availability = util.WebifyLogger.get('availability')
+
+        logger_availability.debug('Checking availability (md) for %s' % mdfile.get_filepath())
+        s, e = mdfile.get_availability()
+        return self.check_availability_(s, e, mdfile.get_filepath())
+        
     def check_availability(self, filepath, availability):
         logger_availability = util.WebifyLogger.get('availability')
         
@@ -128,15 +113,6 @@ class Webify:
             s = availability[filepath]['start']
             e = availability[filepath]['end']
             return self.check_availability_(s, e, filepath)
-            # ts, te = tm.parse(s), tm.parse(e)
-            # self.save_next_run_offset(ts, te, filepath)
-            # logger_availability.debug('start: %s\nend: %s' % (s, e))
-            # v = tm.check_for_time_in_range(ts, te, self.meta_data['__time__'])
-            # logger_availability.debug('v: %s' % v)
-            # if v == 'error':
-            #     self.logger.warning('Error reading availability times for %s' % filepath)
-            #     return False
-            # return v
         except:
             logger_availability.debug('Find no availability info for file %s' % filepath)
             return True
@@ -421,10 +397,9 @@ class Webify:
                     logger_availability.warning('Cannot read availability information for %s (%s)' % (i['file'], s))
                 else:
                     availability[s] = {}
-                    availability[s]['start'] = i['start'] if 'start' in i.keys() else 'big-bang'
-                    availability[s]['end'] = i['end'] if 'end' in i.keys() else 'ragnarok'
+                    availability[s]['start'] = tm.read_time('start', i)
+                    availability[s]['end'] = tm.read_time('end', i)
                     logger_availability.debug(pp.pformat(availability))
-                    # self.proc_run_again_after(availability[s]['start'], availability[s]['end'])
         except:
             self.logger.warning('Cannot read availability information: %s' % dir.get_fullpath())
             return availability
@@ -433,7 +408,7 @@ class Webify:
 
     def find_next_time_to_run(self, ts, te, filepath):
         logger = util.WebifyLogger.get('next-run')
-        logger.debug('ESTIMATING next run offset: %s' % filepath)
+        logger.debug('ESTIMATING next run time: %s' % filepath)
 
         tc = self.meta_data['__time__']
         next_time = tm.find_next_time(ts, te, tc)
@@ -444,98 +419,6 @@ class Webify:
                 self.next_run_time = next_time 
 
         logger.debug('Next time run time: %s' % self.next_run_time)
-
-    def save_next_run_offset(self, ts, te, filepath):
-        self.find_next_time_to_run(ts, te, filepath)
-
-    # def save_next_run_offset(self, ts, te, filepath):
-    #     logger = util.WebifyLogger.get('next-run')
-    #     logger.debug('ESTIMATING next run offset: %s' % filepath)
-
-    #     ct = self.meta_data['__time__'].timestamp()
-
-    #     if not tm.check_valid_start_and_end(ts, te):
-    #         logger.debug('End time cannot be before start time: %s' % filepath)
-    #         return
-
-    #     if ts != -2:
-    #         ds = ts.timestamp() - ct
-    #     else:
-    #         ds = -2
-    #         logger.debug('Start time is big-bang.')
-
-    #     if te != -1:
-    #         de = te.timestamp() - ct
-    #     else:
-    #         de = -1
-    #         logger.debug('End time is ragnarok.')
-
-    #     logger.debug('ts: %s, ds: %s' % (ts, ds))
-    #     logger.debug('te: %s, de: %s' % (te, de))
-
-    #     offset = 0
-    #     if ds < 0 and de < 0:
-    #         logger.debug('Ignoring start and end times.  Both have either passed or are not relevant.')
-    #         return
-
-    #     if ds > 0:
-    #         offset = ds
-    #         logger.debug('Start time is in the future')
-    #     elif de > 0:
-    #         offset = de
-    #         logger.debug('End time is in the future')
-
-    #     logger.debug('Offset: %s' % offset)
-    #     logger.debug('Current next run offset is: %s' % self.next_run_offset)
-    #     if self.next_run_offset == -1 or offset < self.next_run_offset:
-    #         self.next_run_offset = offset
-    #         logger.debug('Next run offset updated from file %s (%s)' %(filepath, self.next_run_offset))
-
-    # def proc_run_again_after(self, s, e):
-    #     cur_time = self.meta_data['__time__']
-        
-    #     print('c', cur_time)
-    #     print('s', s)
-    #     print('e', e)
-
-    #     global run_again_after
-
-    #     import dateutil
-    #     from datetime import timedelta
-    #     if s != 'big-bang':
-    #         s1 = dateutil.parser.parse(s)
-    #         d1 = s1.timestamp() - cur_time.timestamp()
-    #         print('d1', d1)
-    #     if e != 'ragnarok':
-    #         e1 = dateutil.parser.parse(e)
-    #         d2 = e1.timestamp() - cur_time.timestamp()
-    #         print('d2', d2)
-
-    #     foo = 0
-    #     if d1 > 0 and d2 > 0:
-    #         if d1 < d2:
-    #             print('schedule s')
-    #             foo = d1
-    #         else:
-    #             print('schedule e')
-    #             foo = d2
-    #     elif d1 < 0 and d2 > 0:
-    #         print('schedule e')
-    #         foo = d2
-    #     elif d1 > 0 and d2 < 0:
-    #         print('schedule s')
-    #         foo = d1
-    #     else:
-    #         print('schedule none')
-
-    #     print('foo', foo)
-    #     print('raf', run_again_after)
-
-    #     if run_again_after ==None or run_again_after > foo:
-    #         run_again_after = foo
-
-    #     print('run_again_after', run_again_after)
-
 
     def enter_dir(self, dir):
         self.depth_level = self.depth_level + 1
@@ -632,15 +515,15 @@ class Webify:
         assert(self.srcdir and self.destdir and self.meta_data)
 
         tic = time.time()
-        self.next_run_offset = -1
+        self.next_run_time = None
         self.depth_level = 0
         self.dir_tree.collect(rootdir=self.srcdir, ignore=self.ignore)
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
         toc = time.time()
-        if self.get_next_run_offset() != -1: 
-            logger.critical('Next suggested run in {} seconds'.format(self.get_next_run_offset()))
         logger.critical('Webify took {}'.format(datetime.timedelta(seconds=toc-tic)))
-        util.WebifyLogger.get('next-run').debug('Next run offset: %s' % str(self.next_run_offset))
+        if self.next_run_time != None:
+            logger.critical('Next suggested run at {}'.format(self.next_run_time))
+        util.WebifyLogger.get('next-run').debug('Next run time: %s' % self.next_run_time)
 
 def version_info():
     return 'Webify version %s' % __version__
@@ -692,6 +575,7 @@ if __name__ == '__main__':
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
     cmdline_parser.add_argument('--upload-script',action='store',default=None,help='Specifies that shell script copies the compiled website to the hosting server')
+    cmdline_parser.add_argument('--auto',action='store_true',default=False,help='Use with --live option for time dependent auto compilation.  This option is useful when using webify as a server.')
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -792,6 +676,7 @@ if __name__ == '__main__':
         util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='browser', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='upload', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        util.WebifyLogger.make(name='run-webify', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
 
@@ -806,5 +691,4 @@ if __name__ == '__main__':
             logger.info('Not using an uploader script')
 
         logger.critical('Press q to exit.')
-        webify.traverse()
         run.WebifyLive(webify=webify, upload_shell_script=upload_script)

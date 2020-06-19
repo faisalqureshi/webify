@@ -4,17 +4,35 @@ import time
 from enum import Enum
 
 class T(Enum):
+    error = -3
     bigbang = -2
     ragnarok = -1
 
+times = {
+    'start': T.bigbang,
+    'end': T.ragnarok
+}
+
+def read_time(k, x):
+    if x == None or not k in x.keys() or x[k] == None:
+        return times[k]
+    if x[k] == 'bigbang': return T.bigbang
+    if x[k] == 'ragnarok': return T.ragnarok
+    return x[k]
+
 def parse(t):
-    if t == 'big-bang':
+    if t == T.bigbang:
         return T.bigbang
-    if t == 'ragnarok':
+    if t == T.ragnarok:
         return T.ragnarok
-    return dateutil.parser.parse(t)
+    try:
+        return dateutil.parser.parse(t)
+    except:
+        return T.error
 
 def check_valid_start_and_end(ts, te):
+    if ts == T.error or te == T.error:
+        return False
 
     # Start at big-bang and end at ragnarok
     if ts == T.bigbang and te == T.ragnarok:
@@ -31,6 +49,9 @@ def check_valid_start_and_end(ts, te):
     return False
 
 def check_for_time_in_range(ts, te, c):
+    if ts == T.error or te == T.error:
+        return 'error'
+
     sf = ef = False
     
     try:
@@ -51,6 +72,7 @@ def check_for_time_in_range(ts, te, c):
         return 'error'
 
 def is_after(t, c):
+    assert(t != T.error)
     if t == T.bigbang:
         return False
     if t == T.ragnarok:
@@ -58,6 +80,9 @@ def is_after(t, c):
     return t > c
 
 def find_next_time(ts, te, c):
+    if ts == T.error or te == T.error:
+        return None
+
     # We assume that s < e
     if is_after(ts, c):
         return ts
