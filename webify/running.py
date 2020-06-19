@@ -133,19 +133,19 @@ class DirChangeHandler(FileSystemEventHandler):
     def on_created(self, event):
         super(DirChangeHandler, self).on_created(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.critical('Created %s: %s' % (what, event.src_path))
+        self.logger.debug('Created %s: %s' % (what, event.src_path))
         if os.stat(event.src_path).st_size > 0:
             self.run_webify.run(when='after', ignore_times=False, force_copy=False, time_or_duration=5)
 
     def on_deleted(self, event):
         super(DirChangeHandler, self).on_deleted(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.critical('Deleted %s: %s' % (what, event.src_path))
+        self.logger.debug('Deleted %s: %s' % (what, event.src_path))
 
     def on_modified(self, event):
         super(DirChangeHandler, self).on_modified(event)
         what = 'directory' if event.is_directory else 'file'
-        self.logger.critical('Modified %s: %s' % (what, event.src_path))
+        self.logger.debug('Modified %s: %s' % (what, event.src_path))
         
         if not event.is_directory:
             if os.path.splitext(event.src_path)[1] in ['.md', '.html', '.yaml', '.css', '.mustache', '.jinja']:
@@ -158,12 +158,14 @@ class RunWebify:
 
         self.logger = util.WebifyLogger.get('run-webify')
         self.timer_thread = None
-        self.next_time = None
+        self.time_for_next_run = None
+
+        self.time_padding = datetime.timedelta(seconds=1)
 
     def stop(self):
         with lock:
             if self.timer_thread:
-                self.logger.warning('Canceling a scheduled run.')
+                self.logger.warning('Canceling a scheduled run at %s' % self.time_for_next_run)
                 self.timer_thread.cancel()
 
     def run(self, when, ignore_times, force_copy, time_or_duration=None):
@@ -178,57 +180,58 @@ class RunWebify:
             elif when == 'at':
                 requested_time = time_or_duration
             else:
-                self.logger.warning('Run webify signal: unknown %s' % time_or_duration)
+                self.logger.warning('RunWebify signal: unknown %s' % time_or_duration)
                 requested_time = cur_time
 
             self.logger.debug('current time: %s', cur_time)
             self.logger.debug('requested time: %s', requested_time)
 
             if self.timer_thread:
-                self.logger.debug('A run is already scheduled at %s' % self.next_time)
-                if self.next_time > requested_time:
+                self.logger.debug('A run is already scheduled at %s' % self.time_for_next_run)
+                if self.time_for_next_run > requested_time:
                     self.logger.debug('The requested run time is earlier then scheduled run.  Cancelling the scheduled run.')
                     self.timer_thread.cancel()
-                    self.next_time = None
+                    self.time_for_next_run = None
                 else:
                     self.logger.debug('The requested run time is after the scheduled run.  Keeping the scheduled run.')
                     return
 
             if requested_time == cur_time:
-                self.logger.debug('The requested run time is the same as the current time.  Attempting execution.')
-                self.go(ignore_times, force_copy)
-                self.schedule_next(ignore_times, force_copy)
+                self.logger.info('Running webify "now" as requested')
+                self.run_(ignore_times, force_copy)
+                self.schedule_next_run(ignore_times, force_copy)
             else:
-                t = requested_time - cur_time
-                self.logger.debug('Scheduling a run at %s, which is after %s seconds' % (requested_time, t))
-                self.timer_thread = threading.Timer(t.total_seconds(), self.go_with_lock, [ignore_times, force_copy])
+                self.time_for_next_run = requested_time
+                self.logger.info('Scheduling a run at %s' % self.time_for_next_run)
+                delay = ((self.time_for_next_run - cur_time) + self.time_padding).total_seconds()
+                self.timer_thread = threading.Timer(delay, self.run_with_lock_, [ignore_times, force_copy])
                 self.timer_thread.start()
-                self.logger.critical('Enter choice: ')
+                print('Enter choice: ', )
 
-    def go_with_lock(self, ignore_times, force_copy):
+    def run_with_lock_(self, ignore_times, force_copy):
         with lock:
-            self.logger.debug('Scheduled run at %s' % self.next_time)
-            self.go(ignore_times, force_copy)
-            self.next_time = None
-            self.schedule_next(ignore_times, force_copy)
-            self.logger.critical('Enter choice: ')
+            self.logger.info('Running webify at %s as scheduled' % self.time_for_next_run)
+            self.run_(ignore_times, force_copy)
+            self.schedule_next_run(ignore_times, force_copy)
+            print('Enter choice: ', )
 
-    def schedule_next(self, ignore_times, force_copy):
+    def schedule_next_run(self, ignore_times, force_copy):
         nrt = self.webify.next_run_time
         if nrt == None:
             return
-        if self.next_time != None and nrt > self.next_time:
+        if self.time_for_next_run != None and nrt > self.time_for_next_run:
             return
         if self.timer_thread:
-            self.next_time = None
             self.timer_thread.cancel()
 
-        self.next_time = nrt 
-        self.logger.debug('Scheduling next run at %s' % self.next_time)
-        self.timer_thread = threading.Timer((self.next_time - datetime.datetime.now()).total_seconds(), self.go_with_lock, [ignore_times, force_copy])
+        cur_time = datetime.datetime.now()
+        self.time_for_next_run = nrt 
+        delay = ((self.time_for_next_run - cur_time) + self.time_padding).total_seconds()
+        self.logger.info('Scheduling next run at %s' % self.time_for_next_run)
+        self.timer_thread = threading.Timer(delay, self.run_with_lock_, [ignore_times, force_copy])
         self.timer_thread.start()
 
-    def go(self, ignore_times, force_copy):
+    def run_(self, ignore_times, force_copy):
         self.logger.debug('Executing webify.traverse()')
         cur_time = datetime.datetime.now()
         self.webify.meta_data['__ignore_times__'] = ignore_times
@@ -237,6 +240,7 @@ class RunWebify:
         self.webify.meta_data['__time__'] = cur_time
         self.webify.traverse()
         self.browser_controller.refresh()
+        self.time_for_next_run = None
 
 class WebifyLive:
     def __init__(self, webify, upload_shell_script):
@@ -245,6 +249,7 @@ class WebifyLive:
         uploader = upload.UploadScript(shell_script=upload_shell_script)
 
         self.run_webify = RunWebify(webify=webify, browser_controller=browser_controller)
+        self.run_webify.run(when='now', ignore_times=False, force_copy=False)
 
         watched_dir = webify.get_src()
         dir_observer = Observer()
@@ -260,10 +265,7 @@ class WebifyLive:
                 time.sleep(1)
         except KeyboardInterrupt:
             dir_observer.stop()
-            # kl_thread.stop()
 
-        # if self.next_run: 
-        #     self.next_run.cancel()
         dir_observer.join()
         kl_thread.join()
         if self.run_webify.timer_thread:

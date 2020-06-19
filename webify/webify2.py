@@ -521,8 +521,6 @@ class Webify:
         self.dir_tree.traverse(enter_func=self.enter_dir, proc_func=self.proc_dir, leave_func=self.leave_dir)
         toc = time.time()
         logger.critical('Webify took {}'.format(datetime.timedelta(seconds=toc-tic)))
-        if self.next_run_time != None:
-            logger.critical('Next suggested run at {}'.format(self.next_run_time))
         util.WebifyLogger.get('next-run').debug('Next run time: %s' % self.next_run_time)
 
 def version_info():
@@ -573,9 +571,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--show-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is compiled')
     cmdline_parser.add_argument('--show-ignored',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored')
     
-    cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes an autocompile')
-    cmdline_parser.add_argument('--upload-script',action='store',default=None,help='Specifies that shell script copies the compiled website to the hosting server')
-    cmdline_parser.add_argument('--auto',action='store_true',default=False,help='Use with --live option for time dependent auto compilation.  This option is useful when using webify as a server.')
+    cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes source-to-web compilation as needed')
+    cmdline_parser.add_argument('--upload-script',action='store',default=None,help='Specifies the shell script that copies the compiled website to the hosting server')
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -645,10 +642,6 @@ if __name__ == '__main__':
     logger.debug('Meta data:')
     logger.debug(pp.pformat(meta_data))
 
-    # if cmdline_args.live_upload_script == None:
-    #     upload_script = os.path.join(srcdir, default_upload_script)
-
-
     webify = Webify()
     try:
         webify.set_src(srcdir)
@@ -662,21 +655,20 @@ if __name__ == '__main__':
         print(e)
         exit(-2)
     
-    # if cmdline_args.check_live_browser != None:
-    #     run.BrowserController.check_if_available(cmdline_args.check_live_browser, logger)
-    #     exit(0)
-
     check_cmdline_args(is_live=cmdline_args.live, cmdline_args=cmdline_args)
 
     if not cmdline_args.live:
         webify.traverse()
+        if webify.next_run_time != None:
+            logger.critical('Next suggested run at {}'.format(webify.next_run_time))
     else:
-        util.WebifyLogger.make(name='webify-live', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        loglevel == logging.INFO
+        # util.WebifyLogger.make(name='webify-live', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='keyboard', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='browser', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='upload', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
-        util.WebifyLogger.make(name='run-webify', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
+        util.WebifyLogger.make(name='run-webify', loglevel=logging.DEBUG if cmdline_args.debug_live else logging.INFO, logfile=logfile)
 
         logger.critical('Webifying folder "%s" into "%s"' % (srcdir, destdir))
 
