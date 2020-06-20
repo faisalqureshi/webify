@@ -495,7 +495,7 @@ The type of the media files (images or videos) will determine which template (`h
 4. Get [Webify](https://github.com/faisalqureshi/webify)
 5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
-7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
+7. Set environment variables `WEBIFY_DIR` and `WEBIFY_PYTHON`.
 
 ## Windows
 
@@ -505,7 +505,7 @@ The type of the media files (images or videos) will determine which template (`h
 4. Get [Webify](https://github.com/faisalqureshi/webify)
 5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  *Use your preferred method for setting up windows python environment.  We also have had some success with using docker containers.*
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile.bat` and `webify.bat`.  Use these scripts to run the utilities.
-7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
+7. Set environment variables `WEBIFY_DIR` and `WEBIFY_PYTHON`.
 
 ## Linux
 
@@ -514,13 +514,15 @@ The type of the media files (images or videos) will determine which template (`h
 3. Get [Webify](https://github.com/faisalqureshi/webify)
 4. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 5. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
-7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
+7. Set environment variables `WEBIFY_DIR` and `WEBIFY_PYTHON`.
 
 ## Webify Usage
 
 Use the following command to construct a website from webify source:
 
-`webify src-folder dest-folder`.
+```txt
+webify src-folder dest-folder
+```
 
 The following commandline options, which are available for *webify*, are particularly useful for printing diagnostic information during execution.
 
@@ -539,7 +541,7 @@ Use `--help` to list the available commandline options.
 Use `--live` option to enable live viewing during editing.
 
 ```txt
-webify --live --live-url-prefix="http://localhost/webify-manual" --upload-script=upload.sh src-folder dest-folder`
+webify --live --live-url-prefix="http://localhost/webify-manual" --upload-script=upload.sh src-folder dest-folder
 ```
 In this mode, webify runs in the background and processes source folder into destination folder as needed.  This processing happens when:
 
@@ -569,6 +571,10 @@ mdfile lorem-html.md
 ```
 
 Use `--help` to list available commandline options.
+
+# Questions and Comments
+
+Please contact Faisal Qureshi at <a href="mailto:faisal.qureshi@ontariotechu.ca">faisal.qureshi@ontariotechu.ca</a>. 
 
 # Copyright
 
