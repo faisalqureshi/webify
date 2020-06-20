@@ -34,11 +34,11 @@ def check_valid_start_and_end(ts, te):
     if ts == T.error or te == T.error:
         return False
 
-    # Start at big-bang and end at ragnarok
+    # Start at bigbang and end at ragnarok
     if ts == T.bigbang and te == T.ragnarok:
         return True
 
-    # Can't start at ragnarok or finish at big-bang
+    # Can't start at ragnarok or finish at bigbang
     if ts == T.ragnarok or te == T.bigbang:
         return False
 

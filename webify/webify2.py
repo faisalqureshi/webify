@@ -573,6 +573,7 @@ if __name__ == '__main__':
     
     cmdline_parser.add_argument('--live',action='store_true',default=False,help='Monitors changes in the root folder and invokes source-to-web compilation as needed')
     cmdline_parser.add_argument('--upload-script',action='store',default=None,help='Specifies the shell script that copies the compiled website to the hosting server')
+    cmdline_parser.add_argument('--live-url-prefix',action='store',default=None,help='Specify url prefix for --live mode')
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
@@ -683,4 +684,4 @@ if __name__ == '__main__':
             logger.info('Not using an uploader script')
 
         logger.critical('Press q to exit.')
-        run.WebifyLive(webify=webify, upload_shell_script=upload_script)
+        run.WebifyLive(webify=webify, url_prefix=cmdline_args.live_url_prefix, upload_shell_script=upload_script)

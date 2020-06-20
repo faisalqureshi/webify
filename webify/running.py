@@ -15,7 +15,7 @@ import os
 lock = threading.Lock()
 
 class KeyboardListener:
-    def __init__(self, dir_observer, run_webify, browser_controller, uploader):
+    def __init__(self, dir_observer, run_webify, browser_controller, uploader, url_prefix):
         self.logger = util.WebifyLogger.get('keyboard')
         self.logger.debug('Setting up keyboard handler')
 
@@ -23,6 +23,7 @@ class KeyboardListener:
         self.run_webify = run_webify
         self.browser_controller = browser_controller
         self.uploader = uploader
+        self.url_prefix = url_prefix
 
         self.alive = True
 
@@ -66,8 +67,8 @@ class KeyboardListener:
     def press_w(self):
         self.logger.debug('getting url from user, waiting for lock')
         with lock:
-            url = input('Enter URL to watch: http://')
-            self.browser_controller.set_url('http://'+url)
+            url = input('Enter URL to watch: %s' % self.url_prefix)
+            self.browser_controller.set_url(self.url_prefix+url)
         self.logger.debug('finished getting url from user, released lock')
         return True
 
@@ -243,7 +244,7 @@ class RunWebify:
         self.time_for_next_run = None
 
 class WebifyLive:
-    def __init__(self, webify, upload_shell_script):
+    def __init__(self, webify, url_prefix, upload_shell_script):
 
         browser_controller = browser.BrowserController()
         uploader = upload.UploadScript(shell_script=upload_shell_script)
@@ -256,7 +257,7 @@ class WebifyLive:
         dir_observer.schedule(DirChangeHandler(watched_dir=watched_dir, run_webify=self.run_webify), watched_dir, recursive=True)
         dir_observer.start()
 
-        kl = KeyboardListener(dir_observer, run_webify=self.run_webify, browser_controller=browser_controller, uploader=uploader)
+        kl = KeyboardListener(dir_observer, run_webify=self.run_webify, browser_controller=browser_controller, uploader=uploader, url_prefix=url_prefix)
         kl_thread = threading.Thread(target=kl.handler)
         kl_thread.start()
 

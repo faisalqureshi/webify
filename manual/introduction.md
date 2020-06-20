@@ -383,7 +383,7 @@ include-after-body:      *None | <filename(s)>
 bib:                     *None | <bibtex files(s)>
 csl:                     *None | <csl file>
 availability:
-  start:                 *big-bang | Date and Time
+  start:                 *bigbang | Date and Time
   end:                   *ragnarok | Date and Time
 ```
 
@@ -428,7 +428,7 @@ html-imgs:               *None | <filename>
 html-vid:                *None | <filename>
 html-vids:               *None | <filename>
 availability:
-  start:                 *big-bang | Date and Time
+  start:                 *bigbang | Date and Time
   end:                   *ragnarok | Date and Time
 ```
 
@@ -495,6 +495,7 @@ The type of the media files (images or videos) will determine which template (`h
 4. Get [Webify](https://github.com/faisalqureshi/webify)
 5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
+7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
 
 ## Windows
 
@@ -504,6 +505,7 @@ The type of the media files (images or videos) will determine which template (`h
 4. Get [Webify](https://github.com/faisalqureshi/webify)
 5. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  *Use your preferred method for setting up windows python environment.  We also have had some success with using docker containers.*
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile.bat` and `webify.bat`.  Use these scripts to run the utilities.
+7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
 
 ## Linux
 
@@ -512,22 +514,61 @@ The type of the media files (images or videos) will determine which template (`h
 3. Get [Webify](https://github.com/faisalqureshi/webify)
 4. Setup Python.  The current version of webify uses Python > 3.0.  Run `pip -r install webify/webify/requirements.txt` to set up Python.  Optionally you can use `venv` to create a standalone webify Python environment.  See [here](https://docs.python.org/3/library/venv.html) for more details.
 5. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile` and `webify`.  Use these scripts to run the utilities.
+7. Set environment variables `WEBIFY_DIR` and `WEBIIFY_PYTHON`.
 
-## Usage
+## Webify Usage
 
-Check `python mdfile2.py --help` and `python webify2.py --help` for usage and available command line options.
+Use the following command to construct a website from webify source:
 
-Use the `--live` option to keep it active in the background.  (This is still somewhat experimental.)  In live view, enter 'h' to see the available options.
+`webify src-folder dest-folder`.
 
-The following command line options, which are available for *webify*, are particularly useful for printing diagnostic information during execution.
+The following commandline options, which are available for *webify*, are particularly useful for printing diagnostic information during execution.
 
-- `--show-availability`: list files that were not processed due to availability constraints
+- `--show-availability`: list files that were not processed due to time availability constraints
 - `--show-not-compiled`: list markdown files that were not compiled because destination file already exists 
 - `--show-compiled`: list markdown files that were compiled
 - `--show-not-copied`: list files that were not copied to the destination, because destination file already exists
 - `--show-ignored`: list markdown files that were not processed due to their ignore flag
 
-By default webify only shows *warnings* or *errors*.  Use `--verbose` flag to turn on messaging; however, I find this to be not very useful when dealing with a large set of files.  There is such a thing as too much information.  
+By default webify only shows *warnings* or *errors*.  Use `--verbose` flag to turn on messaging; however, I find this to be not very useful when dealing with a large set of files.  There is such a thing as too much information.
+
+Use `--help` to list the available commandline options.
+
+### Live Mode
+
+Use `--live` option to enable live viewing during editing.
+
+```txt
+webify --live --live-url-prefix="http://localhost/webify-manual" --upload-script=upload.sh src-folder dest-folder`
+```
+In this mode, webify runs in the background and processes source folder into destination folder as needed.  This processing happens when:
+
+- a file is created, deleted, or modified; and
+- time availability for a file is changed.
+
+Use `--upload-script` to specify a shell script that can be used to upload compiled website to a hosting server.
+
+In live mode, enter `h` to see the list of available commands.
+
+```txt
+- 'h': print this message
+- 'q': quit
+- 'r': run webify
+- 'c': webify (force file copying)
+- 'i': webify (force compilation)
+- 'a': webify (force compilation and file copying)
+- 'w': enter url to watch (useful for live updates)
+- 'b': toggle browser refresh
+- 'u': run upload shell script
+```
+
+## MDfile Usage
+
+```txt
+mdfile lorem-html.md
+```
+
+Use `--help` to list available commandline options.
 
 # Copyright
 
