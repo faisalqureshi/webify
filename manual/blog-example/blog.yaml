@@ -6,3 +6,7 @@ availability:
   - file: post3.md
     start: 19 May
     end: 12 May 2030
+
+ignore:
+  - file: post3.md
+    ignore: True

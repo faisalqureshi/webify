@@ -6,16 +6,40 @@
     <div class="container">
         <h1>{{ __blog_title__ }}</h1>
         
-        <h2>Posts</h2>
+        <h2>Posts that are currently available</h2>
 
         <ul>
             {% for post in __md__ %}
-                {% if (post.is_available and __me__ != post.filename and post.ext != ".md" ) %}
+                {% if (post.is_available and post.is_ignored == False  and __me__ != post.filename and post.ext != ".md" ) %}
                 <li><a href="{{ post.filename }}">{{ post.filename }}</a></li>
                 {% endif %}
             {% endfor %}
         </ul>
 
+        <h2>All possible posts</h2>
+
+        <ul>
+          {% for post in __md__ %}
+          <li>
+            <a href="{{ post.filename }}">{{ post.filename }}</a>
+            -
+            {{ post.ext }}
+            -
+            {% if (post.is_available) %}
+            Available
+            {% else %}
+            Not available
+            {% endif %}
+            -
+            {% if (post.is_ignored) %}
+            Ignored
+            {% else %}
+            Not ignored
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>        
+        
     </div>
   </body>
 </html>

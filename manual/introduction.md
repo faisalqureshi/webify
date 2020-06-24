@@ -177,9 +177,24 @@ File contents ...
 
 The [markdown source](lorem-html.md) for this [html](lorem-html.html) file was copied using this mechanism.  Without this flag, `lorem-html.md` will not be available in the destination folder.
 
-## Ignoring markdown files
+## Ignoring files
 
-Use to `ignore` key to force webify to ignore a markdown file during website generation.  The same effect can be achieved by adding this file to the `.webifyignore` file.
+It is possible to ignore files the current folder by including this information in a yaml file as follows:
+
+```yaml
+---
+ignore:
+  - file: file1.md
+    ignore: True
+  - file: file2.md
+    ignore: False
+```
+
+_Aside_: The same effect can be achieved by adding this file to the `.webifyignore` file.
+
+### Ignoring markdown files
+
+Use to `ignore` key to force webify to ignore a markdown file during website generation.
 
 ```txt
 ---

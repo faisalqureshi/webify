@@ -1,3 +1,5 @@
+.webifyignore
+.DS_Store
 _templates
 example1
 example2

@@ -103,6 +103,19 @@ class Webify:
         s, e = mdfile.get_availability()
         return self.check_availability_(s, e, mdfile.get_filepath())
         
+    def check_ignore(self, filepath, ignore_info):
+        logger_ignore = util.WebifyLogger.get('ignore')
+        
+        logger_ignore.debug('Checking ignore for %s' % filepath)
+        logger_ignore.debug(pp.pformat(ignore_info))
+
+        try:
+            v = ignore_info[filepath]['ignore']
+            return v
+        except:
+            logger_ignore.debug('Find no ignore info for file %s' % filepath)
+            return False
+
     def check_availability(self, filepath, availability):
         logger_availability = util.WebifyLogger.get('availability')
         
@@ -188,21 +201,25 @@ class Webify:
             yaml_file.load()
             self.rc.add(yaml_file.data)
     
-    def capture_list_of(self, dir, availability, file_type):
+    def capture_list_of(self, dir, availability, ignore_info, file_type):
         list_files = []
         for filename in dir.files[file_type]:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
             is_available = self.check_availability(filepath, availability)
-            self.capture_dir_listing_information(list_files, filename, filename, is_available, filepath, output_filepath, file_type, obj=None, data=None)
+            is_ignored = self.check_ignore(filepath, ignore_info)
+            self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, file_type, obj=None, data=None)
         return list_files
 
-    def capture_list_of_md(self, dir, availability):
+    def capture_list_of_md(self, dir, availability, ignore_info):
         list_files = []
         for filename in dir.files['md']:
             filepath = self.make_src_filepath(dir, filename)
             output_filepath = self.make_output_filepath(dir, filename)
             is_available = self.check_availability(filepath, availability)
+            is_ignored = self.check_ignore(filepath, ignore_info)
+
+            # print('Y', filename, 'is_ignored', is_ignored, 'is_available', is_available)
 
             self.rc.push()
             
@@ -212,21 +229,31 @@ class Webify:
             md_file = MDfile(filepath=filepath, args=args)
             md_file = self.md_set_defaults(md_file)
             loaded_ok = md_file.load(self.rc)
+            # print('loaded_ok', loaded_ok)
             if loaded_ok:
                 converted_output_filepath = md_file.make_output_filepath()
                 converted_filename = os.path.split(converted_output_filepath)[1]
-                should_process, _, _, _ = self.md_inspect_frontmatter(md_file)
+                should_process, reason, _, _ = self.md_inspect_frontmatter(md_file)
             else:
                 converted_output_filepath = output_filepath
                 converted_filename = filename
 
-            if is_available and loaded_ok and should_process:
+            # print('should_process', should_process)
+            if (not is_ignored) and is_available and loaded_ok and should_process:
+                # print('YY')
                 if md_file.get_value('copy-source'):
-                    self.capture_dir_listing_information(list_files, filename, filename, True, filepath, output_filepath, 'md-src', obj=None, data=None)
+                    self.capture_dir_listing_information(list_files, filename, filename, True, False, filepath, output_filepath, 'md-src', obj=None, data=None)
 
-                self.capture_dir_listing_information(list_files, filename, converted_filename, True, filepath,converted_output_filepath, 'md', obj=md_file, data=md_file.get_yaml())
+                self.capture_dir_listing_information(list_files, filename, converted_filename, True, False, filepath,converted_output_filepath, 'md', obj=md_file, data=md_file.get_yaml())
             else:
-                self.capture_dir_listing_information(list_files, filename, converted_filename, False, filepath, converted_output_filepath, 'md', obj=None, data=None)
+                # print('ZZ')
+                if not should_process:
+                    is_ignored = True if reason == 'ignore' else is_ignored
+                    is_available = False if reason == 'not available' else is_available
+
+                # print('is_ignored', is_ignored, 'is_available', is_available)
+
+                self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'md', obj=None, data=None)
 
             self.rc.pop()
         return list_files
@@ -237,8 +264,24 @@ class Webify:
             filename = i['filename']
             filepath = i['filepath']
             is_available = i['is_available']
+            is_ignored = i['is_ignored']
             output_filepath = i['output_filepath']
             file_type = i['file_type']
+
+            # print('X', filename, file_type, 'is_ignored', is_ignored, 'is_available', is_available)
+            if is_ignored:
+                # if (filename == 'post3.html'):
+                #       print('B', is_ignored)
+                if util.WebifyLogger.is_info(self.logger):
+                    self.logger.info('x-: %s' % src_filename) 
+                else:
+                    util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
+                x, m = util.remove_file(output_filepath)
+                if x:
+                    self.logger.info('    Removed %s' % output_filepath)
+                else:
+                    util.WebifyLogger.get('ignored').warning('%s: (%s)' % (m, output_filepath))
+                continue
 
             if not is_available:
                 if util.WebifyLogger.is_info(self.logger):
@@ -329,11 +372,12 @@ class Webify:
         
         self.rc.pop()
                     
-    def capture_dir_listing_information(self, list_files, filename, converted_filename, is_available, filepath, output_filepath, file_type, obj, data):
+    def capture_dir_listing_information(self, list_files, filename, converted_filename, is_available, is_ignored, filepath, output_filepath, file_type, obj, data):
         entry = {
             'src_filename': filename,
             'filename': converted_filename,
             'is_available': is_available,
+            'is_ignored': is_ignored,
             'filepath': filepath,
             'output_filepath': output_filepath,
             'file_type': file_type,
@@ -341,7 +385,8 @@ class Webify:
             'data': data,
             'ext': os.path.splitext(converted_filename)[1]
         }
-        self.logger.info('%s: %s' % (' +' if is_available else ' -', filename))
+        should_capture = is_available and (not is_ignored)
+        self.logger.info('%s: %s' % (' +' if should_capture else ' -', filename))
         list_files.append(entry)
 
     def make_src_filepath(self, dir, filename):
@@ -373,6 +418,45 @@ class Webify:
             return False, 'Not a file'
         else:
             return True, filepath 
+
+    def load_ignore_info(self, dir):
+        logger_ignore = util.WebifyLogger.get('ignore')
+        logger_ignore.debug('Loading ignore info for folder %s' % dir.get_fullpath())
+
+        ignore_info = {}
+        x = self.rc.value('ignore')
+        if not x:
+            logger_ignore.debug('No ignore information found in folder %s' % dir.get_fullpath())
+            return ignore_info
+        else:
+            logger_ignore.debug('Ignore information found in folder %s' % dir.get_fullpath())
+            logger_ignore.debug(pp.pformat(x))
+
+        try:
+            if not isinstance(x, list):
+                x = [x]
+            for i in x:
+                v, s = self.check_file_in_folder(dir, i['file'])
+                logger_ignore.debug('File %s found in this folder: %s' % (s, v))
+                if not v:
+                    logger_ignore.warning('Cannot read ignore information for %s (%s)' % (i['file'], s))
+                else:
+                    ignore_info[s] = {}
+                    ignore_info[s]['ignore'] = self.read_ignore_information(i['ignore'], s)
+                    logger_ignore.debug(pp.pformat(ignore_info))
+        except:
+            self.logger.warning('Cannot read ignore information: %s' % dir.get_fullpath())
+            return ignore_info
+        
+        return ignore_info
+
+    @staticmethod
+    def read_ignore_information(x, filepath):
+        if x == True or x == False:
+            return x
+        else:
+            util.WebifyLogger.get('ignore').warning('Ignore value can only be true or false: %s' % filepath)
+            return False
 
     def load_availability_info(self, dir):
         logger_availability = util.WebifyLogger.get('availability')
@@ -431,6 +515,7 @@ class Webify:
         self.rc.push()
         self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
         self.rc.remove('availability')
+        self.rc.remove('ignore')
 
         self.dir_stack.push(dir.name)
 
@@ -452,12 +537,13 @@ class Webify:
         self.logger.info('- [%d] back in folder %s' % (self.depth_level, dir.get_fullpath()))
 
         availability = self.load_availability_info(dir)
+        ignore_info = self.load_ignore_info(dir)
 
         logger_dirlist = util.WebifyLogger.get('dirlist')
         logger_dirlist.info('Capturing file list from %s' % dir.get_fullpath())
-        list_html = self.capture_list_of(dir, availability, 'html')
-        list_md = self.capture_list_of_md(dir, availability)
-        list_misc = self.capture_list_of(dir, availability, 'misc')
+        list_html = self.capture_list_of(dir, availability, ignore_info, 'html')
+        list_md = self.capture_list_of_md(dir, availability, ignore_info)
+        list_misc = self.capture_list_of(dir, availability, ignore_info, 'misc')
 
         logger_dirlist.debug('--- local list starts --- (%s)' % dir.get_fullpath())
         logger_dirlist.debug(pp.pformat(list_html))
@@ -562,6 +648,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-md',action='store_true',default=False,help='Turns on mdfile debug messages')
     cmdline_parser.add_argument('--debug-html',action='store_true',default=False,help='Turns on html debug messages')
     cmdline_parser.add_argument('--debug-availability',action='store_true',default=False,help='Turns on availability debug messages')
+    cmdline_parser.add_argument('--debug-ignore',action='store_true',default=False,help='Turns on ignore debug messages')
     cmdline_parser.add_argument('--debug-live',action='store_true',default=False,help='Turns on live run debug messages')
     cmdline_parser.add_argument('--debug-next-run',action='store_true',default=False,help='Turns on next run debug messages')
 
@@ -594,6 +681,7 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='db_ignore', loglevel=logging.DEBUG if cmdline_args.debug_db_ignore else loglevel, logfile=logfile)    
     util.WebifyLogger.make(name='dirlist', loglevel=logging.DEBUG if cmdline_args.debug_dirlist else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='availability', loglevel=logging.DEBUG if cmdline_args.debug_availability else loglevel, logfile=logfile)
+    util.WebifyLogger.make(name='ignore', loglevel=logging.DEBUG if cmdline_args.debug_ignore else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='next-run', loglevel=logging.DEBUG if cmdline_args.debug_next_run else loglevel, logfile=logfile)
 
     util.WebifyLogger.make(name='available', loglevel=logging.INFO if cmdline_args.show_availability else loglevel, logfile=logfile)
