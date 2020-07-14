@@ -771,5 +771,7 @@ if __name__ == '__main__':
         else:
             logger.info('Not using an uploader script')
 
+        logger.critical('Press h to see the list of available commands.')
         logger.critical('Press q to exit.')
+
         run.WebifyLive(webify=webify, url_prefix=cmdline_args.live_url_prefix, upload_shell_script=upload_script)

@@ -67,8 +67,9 @@ class KeyboardListener:
     def press_w(self):
         self.logger.debug('getting url from user, waiting for lock')
         with lock:
-            url = input('Enter URL to watch: %s' % self.url_prefix)
-            self.browser_controller.set_url(self.url_prefix+url)
+            prefix = self.url_prefix if self.url_prefix != None else ''
+            url = input('Enter URL to watch: %s' % prefix)
+            self.browser_controller.set_url(prefix+url)
         self.logger.debug('finished getting url from user, released lock')
         return True
 
@@ -136,7 +137,8 @@ class DirChangeHandler(FileSystemEventHandler):
         what = 'directory' if event.is_directory else 'file'
         self.logger.debug('Created %s: %s' % (what, event.src_path))
         if os.stat(event.src_path).st_size > 0:
-            self.run_webify.run(when='after', ignore_times=False, force_copy=False, time_or_duration=5)
+            ignore_times = self.run_webify.webify.meta_data['__ignore_times__']
+            self.run_webify.run(when='after', ignore_times=ignore_times, force_copy=False, time_or_duration=5)
 
     def on_deleted(self, event):
         super(DirChangeHandler, self).on_deleted(event)
@@ -150,7 +152,8 @@ class DirChangeHandler(FileSystemEventHandler):
         
         if not event.is_directory:
             if os.path.splitext(event.src_path)[1] in ['.md', '.html', '.yaml', '.css', '.mustache', '.jinja']:
-                self.run_webify.run(when='after', ignore_times=False, force_copy=False, time_or_duration=5)
+                ignore_times = self.run_webify.webify.meta_data['__ignore_times__']
+                self.run_webify.run(when='after', ignore_times=ignore_times, force_copy=False, time_or_duration=5)
 
 class RunWebify:
     def __init__(self, webify, browser_controller):
@@ -219,11 +222,17 @@ class RunWebify:
     def schedule_next_run(self, ignore_times, force_copy):
         nrt = self.webify.next_run_time
         if nrt == None:
+            if self.time_for_next_run == None and self.timer_thread:
+                self.timer_thread.cancel()
+                self.timer_thread = None
+            self.logger.info('No run is scheduled')
             return
         if self.time_for_next_run != None and nrt > self.time_for_next_run:
+            self.logger.info('Next run is scheduled at {}'.format(self.time_for_next_run))
             return
         if self.timer_thread:
             self.timer_thread.cancel()
+            self.timer_thread = None
 
         cur_time = datetime.datetime.now()
         self.time_for_next_run = nrt 
@@ -231,6 +240,7 @@ class RunWebify:
         self.logger.info('Scheduling next run at %s' % self.time_for_next_run)
         self.timer_thread = threading.Timer(delay, self.run_with_lock_, [ignore_times, force_copy])
         self.timer_thread.start()
+        self.logger.info('Next run is scheduled at {}'.format(self.time_for_next_run))
 
     def run_(self, ignore_times, force_copy):
         self.logger.debug('Executing webify.traverse()')
@@ -250,7 +260,8 @@ class WebifyLive:
         uploader = upload.UploadScript(shell_script=upload_shell_script)
 
         self.run_webify = RunWebify(webify=webify, browser_controller=browser_controller)
-        self.run_webify.run(when='now', ignore_times=False, force_copy=False)
+        ignore_times = self.run_webify.webify.meta_data['__ignore_times__']
+        self.run_webify.run(when='now', ignore_times=ignore_times, force_copy=False)
 
         watched_dir = webify.get_src()
         dir_observer = Observer()
