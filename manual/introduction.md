@@ -522,6 +522,16 @@ The type of the media files (images or videos) will determine which template (`h
 6. Add webify/webify directory to PATH environment variable.  This folder contains two scripts `mdfile.bat` and `webify.bat`.  Use these scripts to run the utilities.
 7. Set environment variables `WEBIFY_DIR` and `WEBIFY_PYTHON`.
 
+**Live Mode is not available in windows.**
+
+### Windows Subsystem Linux
+
+One way to enable live mode (untested) is to use WSL.  In order to do so, please also install the [Xming XServer for Windows](https://sourceforge.net/projects/xming/).  There is an issue with Keyboard Listener that tries to connect to `DISPLAY:0`.
+
+### Unixify Windows
+
+Another option is to use the excellent [Msys2](https://www.msys2.org/) for windows.  It comes with `pacman` package manager.  It will provide you a unix-like experience in windows.  It is better integrated with windows, e.g., it is able to access Google Drive, which WSL cannot access.  Why doesn't google support linux for Google Drive is beyond me.  You may also look at the newly released [Windows Terminal](https://www.microsoft.com/en-ca/p/windows-terminal/9n0dx20hk701?activetab=pivot:overviewtab) for a better terminal experience than the good old dos terminal.  Who uses it any ways.  OpenSSH  in Msys2 doesn't recognize `c:\Users\$USERNAME` directory.  Your best best is to copy `.ssh` folder `/c/mysys64/home/$USERNAME`.  This will allow you to use `rsync` with `ssh` to upload the generated content on to a remote server. 
+
 ## Linux
 
 1. `sudo apt-get install texlive-full`
@@ -594,7 +604,7 @@ Please contact Faisal Qureshi at <a href="mailto:faisal.qureshi@ontariotechu.ca"
 # Copyright
 
 Faisal Qureshi    
-Associate Professor  
+Professor  
 Computer Science     
 Faculty of Science     
 Ontario Tech University     
