@@ -513,7 +513,7 @@ class Webify:
         logger_rc.debug(pp.pformat(self.rc.data()))
 
         self.rc.push()
-        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath()).replace('\\','/')})
         self.rc.remove('availability')
         self.rc.remove('ignore')
 
@@ -690,7 +690,7 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='ignored', loglevel=logging.INFO if cmdline_args.show_ignored else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='not-copied', loglevel=logging.INFO if cmdline_args.show_not_copied else loglevel, logfile=logfile)
 
-    util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR, logfile=logfile)
+    util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR if not cmdline_args.debug_md else logging.DEBUG, logfile=logfile)
     util.WebifyLogger.make(name='md-buffer', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-rc', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-timestamps', loglevel=logging.ERROR, logfile=logfile)
@@ -715,13 +715,13 @@ if __name__ == '__main__':
     
     cur_time = datetime.datetime.now()
     meta_data = {
-        'prog_name': prog_name,
-        'prog_dir': prog_dir.replace('\\','\\\\'), # We need to do it for windows.
-        'cur_dir': cur_dir.replace('\\','\\\\'),   # It is a bit wierd, I agree.
-        'src_dir': srcdir.replace('\\','\\\\'),    # But it seems mustache templating engine
-        'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
+        'prog_name': prog_name.replace('\\','/'),
+        'prog_dir': prog_dir.replace('\\','/'), # We need to do it for windows.
+        'cur_dir': cur_dir.replace('\\','/'),   # It is a bit wierd, I agree.
+        'src_dir': srcdir.replace('\\','/'),    # But it seems mustache templating engine
+        'dest_dir': destdir.replace('\\','/'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
-        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
+        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','/'),
         '__last_updated__': cur_time.strftime('%Y-%m-%d %H:%M'),
         'renderer': cmdline_args.renderer,
         '__force_copy__': cmdline_args.force_copy,
