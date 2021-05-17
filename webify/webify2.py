@@ -20,7 +20,7 @@ from yamlfile import YAMLfile
 from htmlfile import HTMLfile
 import time
 import datetime
-import running as run
+#import running as run
 
 from globals import __version__
 
@@ -751,6 +751,8 @@ if __name__ == '__main__':
         if webify.next_run_time != None:
             logger.critical('Next suggested run at {}'.format(webify.next_run_time))
     else:
+        import running as run
+
         loglevel == logging.INFO
         # util.WebifyLogger.make(name='webify-live', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
