@@ -500,6 +500,59 @@ caption: Caption
 
 The type of the media files (images or videos) will determine which template (`html-imgs` or `html-vids`) will be used.
 
+##### Example media filters
+
+**img.mustache**
+
+```txt
+<div class="row">
+  <div class="col-lg-12">
+    <figure class="figure">
+      <a href="{{file}}"><img class="img-responsive" width="100%" src="{{file}}" alt="{{caption}}"></a>
+     {{#caption}}<figcaption class="figure-caption">{{caption}}</figcaption>{{/caption}}
+    </figure>
+  </div>
+</div>
+```
+
+**vid.mustache**
+
+```txt
+<div class="embed-responsive embed-responsive-16by9">
+<iframe class="embed-responsive-item" src="{{file}}"></iframe>
+</div>
+```
+
+##### Embedding context info in Caption
+
+It is possible to embed extra context info in captions as follows
+
+```txt
+![Caption !{'a':'x', 'b':'y'}](Media File)
+```
+
+In this case the (rendering) context available to media filters will also include 'a':'x' and 'b':'z' in addition to 
+the usual entries (`caption`,`file`).  The following media filter, e.g., uses width information.
+
+**Definition**
+
+```txt
+![Caption !{'width':'12%'}](Media file)
+```
+
+**Filter**
+
+```txt
+<div class="row">
+<div class="col-lg-12 text-center">
+<figure class="figure">
+<a href="{{file}}"><img class="img-fluid" src="{{file}}" alt="{{caption}}" {{#width}}width="{{width}}"{{/width}}></a>
+{{#caption}}<figcaption class="figure-caption">{{caption}}</figcaption>{{/caption}}
+</figure>
+</div>
+</div>
+```
+
 # Installation and Usage
 
 ## Mac OSX
