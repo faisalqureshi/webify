@@ -81,13 +81,16 @@ class HTML_Filter:
                 caption_embedded_info = re.search(caption_re, caption)
                 if caption_embedded_info:
                     info = caption_embedded_info.group(0)[1:] 
-                    info_dict = ast.literal_eval(info)
-                    context.update(info_dict)
-                    stripped_caption = caption[:caption_embedded_info.start()]
-                    stripped_caption += caption[caption_embedded_info.end():]
-                    caption = stripped_caption
+                    try:
+                        info_dict = ast.literal_eval(info)
+                        context.update(info_dict)
+                        stripped_caption = caption[:caption_embedded_info.start()]
+                        stripped_caption += caption[caption_embedded_info.end():]
+                        caption = stripped_caption
+                    except:
+                        self.logger.warning('Invalid caption info: "%s" in %s. \n\tExpecting items of the form "!{\'x\':\'a\', \'y\':\'b\'}".' % (info, src_filepath))
                 context['caption'] = caption.strip()
-                print(context)
+#                print(context)
 
             mm = mediafile.split('|')
             if len(mm) == 1:
