@@ -219,7 +219,7 @@ availability:
   - file: file2.html
     start: 4 June 12 pm
   - file: file3.png
-    end: 31 May 2020 11:59 pm
+    end: 31 May 2035 11:59 pm
 ```
 
 Note that availability information is folder specific, and it only applies to files present in that folder.  Files for which no availability information is specified are always available.  In the above example, `file1.md` will only be available between 12 am, June 22 and 6 pm June 23.  `file2.html` will be available after 12 pm June 4.  Similarly `file3.png` will be available before 11:59 pm May 31, 2020.
