@@ -6,7 +6,7 @@ class DirTree:
     class DirNode:
         def __init__(self, root, path, name):
             self.logger = util.WebifyLogger.get('db')
-            self.files = {'yaml': [], 'html': [], 'misc': [], 'md': []}
+            self.files = {'yaml': [], 'html': [], 'misc': [], 'md': [], 'ipynb': []}
             self.children = []
             self.partials = None
             self.name = name
@@ -21,6 +21,8 @@ class DirTree:
                 self.files['html'].append(name)
             elif ext.lower() in ['.md', '.markdown']:
                 self.files['md'].append(name)
+            elif ext.lower() in ['.ipynb']:
+                self.files['ipynb'].append(name)
             else:
                 self.files['misc'].append(name)
 

@@ -332,8 +332,9 @@ Use the `preprocess-buffer` to control this behavior.  The default value for thi
 
 Webify version > 3.1 supports blogging by adding the following special keys to the rendering context.  Each key contains file lists that can be used within a jinja template to construct a blog index page.  
 
-- `__md__`: list of markdown files found in the current folder
+- `__md__`: list of markdown files found in the current folder (both raw markdown files and their corresponding rendered files)
 - `__html__`: list of html files found in the current folder
+- `__ipynb__`: list of Jupyter Notebook files (both ipynb files and their corresponding rendered html files)
 - `__misc__`: list of all other files found in the current folder
 - `__files__`: list of all files found in the current folder and all its descendent trees.
 

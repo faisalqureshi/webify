@@ -21,6 +21,7 @@ from htmlfile import HTMLfile
 import time
 import datetime
 #import running as run
+import nbfile
 
 from globals import __version__
 
@@ -211,6 +212,21 @@ class Webify:
             self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, file_type, obj=None, data=None)
         return list_files
 
+    def capture_list_of_ipynb(self, dir, availability, ignore_info):
+        list_files = []
+        for filename in dir.files['ipynb']:
+            filepath = self.make_src_filepath(dir, filename)
+            output_filepath = self.make_output_filepath(dir, filename)
+            converted_filename = os.path.splitext(filename)[0]+'.html'
+            converted_output_filepath = os.path.splitext(output_filepath)[0]+'.html'
+            is_available = self.check_availability(filepath, availability)
+            is_ignored = self.check_ignore(filepath, ignore_info)
+
+            self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'ipynb-html', obj=None, data=None)
+            self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, 'ipynb', obj=None, data=None)
+        return list_files
+
+
     def capture_list_of_md(self, dir, availability, ignore_info):
         list_files = []
         for filename in dir.files['md']:
@@ -300,6 +316,10 @@ class Webify:
                 self.convert_html(filename, filepath, output_filepath)
             elif file_type == 'misc':
                 self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'ipynb':
+                self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'ipynb-html':
+                self.convert_ipynb(filename, filepath, output_filepath)
             elif file_type == 'md-src':
                 self.copy_misc(filename, filepath, output_filepath)
             elif file_type == 'md':
@@ -308,13 +328,29 @@ class Webify:
             else:
                 pass
             
+    def convert_ipynb(self, filename, filepath, output_filepath):
+        if os.path.isfile(output_filepath):
+            if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
+                if util.WebifyLogger.is_info(self.logger):
+                    util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
+                else:
+                    util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % output_filepath)
+                return
+
+        self.rc.push()
+        self.rc.add({'__me__': filename})
+
+        nbfile.JupyterNotebookToHTML(filename, filepath, output_filepath)
+
+        self.rc.pop()
+
     def convert_html(self, filename, filepath, output_filepath):
         if os.path.isfile(output_filepath):
             if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
                 if util.WebifyLogger.is_info(self.logger):
                     util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
                 else:
-                    util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % filepath)
+                    util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % output_filepath)
                 return
 
         self.rc.push()
@@ -406,7 +442,7 @@ class Webify:
                 if util.WebifyLogger.is_info(self.logger):
                     util.WebifyLogger.get('not-copied').info('    Destination file already exists.  Did not copy.')
                 else:
-                    util.WebifyLogger.get('not-copied').info('Did not copy.  Destination file already exists.  (%s)' % filepath)        
+                    util.WebifyLogger.get('not-copied').info('Did not copy.  Destination file already exists.  (%s)' % output_filepath)        
 
     def check_file_in_folder(self, dir, filename):
         cur_dir = dir.get_fullpath()
@@ -544,11 +580,13 @@ class Webify:
         list_html = self.capture_list_of(dir, availability, ignore_info, 'html')
         list_md = self.capture_list_of_md(dir, availability, ignore_info)
         list_misc = self.capture_list_of(dir, availability, ignore_info, 'misc')
+        list_ipynb = self.capture_list_of_ipynb(dir, availability, ignore_info)
 
         logger_dirlist.debug('--- local list starts --- (%s)' % dir.get_fullpath())
         logger_dirlist.debug(pp.pformat(list_html))
         logger_dirlist.debug(pp.pformat(list_md))
         logger_dirlist.debug(pp.pformat(list_misc))
+        logger_dirlist.debug(pp.pformat(list_ipynb))
         logger_dirlist.debug('--- local list ends ---')
 
         self.dir_stack.top()[1].extend(list_html)
@@ -561,20 +599,22 @@ class Webify:
 
         self.rc.add({'__md__': list_md,
                      '__html__': list_html,
-                     '___misc__': list_misc,
+                     '__misc__': list_misc,
+                     '__ipynb__': list_ipynb,
                      '__files__': self.dir_stack.top()[1]})
 
         logger_rc =  util.WebifyLogger.get('rc')
         logger_rc.debug('Rendering context (in %s):' % dir.get_fullpath())
         logger_rc.debug(pp.pformat(self.rc.data()))
 
-        if len(list_misc) > 0 or len(list_md) > 0 or len(list_html) > 0:
+        if len(list_misc) > 0 or len(list_md) > 0 or len(list_html) > 0 or len(list_ipynb) > 0:
             self.logger.info('Saving files to %s' % self.make_output_filepath(dir, ''))
             self.proc_files(dir, list_html)
             self.proc_files(dir, list_md)
+            self.proc_files(dir, list_ipynb)
             self.proc_files(dir, list_misc)
 
-        self.rc.remove(['__md__', '__html__', '__misc__', '__files__'])
+        self.rc.remove(['__md__', '__html__', '__misc__', '__ipynb__', '__files__'])
 
         self.rc.pop()
         self.copy_dir_list_to_parent()
