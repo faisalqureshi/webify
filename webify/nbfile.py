@@ -1,7 +1,10 @@
 import util2 as util
-import os
+#import os
 from nbconvert.exporters import HTMLExporter
 import logging
+import json
+import re
+#import markdown
 
 class JupyterNotebookSettings:
     def __init__(self, dir, rc):
@@ -56,6 +59,18 @@ class JupyterNotebookfile:
         self.logger = util.WebifyLogger.get('nb')
         self.filepath = filepath
 
+        self.heading = None
+        self.lesson_plan = ''
+
+
+    def get_metadata(self):
+        f = open(self.filepath,)
+        data = json.load(f)
+        self.process_cells(data['cells'])
+        return {
+
+        }
+
     def get_html_buffer(self):
         try:
             exporter = HTMLExporter()
@@ -67,6 +82,44 @@ class JupyterNotebookfile:
             return ''
 
         return buffer
+
+    def process_cell(self, source):
+        """
+        Picks the first level-1 heading.  All subsequent headings are ignored.
+        """
+        collect_lesson_plan = False 
+
+        for line in source:
+            if collect_lesson_plan:
+                self.lesson_plan += line
+                continue
+
+            heading_match = re.match('(^# [a-zA-Z0-9 ]+$)', line)
+            if not heading_match == None:
+                self.heading = heading_match[0]
+                print(f'Found heading: {self.heading}')
+                break
+
+            lesson_match = re.match('(^## Lesson Plan$)', line)
+            if not lesson_match == None:
+                print(f'Found {lesson_match[0]}')
+                collect_lesson_plan = True
+
+    def process_cells(self, cells):
+        print(f'{len(cells)} cells found.')
+        
+        i = 1
+        for cell in cells:
+            if not cell['cell_type'] == 'markdown':
+                print(f'Ignoring cell {i}')
+            else:
+                print(f'Processing cell {i}')
+                self.process_cell(cell['source'])
+            i = i + 1
+
+        print(self.heading)
+        print(self.lesson_plan)
+#        print(markdown.markdown(self.lesson_plan))
 
 # def JupyterNotebookToHTML(filename, filepath, dest_filepath):
 #     logger = util.WebifyLogger.get('webify')
