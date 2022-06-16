@@ -229,7 +229,9 @@ class Webify:
                 if ipynb_settings.copy_source:
                     self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, 'ipynb', obj=None, data=None)
                 if ipynb_settings.render_html:
-                    self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'ipynb-html', obj=None, data=None)
+                    nb_file = JupyterNotebookfile(filepath)
+                    nb_file.load()
+                    self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'ipynb-html', obj=nb_file, data=nb_file.get_metadata())
 
         return list_files
 
@@ -325,7 +327,7 @@ class Webify:
             elif file_type == 'ipynb':
                 self.copy_misc(filename, filepath, output_filepath)
             elif file_type == 'ipynb-html':
-                self.convert_ipynb(filename, filepath, output_filepath)
+                self.convert_ipynb(filename, filepath, output_filepath, i['obj'])
             elif file_type == 'md-src':
                 self.copy_misc(filename, filepath, output_filepath)
             elif file_type == 'md':
@@ -334,7 +336,7 @@ class Webify:
             else:
                 pass
             
-    def convert_ipynb(self, filename, filepath, output_filepath):
+    def convert_ipynb(self, filename, filepath, output_filepath, nb_file_obj):
         if os.path.isfile(output_filepath):
             if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
                 if util.WebifyLogger.is_info(self.logger):
@@ -346,8 +348,7 @@ class Webify:
         self.rc.push()
         self.rc.add({'__me__': filename})
 
-        nb_file = JupyterNotebookfile(filepath)
-        buffer = nb_file.get_html_buffer()
+        buffer = nb_file_obj.get_html_buffer()
         if util.save_to_file(output_filepath, buffer):
             if util.WebifyLogger.is_info(self.logger):
                 self.logger.info('    Compiled.')
@@ -718,6 +719,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-live',action='store_true',default=False,help='Turns on live run debug messages')
     cmdline_parser.add_argument('--debug-next-run',action='store_true',default=False,help='Turns on next run debug messages')
     cmdline_parser.add_argument('--debug-nb',action='store_true',default=False,help='Turns on Jupyter Notebooks debug messages')
+    cmdline_parser.add_argument('--debug-nb-settings',action='store_true',default=False,help='Turns on Jupyter Notebooks Settings debug messages')
 
     cmdline_parser.add_argument('--show-availability',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored due to availability')
     cmdline_parser.add_argument('--show-not-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is not compiled because it already exists')
@@ -763,6 +765,7 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='md-timestamps', loglevel=logging.ERROR, logfile=logfile)
 
     util.WebifyLogger.make(name='nb', loglevel=select_loglevel(loglevel, cmdline_args.debug_nb), logfile=logfile)
+    util.WebifyLogger.make(name='nb-settings', loglevel=select_loglevel(loglevel, cmdline_args.debug_nb_settings), logfile=logfile)
 
 
     logger = util.WebifyLogger.get('main')

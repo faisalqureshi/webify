@@ -14,6 +14,7 @@ render: "{{__root__}}/_templates/main_template.html"
 web: "https://github.com/faisalqureshi/webify"
 preprocess-buffer: False
 html-img: "{{__root__}}/_templates/img.mustache"
+copy-source: True
 
 ---
 
@@ -336,13 +337,14 @@ Webify version > 3.1 supports blogging by adding the following special keys to t
 - `__html__`: list of html files found in the current folder
 - `__ipynb__`: list of Jupyter Notebook files (both ipynb files and their corresponding rendered html files)
 - `__misc__`: list of all other files found in the current folder
-- `__files__`: list of all files found in the current folder and all its descendent trees.
+- `__files__`: list of all files found in the current folder and all its descendent trees.  Note that yaml files are not included in this list.  Yaml files are used for configuration only, and these files are not copied over to the destination.
 
 Each file object in these lists contains the following keys:
 
 - `src_filename`
 - `filename`
 - `is_available`
+- `is_ignored`
 - `filepath`
 - `output_filepath`
 - `file_type`
@@ -350,7 +352,7 @@ Each file object in these lists contains the following keys:
 - `data`
 - `ext`
 
-The relevant keys for constructing a blog index are: `filename` and `is_available`.  `data` key allows one to look into the yaml front matter for any markdown file.  This field can be used to get information about the markdown file, such as title, author, date, etc.
+The relevant keys for constructing a blog index are: `filename` and `is_available`.  `data` key allows one to look into the yaml front matter for any markdown file.  This field can be used to get information about the markdown file, such as title, author, date, etc. Key `file_type` is used internally to disinguish processing steps for the supported filetypes.  Use `ext` key to identify the type of the file.  This key contains file extension. 
 
 Any html or markdown file can use these lists to construct blog index pages.  A special key `__me__` identifies this markdown or html file.  The following jinja snippet, for example, constructs a simple blog index.
 
@@ -385,11 +387,12 @@ The following *keys* are supported during markdown to LaTeX or Beamer slides con
 #### YAML front matter
 
 ```yaml
+to: *html | pdf | beamer
 pdf-engine:              lualatex | *pdflatex
 preprocess-frontmatter:  *True | False
-preprocess-buffer:       *False
-create-output-file:      *True
-ignore:                  *False | True
+preprocess-buffer:       False
+create-output-file:      True
+ignore:                  True | *False
 template:                *None | <pandoc-template>
 highlight-style:         kate | *pygments
 slide-level:             *1 | 2
@@ -404,6 +407,7 @@ availability:
 ```
 
 - `*` next to a value indicates the default value.
+- Need to specify either `pdf` or `beamer` for the `to` key.
 - If `template` is not provided, default pandoc template is used.   Use `pandoc -D *FORMAT*` to see the default template.
 - `slide-level` is only available when converting markdown to beamer slide.
 - If `pdf-engine` isn't specified, pandoc uses the default LaTeX distribution.
@@ -429,10 +433,11 @@ The following figure provides an overview of markdown to HTML conversion.
 #### YAML front matter
 
 ```yaml
+to: *html | pdf | beamer
 preprocess-frontmatter:  *True | False
 preprocess-buffer:       *True | False
-create-output-file:      *True | False
-ignore:                  *False | True
+standalone-html:         True  | *False
+ignore:                  True | *False
 template:                *None | <pandoc-template>
 highlight-style:         kate | *pygments
 include-in-header:       *None | <filename(s)>
@@ -449,14 +454,28 @@ availability:
 ```
 
 - `*` next to a value indicates the default value.
+- `to` key must be `html`
+- If `standalone-html` is true then pandoc is used to generate html using its default markdown-to-html template or the template specified by `template` key.
 - If `template` is not provided, default pandoc template is used.   Use `pandoc -D html5` to see the default template.
-- If `create-output-file` is `False`, markdown contents are saved to a buffer.  This functionality is used in `webify` during `_partials` folder processing. 
 - Yaml front matter is only preprocessed via mustache if `preprocess-frontmatter` is `True`.
 - Media filters tags `html-img`, `html-imgs`, `html-vid` and `html-vids` specify mustache templates to override the default conversion of markdown media tag `![Caption](Image or Video file)`.  See below for more details.  Supported file extensions are `mp4`, `png`, `jpeg`, `gif` and `jpg`.
 - File contents can be preprocessed via mustache if `preprocess-buffer` is `True`.  This is done before the contents are sent to pandoc for conversion.
 - `include-in-header`, `include-before-body`, and `include-after-body` can be used to specify files whose contents will be inserted as the name suggests: in the header (between `<head>` and `</head>`), in the body (after `<body>` tag but before everything else), and just after `</body>`.  In each case, multiple files can be specified.
 - `css`: specifies the CSS file(s).
 - `availability`: this key is only used by webify.
+
+The following YAML frontmatter keys are used when mdfile is used within webify.
+
+```yaml
+render:                  *None | <render file>
+renderer:                *Jinja | Mustache
+create-output-file:      *True | False
+```
+
+- If `create-output-file` is `False`, markdown contents are saved to a buffer.  This functionality is used in `webify` during `_partials` folder processing. 
+- `render` specifies the mustache or jinja template.  The html contents generated using pandoc are passed to this template as the `body` key.  This page, for example, uses this mechanism.  Contents of the YAML frontmatter for each markdown file are also available.  Check source <a href="introduction.md">here</a>.  Render file is <a href="_templates/main_template.html">here</a>.
+- Key `renderer` specifies whether mustache or jinja template is used.
+
 
 #### Example
 
@@ -518,7 +537,7 @@ The type of the media files (images or videos) will determine which template (`h
 
 **vid.mustache**
 
-```txt
+```html
 <div class="embed-responsive embed-responsive-16by9">
 <iframe class="embed-responsive-item" src="{{file}}"></iframe>
 </div>
@@ -543,7 +562,7 @@ the usual entries (`caption`,`file`).  The following media filter, e.g., uses wi
 
 **Filter**
 
-```txt
+```html
 <div class="row">
 <div class="col-lg-12 text-center">
 <figure class="figure">

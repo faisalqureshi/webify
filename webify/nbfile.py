@@ -4,11 +4,11 @@ from nbconvert.exporters import HTMLExporter
 import logging
 import json
 import re
-#import markdown
+import pypandoc
 
 class JupyterNotebookSettings:
     def __init__(self, dir, rc):
-        self.logger = util.WebifyLogger.get('nb')
+        self.logger = util.WebifyLogger.get('nb-settings')
         
         self.dir = dir
 
@@ -58,17 +58,41 @@ class JupyterNotebookfile:
     def __init__(self, filepath):
         self.logger = util.WebifyLogger.get('nb')
         self.filepath = filepath
+        self.title = None
+        self.lesson_plan = None
+        self.loaded = False
 
-        self.heading = None
-        self.lesson_plan = ''
-
+    def load(self):
+        try:
+            self.logger.debug('Loading ipynb: %s' % self.filepath)
+            f = open(self.filepath)
+            data = json.load(f)
+            self.process_cells(data['cells'])
+            self.loaded = True
+        except:
+            self.logger.warning('Failed loading ipynb: %s' % self.filepath)
+        
+        return self.loaded
 
     def get_metadata(self):
-        f = open(self.filepath,)
-        data = json.load(f)
-        self.process_cells(data['cells'])
-        return {
+        assert(self.loaded)
 
+        pdoc_args =  ['--mathjax','--highlight-style=pygments']
+        try:
+            if isinstance(self.lesson_plan, str):
+                lesson_plan = pypandoc.convert_text(self.lesson_plan, to='html', format='md', extra_args=pdoc_args)
+            else:
+                lesson_plan = self.lesson_plan
+        except:
+            self.logger.warning('Failed converting lesson plan to html using pandoc: %s' % self.filepath)
+            lesson_plan = self.lesson_plan
+
+        # print(self.title)
+        # print(lesson_plan)
+
+        return {
+            'title': self.title,
+            'lesson_plan': lesson_plan
         }
 
     def get_html_buffer(self):
@@ -83,43 +107,51 @@ class JupyterNotebookfile:
 
         return buffer
 
-    def process_cell(self, source):
+    def process_cell(self, source, cell_id):
         """
         Picks the first level-1 heading.  All subsequent headings are ignored.
         """
-        collect_lesson_plan = False 
+        title = None 
+        lesson_plan = None
 
         for line in source:
-            if collect_lesson_plan:
-                self.lesson_plan += line
+            if isinstance(lesson_plan, str):
+                lesson_plan += line
                 continue
 
-            heading_match = re.match('(^# [a-zA-Z0-9 ]+$)', line)
-            if not heading_match == None:
-                self.heading = heading_match[0]
-                print(f'Found heading: {self.heading}')
-                break
+            if self.title == None:
+                title_match = re.match('(^# [a-zA-Z0-9 ]+$)', line)
+                if not title_match == None:
+                    title = title_match[0][2:]
+                    self.logger.debug(f'Found heading in cell {cell_id}: {title}')
+                    break
 
-            lesson_match = re.match('(^## Lesson Plan$)', line)
-            if not lesson_match == None:
-                print(f'Found {lesson_match[0]}')
-                collect_lesson_plan = True
+            if self.lesson_plan == None:
+                lesson_match = re.match('(^## Lesson Plan$)', line)
+                if not lesson_match == None:
+                    self.logger.debug(f'Found {lesson_match[0]} in cell {cell_id}')
+                    lesson_plan = ''
+
+        return title, lesson_plan
 
     def process_cells(self, cells):
-        print(f'{len(cells)} cells found.')
+        self.logger.debug(f'{len(cells)} cells found.')
         
         i = 1
         for cell in cells:
+            if isinstance(self.title, str) and isinstance(self.lesson_plan, str):
+                break
             if not cell['cell_type'] == 'markdown':
-                print(f'Ignoring cell {i}')
-            else:
-                print(f'Processing cell {i}')
-                self.process_cell(cell['source'])
-            i = i + 1
+                continue
 
-        print(self.heading)
-        print(self.lesson_plan)
-#        print(markdown.markdown(self.lesson_plan))
+            title, lesson_plan = self.process_cell(cell['source'], i)
+            if isinstance(title, str):
+                self.title = title
+            if isinstance(lesson_plan, str):
+                self.lesson_plan = lesson_plan            
+                self.logger.debug(self.lesson_plan)
+            
+            i = i + 1
 
 # def JupyterNotebookToHTML(filename, filepath, dest_filepath):
 #     logger = util.WebifyLogger.get('webify')

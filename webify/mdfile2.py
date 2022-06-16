@@ -820,7 +820,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug messages regarding yaml front matter and rendering context.')
     cmdline_parser.add_argument('--debug-pandoc', action='store_true', default=False, help='Debug messages regarding pandoc.')
     
-    cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
+    cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).  The generated html contents are available as the body key to be consumed within the specified render file.')
     cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
     cmdline_parser.add_argument('--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
     cmdline_parser.add_argument('--bibliography', nargs='*', action='append', default=None, help='Space separated list of bibliography files.')
