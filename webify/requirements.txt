@@ -16,7 +16,11 @@ pandocfilters==1.4.2
 pathspec==0.8.0
 pynput==1.6.8
 pypandoc==1.5
-pystache==0.5.4
+pystache>=0.5.4
 python-dateutil==2.8.1
 PyYAML==5.3.1
-watchdog==0.10.2
+watchdog>=0.10.2
+pyobjc==7.3
+
+# pynpt errors.  
+# pip install --upgrade pyobjc==7.3
