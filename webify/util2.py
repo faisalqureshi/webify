@@ -355,10 +355,13 @@ def process_file(filepath, dest_filepath, force_copy):
     return processor(filepath, dest_filepath, force_copy)
     
 def make_file_processor(ext):
-    if ext == '.ipynb':
-        return file_processor.JupyterNotebookOnlyHTML
-    else:
-        return copy_file
+    return copy_file
+
+# def make_file_processor(ext):
+#     if ext == '.ipynb':
+#         return file_processor.JupyterNotebookOnlyHTML
+#     else:
+#         return copy_file
 
 def get_values(k, d, d2=None):
     """

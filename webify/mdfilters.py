@@ -3,6 +3,7 @@ import codecs
 import os
 import re
 import util2 as util
+import ast
 
 # We have four options here.  A single image, a series of images, a single video, a series of videos.
 #
@@ -67,7 +68,7 @@ class HTML_Filter:
         tmp_buffer = ''
 
         img_re = '(\\!\\[.*?\\])(\\(.+?\\))'
-        imgs = re.finditer(img_re, buffer)
+        imgs = re.finditer(img_re, buffer, flags=re.DOTALL)
         for img in imgs:
             s = img.start()
             e = img.end()
@@ -76,7 +77,20 @@ class HTML_Filter:
 
             context = {}
             if len(caption) > 0:
+                caption_re = '!\\{.+?\\}'
+                caption_embedded_info = re.search(caption_re, caption)
+                if caption_embedded_info:
+                    info = caption_embedded_info.group(0)[1:] 
+                    try:
+                        info_dict = ast.literal_eval(info)
+                        context.update(info_dict)
+                        stripped_caption = caption[:caption_embedded_info.start()]
+                        stripped_caption += caption[caption_embedded_info.end():]
+                        caption = stripped_caption
+                    except:
+                        self.logger.warning('Invalid caption info: "%s" in %s. \n\tExpecting items of the form "!{\'x\':\'a\', \'y\':\'b\'}".' % (info, src_filepath))
                 context['caption'] = caption.strip()
+#                print(context)
 
             mm = mediafile.split('|')
             if len(mm) == 1:
@@ -93,9 +107,9 @@ class HTML_Filter:
                     template = None
                     self.logger.warning('Invalid media type: "%s" in %s' % (filename, src_filepath))
             else:
-                if self.is_image(mm[0]):
+                if self.is_image(mm[0].strip()):
                     template = self.img_grid_template
-                elif self.is_video(mm[0]):
+                elif self.is_video(mm[0].strip()):
                     template = self.vid_grid_template
                 else:
                     template = None

@@ -11,15 +11,22 @@
         <ul>
             {% for post in __md__ %}
                 {% if (post.is_available and post.is_ignored == False  and __me__ != post.filename and post.ext != ".md" ) %}
-                <li><a href="{{ post.filename }}">{{ post.filename }}</a></li>
+                <li>
+                  <ul>
+                  <li><a href="{{ post.filename }}">{{ post.output_filepath }}</a></li>
+                  {% if (post.data.title) %}
+                  <li>{{ post.data.title }}</li>
+                  {% endif %}
+                  </ul>
+                </li>
                 {% endif %}
             {% endfor %}
         </ul>
 
-        <h2>All possible posts</h2>
+        <h2>All files, including those in child folders</h2>
 
         <ul>
-          {% for post in __md__ %}
+          {% for post in __files__ %}
           <li>
             <a href="{{ post.filename }}">{{ post.filename }}</a>
             -
@@ -35,6 +42,16 @@
             Ignored
             {% else %}
             Not ignored
+            {% endif %}
+            - 
+            {{ post.ext }}
+            -
+            {{ post.file_type }}
+            - data:
+            {% if post.data %}
+            yes
+            {% else %}
+            no
             {% endif %}
           </li>
           {% endfor %}

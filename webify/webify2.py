@@ -18,9 +18,10 @@ import dirtree as dt
 import dirstack as ds
 from yamlfile import YAMLfile
 from htmlfile import HTMLfile
+from nbfile import JupyterNotebookfile, JupyterNotebookSettings
 import time
 import datetime
-import running as run
+#import running as run
 
 from globals import __version__
 
@@ -211,6 +212,29 @@ class Webify:
             self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, file_type, obj=None, data=None)
         return list_files
 
+    def capture_list_of_ipynb(self, dir, availability, ignore_info):
+
+        ipynb_settings = JupyterNotebookSettings(dir, self.rc)
+
+        list_files = []
+        for filename in dir.files['ipynb']:
+            filepath = self.make_src_filepath(dir, filename)
+            output_filepath = self.make_output_filepath(dir, filename)
+            converted_filename = os.path.splitext(filename)[0]+'.html'
+            converted_output_filepath = os.path.splitext(output_filepath)[0]+'.html'
+            is_available = self.check_availability(filepath, availability)
+            is_ignored = self.check_ignore(filepath, ignore_info)
+
+            if (not is_ignored) and is_available:
+                if ipynb_settings.copy_source:
+                    self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, 'ipynb', obj=None, data=None)
+                if ipynb_settings.render_html:
+                    nb_file = JupyterNotebookfile(filepath)
+                    nb_file.load()
+                    self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'ipynb-html', obj=nb_file, data=nb_file.get_metadata())
+
+        return list_files
+
     def capture_list_of_md(self, dir, availability, ignore_info):
         list_files = []
         for filename in dir.files['md']:
@@ -275,7 +299,7 @@ class Webify:
                 if util.WebifyLogger.is_info(self.logger):
                     self.logger.info('x-: %s' % src_filename) 
                 else:
-                    util.WebifyLogger.get('ignored').info('Ignored %s' % filepath)
+                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % filepath)
                 x, m = util.remove_file(output_filepath)
                 if x:
                     self.logger.info('    Removed %s' % output_filepath)
@@ -300,6 +324,10 @@ class Webify:
                 self.convert_html(filename, filepath, output_filepath)
             elif file_type == 'misc':
                 self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'ipynb':
+                self.copy_misc(filename, filepath, output_filepath)
+            elif file_type == 'ipynb-html':
+                self.convert_ipynb(filename, filepath, output_filepath, i['obj'])
             elif file_type == 'md-src':
                 self.copy_misc(filename, filepath, output_filepath)
             elif file_type == 'md':
@@ -308,13 +336,37 @@ class Webify:
             else:
                 pass
             
+    def convert_ipynb(self, filename, filepath, output_filepath, nb_file_obj):
+        if os.path.isfile(output_filepath):
+            if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
+                if util.WebifyLogger.is_info(self.logger):
+                    util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
+                else:
+                    util.WebifyLogger.get('not-compiled').info('Not compiled:\n   %s\n-> %s' % (filepath, output_filepath))
+                return
+
+        self.rc.push()
+        self.rc.add({'__me__': filename})
+
+        buffer = nb_file_obj.get_html_buffer()
+        if util.save_to_file(output_filepath, buffer):
+            if util.WebifyLogger.is_info(self.logger):
+                self.logger.info('    Compiled.')
+            else:
+                util.WebifyLogger.get('compiled').info('Compiled: \n   %s \n-> %s' % (filepath, output_filepath))
+            #self.logger.info('    Saved')
+        else:
+            self.logger.warning('Error saving Jupyter Notebook file %s' % output_filepath)
+
+        self.rc.pop()
+
     def convert_html(self, filename, filepath, output_filepath):
         if os.path.isfile(output_filepath):
             if not self.meta_data['__ignore_times__'] and os.path.getmtime(filepath) <= os.path.getmtime(output_filepath):
                 if util.WebifyLogger.is_info(self.logger):
                     util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
                 else:
-                    util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % filepath)
+                    util.WebifyLogger.get('not-compiled').info('Not compiled:\n   %s' % filepath)
                 return
 
         self.rc.push()
@@ -327,7 +379,7 @@ class Webify:
             if util.WebifyLogger.is_info(self.logger):
                 self.logger.info('    Compiled.')
             else:
-                util.WebifyLogger.get('compiled').info('Compiled %s to %s' % (filename, output_filepath))
+                util.WebifyLogger.get('compiled').info('Compiled: \n   %s \n-> %s' % (filepath, output_filepath))
             self.logger.info('    Saved')
         else:
             self.logger.warning('Error saving html file %s' % output_filepath)
@@ -360,12 +412,12 @@ class Webify:
             if util.WebifyLogger.is_info(self.logger):
                 self.logger.info('    Compiled.')
             else:
-                util.WebifyLogger.get('compiled').info('Compiled %s to %s' % (md_file_obj.get_filename(), saved_file))
+                util.WebifyLogger.get('compiled').info('Compiled: \n   %s \n-> %s' % (filepath, saved_file))
         elif status == 'exists':
             if util.WebifyLogger.is_info(self.logger):
                 util.WebifyLogger.get('not-compiled').info('    Destination file already exists.  Did not compile.')
             else:
-                util.WebifyLogger.get('not-compiled').info('Destination file already exists.  Did not compile.  (%s)' % filepath)
+                util.WebifyLogger.get('not-compiled').info('Not compiled:\n   %s\n-> %s' % (filepath, output_filepath))
         else:
             saved_file = None
             self.logger.warning('Error processing %s' % filepath)
@@ -406,7 +458,7 @@ class Webify:
                 if util.WebifyLogger.is_info(self.logger):
                     util.WebifyLogger.get('not-copied').info('    Destination file already exists.  Did not copy.')
                 else:
-                    util.WebifyLogger.get('not-copied').info('Did not copy.  Destination file already exists.  (%s)' % filepath)        
+                    util.WebifyLogger.get('not-copied').info('Not copied:\n   %s\n-> %s' % (filepath, output_filepath))        
 
     def check_file_in_folder(self, dir, filename):
         cur_dir = dir.get_fullpath()
@@ -513,7 +565,7 @@ class Webify:
         logger_rc.debug(pp.pformat(self.rc.data()))
 
         self.rc.push()
-        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath())})
+        self.rc.add({'__root__': os.path.relpath(self.srcdir, dir.get_fullpath()).replace('\\','/')})
         self.rc.remove('availability')
         self.rc.remove('ignore')
 
@@ -541,18 +593,22 @@ class Webify:
 
         logger_dirlist = util.WebifyLogger.get('dirlist')
         logger_dirlist.info('Capturing file list from %s' % dir.get_fullpath())
+
         list_html = self.capture_list_of(dir, availability, ignore_info, 'html')
         list_md = self.capture_list_of_md(dir, availability, ignore_info)
+        list_ipynb = self.capture_list_of_ipynb(dir, availability, ignore_info)
         list_misc = self.capture_list_of(dir, availability, ignore_info, 'misc')
 
         logger_dirlist.debug('--- local list starts --- (%s)' % dir.get_fullpath())
         logger_dirlist.debug(pp.pformat(list_html))
         logger_dirlist.debug(pp.pformat(list_md))
+        logger_dirlist.debug(pp.pformat(list_ipynb))
         logger_dirlist.debug(pp.pformat(list_misc))
         logger_dirlist.debug('--- local list ends ---')
 
         self.dir_stack.top()[1].extend(list_html)
         self.dir_stack.top()[1].extend(list_md)
+        self.dir_stack.top()[1].extend(list_ipynb)
         self.dir_stack.top()[1].extend(list_misc)
 
         logger_dirlist.debug('--- full list starts --- (%s)' % dir.get_fullpath())
@@ -561,20 +617,22 @@ class Webify:
 
         self.rc.add({'__md__': list_md,
                      '__html__': list_html,
-                     '___misc__': list_misc,
+                     '__misc__': list_misc,
+                     '__ipynb__': list_ipynb,
                      '__files__': self.dir_stack.top()[1]})
 
         logger_rc =  util.WebifyLogger.get('rc')
         logger_rc.debug('Rendering context (in %s):' % dir.get_fullpath())
         logger_rc.debug(pp.pformat(self.rc.data()))
 
-        if len(list_misc) > 0 or len(list_md) > 0 or len(list_html) > 0:
+        if len(list_misc) > 0 or len(list_md) > 0 or len(list_html) > 0 or len(list_ipynb) > 0:
             self.logger.info('Saving files to %s' % self.make_output_filepath(dir, ''))
             self.proc_files(dir, list_html)
             self.proc_files(dir, list_md)
+            self.proc_files(dir, list_ipynb)
             self.proc_files(dir, list_misc)
 
-        self.rc.remove(['__md__', '__html__', '__misc__', '__files__'])
+        self.rc.remove(['__md__', '__html__', '__misc__', '__ipynb__', '__files__'])
 
         self.rc.pop()
         self.copy_dir_list_to_parent()
@@ -611,6 +669,15 @@ class Webify:
 
 def version_info():
     return 'Webify version %s' % __version__
+
+def select_loglevel(loglevel, cmdline_arg, default=logging.WARNING):
+    if loglevel > default:
+        loglevel = default
+    
+    if cmdline_arg:
+        loglevel = logging.DEBUG
+
+    return loglevel
 
 def check_cmdline_args(is_live, cmdline_args):
     logger = util.WebifyLogger.get('main')
@@ -651,6 +718,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-ignore',action='store_true',default=False,help='Turns on ignore debug messages')
     cmdline_parser.add_argument('--debug-live',action='store_true',default=False,help='Turns on live run debug messages')
     cmdline_parser.add_argument('--debug-next-run',action='store_true',default=False,help='Turns on next run debug messages')
+    cmdline_parser.add_argument('--debug-nb',action='store_true',default=False,help='Turns on Jupyter Notebooks debug messages')
+    cmdline_parser.add_argument('--debug-nb-settings',action='store_true',default=False,help='Turns on Jupyter Notebooks Settings debug messages')
 
     cmdline_parser.add_argument('--show-availability',action='store_true',default=False,help='Turns on messages that are displayed if a file is ignored due to availability')
     cmdline_parser.add_argument('--show-not-compiled',action='store_true',default=False,help='Turns on messages that are displayed if a file is not compiled because it already exists')
@@ -690,10 +759,14 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='ignored', loglevel=logging.INFO if cmdline_args.show_ignored else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='not-copied', loglevel=logging.INFO if cmdline_args.show_not_copied else loglevel, logfile=logfile)
 
-    util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR, logfile=logfile)
+    util.WebifyLogger.make(name='md-file', loglevel=logging.ERROR if not cmdline_args.debug_md else logging.DEBUG, logfile=logfile)
     util.WebifyLogger.make(name='md-buffer', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-rc', loglevel=logging.ERROR, logfile=logfile)
     util.WebifyLogger.make(name='md-timestamps', loglevel=logging.ERROR, logfile=logfile)
+
+    util.WebifyLogger.make(name='nb', loglevel=select_loglevel(loglevel, cmdline_args.debug_nb), logfile=logfile)
+    util.WebifyLogger.make(name='nb-settings', loglevel=select_loglevel(loglevel, cmdline_args.debug_nb_settings), logfile=logfile)
+
 
     logger = util.WebifyLogger.get('main')
 
@@ -715,13 +788,13 @@ if __name__ == '__main__':
     
     cur_time = datetime.datetime.now()
     meta_data = {
-        'prog_name': prog_name,
-        'prog_dir': prog_dir.replace('\\','\\\\'), # We need to do it for windows.
-        'cur_dir': cur_dir.replace('\\','\\\\'),   # It is a bit wierd, I agree.
-        'src_dir': srcdir.replace('\\','\\\\'),    # But it seems mustache templating engine
-        'dest_dir': destdir.replace('\\','\\\\'),  # can't deal with \.  Will look into it more.
+        'prog_name': prog_name.replace('\\','/'),
+        'prog_dir': prog_dir.replace('\\','/'), # We need to do it for windows.
+        'cur_dir': cur_dir.replace('\\','/'),   # It is a bit wierd, I agree.
+        'src_dir': srcdir.replace('\\','/'),    # But it seems mustache templating engine
+        'dest_dir': destdir.replace('\\','/'),  # can't deal with \.  Will look into it more.
         '__version__': __version__,
-        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','\\\\'),
+        '__root__': os.path.abspath(cmdline_args.srcdir).replace('\\','/'),
         '__last_updated__': cur_time.strftime('%Y-%m-%d %H:%M'),
         'renderer': cmdline_args.renderer,
         '__force_copy__': cmdline_args.force_copy,
@@ -751,6 +824,8 @@ if __name__ == '__main__':
         if webify.next_run_time != None:
             logger.critical('Next suggested run at {}'.format(webify.next_run_time))
     else:
+        import running as run
+
         loglevel == logging.INFO
         # util.WebifyLogger.make(name='webify-live', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)
         util.WebifyLogger.make(name='watchdir', loglevel=logging.DEBUG if cmdline_args.debug_live else loglevel, logfile=logfile)

@@ -42,6 +42,12 @@ class PandocArguments:
         else:
             self.pdoc_args.append("--%s" % options)
 
+    def add_flag_shortform(self, options):
+        if isinstance(options, list):
+            for o in options:
+                self.pdoc_args.append("-%s" % o)
+        else:
+            self.pdoc_args.append("-%s" % options)
 
     def add(self, option, vals):
         if isinstance(vals, list):
@@ -336,18 +342,19 @@ class MDfile:
         pdoc_args.add_flag('standalone')
 
         # Lets get the bib and csl files
-        bib_file = self.get_bibfile()
-        self.logger.debug('Bibliography: %s' % bib_file)
-        if bib_file:
-            files.append(bib_file)
-            pdoc_args.add('bibliography', bib_file)
-            #pdoc_args.add_filter('pandoc-citeproc')
+        bib_files = self.get_bibfiles()
+        self.logger.debug('Bibliography:', bib_files)
+        if len(bib_files) > 0:
+            files.extend(bib_files)
+            pdoc_args.add('bibliography', bib_files)
+            pdoc_args.add_flag('citeproc')
 
         csl_file = self.get_cslfile()
         self.logger.debug('CSL file: %s' % csl_file)
         if csl_file:
             files.append(csl_file)
             pdoc_args.add('csl', csl_file)
+            #pdoc_args.add_var('csl-refs', True)
 
         # Get pandoc include files
         include_files = self.get_pandoc_include_files()
@@ -708,13 +715,23 @@ class MDfile:
     def get_cssfiles(self):
         return self.pick_all_files('css', relpath=True)
 
-    def get_bibfile(self):
-        file = self.pick_last_file('bibliography')
-        file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
-        if file and not os.path.isfile(file):
-            self.logger.warning('Cannot find bibliography file:\n\t- %s\n\t- %s' % (self.filepath, file))
-            return None
-        return file
+    # def get_bibfile(self):
+    #     file = self.pick_last_file('bibliography')
+    #     file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file))) if file else None
+    #     if file and not os.path.isfile(file):
+    #         self.logger.warning('Cannot find bibliography file:\n\t- %s\n\t- %s' % (self.filepath, file))
+    #         return None
+    #     return file
+
+    def get_bibfiles(self):
+        files = []
+        for file in self.pick_all_files('bibliography'):
+            file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file)))
+            if not os.path.isfile(file):
+                self.logger.warning('Cannot find bibliography file:\n\t- %s\n\t- %s' % (self.filepath, file))
+            else:
+                files.append(file)
+        return files
 
     def get_cslfile(self):
         file = self.pick_last_file('csl')
@@ -723,6 +740,16 @@ class MDfile:
             self.logger.warning('Cannot find csl file:\n\t- %s\n\t- %s' % (self.filepath, file))
             return None
         return file
+
+    # def get_cslfiles(self):
+    #     files = []
+    #     for file in self.pick_all_files('csl'):
+    #         file = os.path.normpath(os.path.join(self.rootdir, os.path.expandvars(file)))
+    #         if not os.path.isfile(file):
+    #             self.logger.warning('Cannot find csl file:\n\t- %s\n\t- %s' % (self.filepath, file))
+    #         else:
+    #             files.append(file)
+    #     return files
 
     def get_pandoc_include_files(self):
         f = {'include-after-body': [], 'include-before-body':[], 'include-in-header': []}
@@ -793,10 +820,10 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--debug-rc', action='store_true', default=False, help='Debug messages regarding yaml front matter and rendering context.')
     cmdline_parser.add_argument('--debug-pandoc', action='store_true', default=False, help='Debug messages regarding pandoc.')
     
-    cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).')
+    cmdline_parser.add_argument('--render-file', action='store', default=None, help='Path to render file (used for html only).  The generated html contents are available as the body key to be consumed within the specified render file.')
     cmdline_parser.add_argument('--template-file', action='store', default=None, help='Path to pandoc template file.')
     cmdline_parser.add_argument('--include-in-header', nargs='*', action='append', default=None, help='Path to file that will be included in the header.  Typically LaTeX preambles.')
-    cmdline_parser.add_argument('--bibliography', action='store', default=None, help='Path to bibliography file.')
+    cmdline_parser.add_argument('--bibliography', nargs='*', action='append', default=None, help='Space separated list of bibliography files.')
     cmdline_parser.add_argument('--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
     cmdline_parser.add_argument('--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
     cmdline_parser.add_argument('--highlight-style', action='store', default=None, help='Specify a highlight-style.  See pandoc --list-highlight-styles.')
@@ -923,8 +950,8 @@ if __name__ == '__main__':
 
     meta_data = {
         '__version__': __version__,
-        '__filepath__': filepath.replace('\\','\\\\'),
-        '__root__': filedir.replace('\\','\\\\'),
+        '__filepath__': filepath.replace('\\','/'),
+        '__root__': filedir.replace('\\','/'),
         '__time__': datetime.datetime.now()
     }
 

@@ -1,0 +1,17 @@
+DateTime
+Jinja2
+json5
+jupyterlab
+MarkupSafe
+nbconvert
+nbformat
+notebook
+packaging
+pandocfilters==1.4.2
+pathspec
+pynput
+pypandoc
+pystache
+python-dateutil
+PyYAML
+watchdog

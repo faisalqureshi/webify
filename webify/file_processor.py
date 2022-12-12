@@ -37,4 +37,4 @@ def JupyterNotebookOnlyHTML(filepath, dest_filepath, force_save):
         logger.warning('Jupyter notebook conversion failed: %s' % f)
         return Failed, 'Copy Failed'
 
-    return True, 'Copied'
+    return True, 'Copied'    
