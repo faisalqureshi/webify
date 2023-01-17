@@ -11,6 +11,7 @@ pip3 install -r requirements2.txt
 Add the following to .bashrc 
 
 ~~~
-export WEBIFY_DIR=~/webify/webify
+export WEBIFY_DIR=~/webify/webify # Or whereever 
 export WEBIFY_PYTHON=~/venv/webify/bin/python3
+export PATH=$WEBIFY_DIR:$PATH
 ~~~

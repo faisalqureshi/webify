@@ -23,18 +23,27 @@ class PandocArguments:
     '''
     Helper class to setup arguments for pypandoc.
     '''
-    def __init__(self):
+    def __init__(self, pandoc_var, pandoc_meta):
         self.pdoc_args = []
 
+        for v in pandoc_var:
+            self.add_var(v)
 
-    def add_var(self, var, val):
-        self.pdoc_args.append("-V %s:%s" % (var, val))
+        for v in pandoc_meta:
+            self.add_meta(v)
 
+    def add_var(self, v):
+        self.pdoc_args.extend(["-V", "%s" % v])
+
+    def add_meta(self, v):
+        self.pdoc_args.extend(["-M", "%s" % v])
+
+    # def add_var(self, var, val):
+    #     self.pdoc_args.append("-V %s=%s" % (var, val))
 
     def add_filter(self, name):
         self.pdoc_args.append("--filter %s" % name)
         
-
     def add_flag(self, options):
         if isinstance(options, list):
             for o in options:
@@ -318,7 +327,7 @@ class MDfile:
 
     def latexify(self, rc):
         files = [self.filepath]
-        pdoc_args = PandocArguments()
+        pdoc_args = PandocArguments(self.args['pandoc-var'], self.args['pandoc-meta'])
 
         logger_file = util.WebifyLogger.get('md-file')
 
@@ -390,7 +399,7 @@ class MDfile:
             self.logger.warning('Markdown mustache preprocessing is only available when converting to html: %s' % self.filepath)
 
         pdoc_args.add('highlight-style', self.get_highlight_style())
-        pdoc_args.add_var('graphics','true')
+        pdoc_args.add_var('graphics=true')
         pdf_engine = self.get_pdf_engine()
         if pdf_engine:
             pdoc_args.add('pdf-engine', pdf_engine)
@@ -400,13 +409,14 @@ class MDfile:
             pdoc_args.add('slide-level', slide_level)
 
         logger_file.info('Writing to: %s' % output_filepath)
+        pdoc_args.get()
         return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
 
     def to_html(self, rc):
         logger_file = util.WebifyLogger.get('md-file')
 
         files = [self.filepath]
-        pdoc_args = PandocArguments()
+        pdoc_args = PandocArguments(self.args['pandoc-var'], self.args['pandoc-meta'])
 
         template_file = self.get_template()
         if template_file:
@@ -837,8 +847,11 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--pdf-engine', action='store', default=None, help='PDF engine used to generate pdf. The default is vanilla LaTeX.  Possible options are lualatex or tetex.')
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use "mustache" or "jinja2" engine.  "jinja2" is the default choice.')
     
-    cmdline_args = cmdline_parser.parse_args()
+    cmdline_parser.add_argument('--pandoc-var', action='append', default=[], help='A mechanism for providing -V Name:Val for pandoc.')
+    cmdline_parser.add_argument('--pandoc-meta', action='append', default=[], help='A mechanism for providing -M Name:Val for pandoc.')
 
+    cmdline_args = cmdline_parser.parse_args()
+  
     css_files = cmdline_args.css[0] if cmdline_args.css else []
     include_in_header = [os.path.join(cur_dir, f) for f in (cmdline_args.include_in_header[0] if cmdline_args.include_in_header else [])]
     bibliography = os.path.join(cur_dir, cmdline_args.bibliography) if cmdline_args.bibliography else None
@@ -943,7 +956,9 @@ if __name__ == '__main__':
                'output-fileext': output_fileext,
                'output-filepath': output_filepath,
                'create-output-file': False if cmdline_args.do_not_create_output_file else None,
-               'standalone-html': None if not cmdline_args.standalone_html else cmdline_args.standalone_html}
+               'standalone-html': None if not cmdline_args.standalone_html else cmdline_args.standalone_html,
+               'pandoc-var': cmdline_args.pandoc_var,
+               'pandoc-meta': cmdline_args.pandoc_meta}
 
     logger.debug('args:')
     logger.debug(pp.pformat(args))    

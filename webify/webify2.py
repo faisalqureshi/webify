@@ -167,7 +167,9 @@ class Webify:
             else:
                 self.logger.info('No MD files found')
             args = { 'create-output-file': False, 
-                     'ignore-times': self.meta_data['__ignore_times__'] }
+                     'ignore-times': self.meta_data['__ignore_times__'],
+                     'pandoc-var': self.meta_data['pandoc-var'],
+                     'pandoc-meta': self.meta_data['pandoc-meta'] }
             for filename in dir.partials.files['md']:  
                 filepath = self.make_src_filepath(dir, os.path.join('_partials', filename))
                 self.logger.info('Processing MD file: %s' % filepath)
@@ -249,7 +251,9 @@ class Webify:
             
             args = { 'ignore-times': self.meta_data['__ignore_times__'],
                      'output-filepath': os.path.splitext(output_filepath)[0],
-                     'output-fileext': '' }
+                     'output-fileext': '',
+                     'pandoc-var': self.meta_data['pandoc-var'],
+                     'pandoc-meta': self.meta_data['pandoc-meta'] }
             md_file = MDfile(filepath=filepath, args=args)
             md_file = self.md_set_defaults(md_file)
             loaded_ok = md_file.load(self.rc)
@@ -733,6 +737,9 @@ if __name__ == '__main__':
 
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use mustache or jinja2 engine.  Jinja2 is the default choice.')
     
+    cmdline_parser.add_argument('--pandoc-var', action='append', default=[], help='A mechanism for providing -V Name:Val for pandoc.')
+    cmdline_parser.add_argument('--pandoc-meta', action='append', default=[], help='A mechanism for providing -M Name:Val for pandoc.')
+
     cmdline_args = cmdline_parser.parse_args()
     
     # Setting up logging
@@ -799,7 +806,9 @@ if __name__ == '__main__':
         'renderer': cmdline_args.renderer,
         '__force_copy__': cmdline_args.force_copy,
         '__time__': cur_time,
-        '__ignore_times__': cmdline_args.ignore_times
+        '__ignore_times__': cmdline_args.ignore_times,
+        'pandoc-var': cmdline_args.pandoc_var,
+        'pandoc-meta': cmdline_args.pandoc_meta
     }
     logger.debug('Meta data:')
     logger.debug(pp.pformat(meta_data))
