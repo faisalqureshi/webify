@@ -1,5 +1,6 @@
 import logging
 import yaml
+import yamlfile
 import codecs
 import argparse
 import pypandoc
@@ -632,13 +633,16 @@ class MDfile:
 
         for key in hf.keys():
             if key in self.yaml.keys():
-                f = os.path.normpath(os.path.join(self.rootdir, self.yaml[key]))
-                if os.path.isfile(f):
-                    hf[key] = f
-                    file_list.append(f)
-                    util.WebifyLogger.get('file').info('Found HTML filter file: %s found in %s' % (f, self.filepath))
+                if isinstance(self.yaml[key], str):
+                    f = os.path.normpath(os.path.join(self.rootdir, self.yaml[key]))
+                    if os.path.isfile(f):
+                        hf[key] = f
+                        file_list.append(f)
+                        util.WebifyLogger.get('file').info('Found HTML filter file: %s found in %s' % (f, self.filepath))
+                    else:
+                        self.logger.warning('Ignoring HTML filter file: %s found in %s' % (f, self.filepath))
                 else:
-                    self.logger.warning('Ignoring HTML filter file: %s found in %s' % (f, self.filepath))
+                    self.logger.warning('Ignoring HTML filter key: %s' % (self.filepath))
         return hf, file_list
 
     def get_output_format(self):
@@ -973,6 +977,12 @@ if __name__ == '__main__':
     rc = RenderingContext.RenderingContext()
     rc.push()
     rc.add(meta_data)
+
+    for yaml_filepath in cmdline_args.yaml:
+        logger.debug('Loading yaml file: %s', yaml_filepath[0])
+        yaml_file = yamlfile.YAMLfile(yaml_filepath[0])
+        yaml_file.load()
+        rc.add(yaml_file.data)
 
     m = MDfile(filepath=filepath, args=args)
     m.load(rc=rc)

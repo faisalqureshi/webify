@@ -21,12 +21,16 @@ class YAMLfile:
             with codecs.open(self.filepath, 'r') as stream:
                 self.data = yaml.safe_load(stream)
             self.logger.debug('Loaded YAML file: %s' % self.filepath)
+        except:
+            self.logger.warning('Error loading YAML file: %s' % self.filepath)
+            self.data = {}
 
+        try:
             self.logger.debug('YAML file contents (before filter application):')
             self.logger.debug(pp.pformat(self.data))
             self.data = filter_dict(filter_pandoc, self.data)
         except:
-            self.logger.warning('Error loading YAML file: %s' % self.filepath)
+            self.logger.warning('Error applying pandoc_filter to YAML file: %s' % self.filepath)
             self.data = {}
 
         if self.data == None:
