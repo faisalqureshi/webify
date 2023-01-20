@@ -841,7 +841,7 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--css', nargs='*', action='append', default=None, help='Space separated list of css files.')
     cmdline_parser.add_argument('--csl', action='store', default=None, help='csl file, only used when a bibfile is specified either via commandline or via yaml frontmatter')
     cmdline_parser.add_argument('--highlight-style', action='store', default=None, help='Specify a highlight-style.  See pandoc --list-highlight-styles.')
-    cmdline_parser.add_argument('--yaml', nargs='*', action='append', help='Space separated list of extra yaml files to process.')
+    cmdline_parser.add_argument('--yaml', nargs='*', default=[], action='append', help='Space separated list of extra yaml files to process.')
 
     cmdline_parser.add_argument('--do-not-preprocess-frontmatter', action='store_true', default=False, help='Turns off mustache preprocessing for yaml frontmatter.')
     cmdline_parser.add_argument('--do-not-preprocess-buffer', action='store_true', default=False, help='Turns off mustache preprocessing for buffer.  Buffer mustache preprocessing is only available for conversion to html.')
