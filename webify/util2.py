@@ -301,7 +301,8 @@ class IgnoreList:
                 for line in stream:
                     p, f = os.path.split(line.strip())
                     self.logger.debug('%s %s' % (p, f))
-                    self.ignorelist.append((p, f))
+                    if p or f:
+                        self.ignorelist.append((p, f))
         except:
             self.spec = None
             self.logger.warning('Cannot read ignorefile: %s' % ignorefile)
