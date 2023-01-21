@@ -1,0 +1,10 @@
+---
+ignore:
+  - file: a.md
+    ignore: True
+  - file: d1
+    ignore: True
+availability:
+  - file: b.md
+    start: Jan 2020
+    end: ragnarok

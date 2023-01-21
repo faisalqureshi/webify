@@ -23,6 +23,8 @@ class YAMLfile:
             self.logger.debug('Loaded YAML file: %s' % self.filepath)
         except:
             self.logger.warning('Error loading YAML file: %s' % self.filepath)
+            self.logger.warning('  Ensure that this yaml file is not malformed.')  
+            self.logger.warning('  Sometimes spaces/tabs mismatch can cause this issue.')
             self.data = {}
 
         try:

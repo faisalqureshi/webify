@@ -1,5 +1,5 @@
 import util2 as util
-import logging
+#import logging
 import os
 
 class DirTree:
@@ -73,11 +73,21 @@ class DirTree:
 
     def __traverse__(self, dir, enter_func, proc_func, leave_func):
         self.logger.debug('Entering %s' % dir.get_fullpath())
-        if enter_func: enter_func(dir)
-        if proc_func: proc_func(dir)
+        if enter_func: 
+            enter_func(dir)
+        if proc_func: 
+            skip_dirs, availability, ignore_info = proc_func(dir)
         for i in dir.children:
-            self.__traverse__(i, enter_func, proc_func, leave_func)
-        if leave_func: leave_func(dir)
+            if i.get_fullpath() not in skip_dirs:
+                self.__traverse__(i, enter_func, proc_func, leave_func)
+            else:
+                
+                if util.WebifyLogger.is_info(util.WebifyLogger.get('main')):
+                    util.WebifyLogger.get('main').info('x-: %s' % i.get_fullpath())
+                else:
+                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % i.get_fullpath() )
+        if leave_func: 
+            leave_func(dir, availability, ignore_info)
         self.logger.debug('Leaving %s' % dir.get_fullpath())
         
     def traverse(self, enter_func=None, proc_func=None, leave_func=None):
