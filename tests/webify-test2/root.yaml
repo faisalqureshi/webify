@@ -3,8 +3,15 @@ ignore:
   - file: a.md
     ignore: True
   - file: d1
+    ignore: False
+  - file: z.md
     ignore: True
 availability:
   - file: b.md
-    start: Jan 2020
+    start: Jan 2022
     end: ragnarok
+  - file: d1
+    start: Feb 2023
+    end: Sep 2023
+  - file: y
+    start: Jan 2021

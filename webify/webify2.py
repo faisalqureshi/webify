@@ -303,12 +303,12 @@ class Webify:
                 if util.WebifyLogger.is_info(self.logger):
                     self.logger.info('x-: %s' % src_filename) 
                 else:
-                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % filepath)
+                    util.WebifyLogger.get('ignored').info('Ignored:\n   skipped %s' % filepath)
                 x, m = util.remove_file(output_filepath)
                 if x:
                     self.logger.info('    Removed %s' % output_filepath)
                 else:
-                    util.WebifyLogger.get('ignored').warning('%s: (%s)' % (m, output_filepath))
+                    util.WebifyLogger.get('ignored').warning('   %s: (%s)' % (m, output_filepath))
                 util.WebifyLogger.get('ignore').debug('Ignore: %s remove status (%s, %s)' % (output_filepath, x, m))
                 continue
 
@@ -316,12 +316,13 @@ class Webify:
                 if util.WebifyLogger.is_info(self.logger):
                     self.logger.info('x-: %s' % src_filename) 
                 else:
-                    util.WebifyLogger.get('available').info('Skipped due to availability %s' % filepath)
+                    util.WebifyLogger.get('available').info('Availability:\n   skipped %s' % filepath)
                 x, m = util.remove_file(output_filepath)
                 if x:
                     self.logger.info('    Removed %s' % output_filepath)
                 else:
-                    util.WebifyLogger.get('available').warning('%s: (%s)' % (m, output_filepath))
+                    util.WebifyLogger.get('available').warning('   %s: (%s)' % (m, output_filepath))
+                util.WebifyLogger.get('availability').debug('Availability: %s remove status (%s, %s)' % (output_filepath, x, m))
                 continue
 
             self.logger.info('x+: %s -> %s' % (src_filename, filename))
@@ -499,22 +500,24 @@ class Webify:
                 x = [x]
             for i in x:
                 found, file_or_dir, item_path, item_name = self.check_item_in_cur_folder(dir, i['file'])
-                logger_ignore.debug('Ignore: check_item_in_cur_folder (%s, %s, %s)' % (found, file_or_dir, item_path))
+                logger_ignore.debug('Ignore: check %s: (%s, %s, %s)' % (i['file'], found, file_or_dir, item_path))
                 if not found:
-                    logger_ignore.warning('Ignored item %s note found in this folder (%s).' % (item_path, file_or_dir))
+                    logger_ignore.warning('[Ignored]: item %s not found in this folder (%s).' % (i['file'], file_or_dir))
                 else:
+                    ignore_flag = self.read_ignore_information(i['ignore'], item_path)
                     ignore_info[item_path] = {
                         'name': item_name,
-                        'ignore': self.read_ignore_information(i['ignore'], item_path),
+                        'ignore': ignore_flag,
                         'file_or_dir': file_or_dir
                     }
                     logger_ignore.debug(pp.pformat(ignore_info))
+                    # util.WebifyLogger.get('ignored').info('[Ignored]: %s (%s)' % (item_path, ignore_flag))
         except:
-            self.logger.warning('Cannot read ignore information: %s.  Check ignore information.' % dir.get_fullpath())
+            self.logger.warning('[Ignore]: cannot read ignore information: %s' % dir.get_fullpath())
             return ignore_info
         
         logger_ignore.debug('Ignore info:')
-        logger_ignore.debug(ignore_info)
+        logger_ignore.debug(pp.pformat(ignore_info))
         return ignore_info
 
     @staticmethod
@@ -542,20 +545,24 @@ class Webify:
             if not isinstance(x, list):
                 x = [x]
             for i in x:
-                v, t, s = self.check_item_in_cur_folder(dir, i['file'])
-                logger_availability.debug('Availability: check_item_in_cur_folder (%s,%s,%s)' % (v,t,s))
-                if not v:
-                    logger_availability.warning('Cannot read availability information for %s (%s)' % (i['file'], t))
+                found, file_or_dir, item_path, item_name = self.check_item_in_cur_folder(dir, i['file'])
+                logger_availability.debug('Availability: check %s: (%s,%s,%s)' % (i['file'], found, file_or_dir, item_path))
+                if not found:
+                    logger_availability.warning('[Availability]: item %s not found in this folder (%s).' % (i['file'], file_or_dir))
                 else:
-                    availability[s] = {}
-                    availability[s]['start'] = tm.read_time('start', i)
-                    availability[s]['end'] = tm.read_time('end', i)
-                    availability[s]['file_or_dir'] = t
+                    availability[item_path] = {
+                        'name': item_name,
+                        'start': tm.read_time('start', i),
+                        'end': tm.read_time('end', i),
+                        'file_or_dir': file_or_dir                     
+                    }
                     logger_availability.debug(pp.pformat(availability))
         except:
-            self.logger.warning('Cannot read availability information: %s' % dir.get_fullpath())
+            self.logger.warning('[Availability]: cannot read availability information: %s' % dir.get_fullpath())
             return availability
 
+        logger_availability.debug('Availability:')
+        logger_availability.debug(pp.pformat(availability))
         return availability
 
     def find_next_time_to_run(self, ts, te, filepath):
@@ -601,10 +608,12 @@ class Webify:
             self.logger.info('Making destination directory: %s' % destdir)
             util.make_directory(destdir)
 
+        # Collecting sub-directories that should be skipped
+        # in the current directory
         skipped_sub_dirs = []
-        ignore_info = self.load_ignore_info(dir)
-        availability = self.load_availability_info(dir)
 
+        # Handling directory ignore information
+        ignore_info = self.load_ignore_info(dir)
         for (k,v) in ignore_info.items():
             if v['file_or_dir'] == 'dir' and v['ignore'] == True:
                 skipped_sub_dirs.append(k)
@@ -617,9 +626,27 @@ class Webify:
                     if status:
                         util.WebifyLogger.get('main').info('    %s removed' % dest_path)
                 else:
-                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % k ) # --show-ignore
+                    util.WebifyLogger.get('ignored').info('Ignored:\n   skipped %s' % k ) # --show-ignore
                 if not status:
                     util.WebifyLogger.get('ignored').warning('Ignored: Directory removal failed: %s' % dest_path)
+
+        # Handing directory availability information
+        availability = self.load_availability_info(dir)
+        for (k,v) in availability.items():
+            if v['file_or_dir'] == 'dir' and (not self.check_availability_(v['start'], v['end'], k)):
+                skipped_sub_dirs.append(k)
+                dest_path = self.make_output_filepath(dir, v['name'])
+                status, message = util.remove_dir(dest_path)
+                util.WebifyLogger.get('availability').debug('Availability: availability info for directory %s: True.' % k) # --debug-ignore
+                util.WebifyLogger.get('availability').debug('Availability: directory %s removed status: %s (%s)' % (dest_path, status, message) )
+                if util.WebifyLogger.is_info(util.WebifyLogger.get('main')): # verbose
+                    util.WebifyLogger.get('main').info('x-: %s' % k)
+                    if status:
+                        util.WebifyLogger.get('main').info('    %s removed' % dest_path)
+                else:
+                    util.WebifyLogger.get('available').info('Availability:\n   sipped %s' % k ) # --show-availability
+                if not status:
+                    util.WebifyLogger.get('available').warning('Availability: Directory removal failed: %s' % dest_path)
 
         return skipped_sub_dirs, availability, ignore_info
 
@@ -795,9 +822,6 @@ if __name__ == '__main__':
     util.WebifyLogger.make(name='not-compiled', loglevel=logging.INFO if cmdline_args.show_not_compiled else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='compiled', loglevel=logging.INFO if cmdline_args.show_compiled else loglevel, logfile=logfile)
     util.WebifyLogger.make(name='ignored', loglevel=logging.INFO if cmdline_args.show_ignored else loglevel, logfile=logfile)
-    logger2 = util.WebifyLogger.get('ignored')
-    logger2.debug('f')
-    logger2.info('d')
 
     util.WebifyLogger.make(name='not-copied', loglevel=logging.INFO if cmdline_args.show_not_copied else loglevel, logfile=logfile)
 
