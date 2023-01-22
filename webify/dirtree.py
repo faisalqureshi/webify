@@ -80,12 +80,6 @@ class DirTree:
         for i in dir.children:
             if i.get_fullpath() not in skip_dirs:
                 self.__traverse__(i, enter_func, proc_func, leave_func)
-            else:
-                
-                if util.WebifyLogger.is_info(util.WebifyLogger.get('main')):
-                    util.WebifyLogger.get('main').info('x-: %s' % i.get_fullpath())
-                else:
-                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % i.get_fullpath() )
         if leave_func: 
             leave_func(dir, availability, ignore_info)
         self.logger.debug('Leaving %s' % dir.get_fullpath())

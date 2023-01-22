@@ -91,15 +91,31 @@ def save_to_file(filepath, buffer):
     except:
         return False
 
+def remove_dir(dirpath):
+    if  not os.path.exists(dirpath):
+        return True, 'Nothing to delete'
+    elif not os.path.isdir(dirpath):
+        return True, 'Not a directory'
+    else:
+        try:
+            shutil.rmtree(dirpath)
+            return True, 'Deleted'
+        except:
+            pass
+    
+    return False, 'Deletion failed'
+
 def remove_file(filepath):
     if not os.path.exists(filepath):
         return True, 'Nothing to delete'
-
-    try:
-        os.remove(filepath)
-        return True, 'Deleted'
-    except:
-        pass
+    elif not os.path.isfile(filepath):
+        return False, 'Not a file'
+    else:
+        try:
+            os.remove(filepath)
+            return True, 'Deleted'
+        except:
+            pass
 
     return False, 'Deletion failed'
 

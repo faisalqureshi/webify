@@ -107,15 +107,14 @@ class Webify:
     def check_ignore(self, filepath, ignore_info):
         logger_ignore = util.WebifyLogger.get('ignore')
         
-        logger_ignore.debug('Checking ignore for %s' % filepath)
-        #logger_ignore.debug(pp.pformat(ignore_info))
+        logger_ignore.debug('Ignore: checking ignore for %s' % filepath)
 
         try:
             v = ignore_info[filepath]['ignore']
             logger_ignore.debug('Ignore: ignore info for %s: %s' % (filepath, v))
             return v
         except:
-            logger_ignore.debug('Find no ignore info for file %s' % filepath)
+            logger_ignore.debug('Ignore: found no ignore info for file %s' % filepath)
             return False
 
     def check_availability(self, filepath, availability):
@@ -310,6 +309,7 @@ class Webify:
                     self.logger.info('    Removed %s' % output_filepath)
                 else:
                     util.WebifyLogger.get('ignored').warning('%s: (%s)' % (m, output_filepath))
+                util.WebifyLogger.get('ignore').debug('Ignore: %s remove status (%s, %s)' % (output_filepath, x, m))
                 continue
 
             if not is_available:
@@ -467,17 +467,18 @@ class Webify:
 
     def check_item_in_cur_folder(self, dir, item_name):
         cur_dir = dir.get_fullpath()
-        item_path = self.make_src_filepath(dir, os.path.expandvars(item_name))
+        item_name = os.path.expandvars(item_name)
+        item_path = self.make_src_filepath(dir, item_name)
         item_dir = os.path.split(item_path)[0]
         if item_dir == cur_dir:
             if os.path.isfile(item_path):
-                return True, 'file', item_path
+                return True, 'file', item_path, item_name
             elif os.path.isdir(item_path):
-                return True, 'dir', item_path
+                return True, 'dir', item_path, item_name
             else:
-                return False, 'Not file or folder', ''
+                return False, 'Not file or folder', '', item_name
         else:
-            return False, 'Not in directory', ''
+            return False, 'Not in directory', '', item_name
 
 
     def load_ignore_info(self, dir):
@@ -497,21 +498,23 @@ class Webify:
             if not isinstance(x, list):
                 x = [x]
             for i in x:
-                v, t, s = self.check_item_in_cur_folder(dir, i['file'])
-                logger_ignore.debug('Ignore: check_item_in_cur_folder (%s,%s,%s)' % (v,t,s))
-                if not v:
-                    logger_ignore.warning('Cannot read ignore information for %s (%s)' % (i['file'], t))
+                found, file_or_dir, item_path, item_name = self.check_item_in_cur_folder(dir, i['file'])
+                logger_ignore.debug('Ignore: check_item_in_cur_folder (%s, %s, %s)' % (found, file_or_dir, item_path))
+                if not found:
+                    logger_ignore.warning('Ignored item %s note found in this folder (%s).' % (item_path, file_or_dir))
                 else:
-                    ignore_info[s] = {}
-                    ignore_info[s]['ignore'] = self.read_ignore_information(i['ignore'], s)
-                    ignore_info[s]['file_or_dir'] = t
+                    ignore_info[item_path] = {
+                        'name': item_name,
+                        'ignore': self.read_ignore_information(i['ignore'], item_path),
+                        'file_or_dir': file_or_dir
+                    }
                     logger_ignore.debug(pp.pformat(ignore_info))
         except:
-            self.logger.warning('Cannot read ignore information: %s' % dir.get_fullpath())
+            self.logger.warning('Cannot read ignore information: %s.  Check ignore information.' % dir.get_fullpath())
             return ignore_info
         
         logger_ignore.debug('Ignore info:')
-        logger_ignore.debug(pp.pformat(x))
+        logger_ignore.debug(ignore_info)
         return ignore_info
 
     @staticmethod
@@ -605,15 +608,23 @@ class Webify:
         for (k,v) in ignore_info.items():
             if v['file_or_dir'] == 'dir' and v['ignore'] == True:
                 skipped_sub_dirs.append(k)
-                util.WebifyLogger.get('ignore').debug('Ignore: directory %s is ignored.' % k)
+                dest_path = self.make_output_filepath(dir, v['name'])
+                status, message = util.remove_dir(dest_path)
+                util.WebifyLogger.get('ignore').debug('Ignore: ignore info for directory %s: True.' % k) # --debug-ignore
+                util.WebifyLogger.get('ignore').debug('Ignore: directory %s removed status: %s (%s)' % (dest_path, status, message) )
+                if util.WebifyLogger.is_info(util.WebifyLogger.get('main')): # verbose
+                    util.WebifyLogger.get('main').info('x-: %s' % k)
+                    if status:
+                        util.WebifyLogger.get('main').info('    %s removed' % dest_path)
+                else:
+                    util.WebifyLogger.get('ignored').info('Ignored:\n   %s' % k ) # --show-ignore
+                if not status:
+                    util.WebifyLogger.get('ignored').warning('Ignored: Directory removal failed: %s' % dest_path)
 
         return skipped_sub_dirs, availability, ignore_info
 
     def leave_dir(self, dir, availability, ignore_info):
         self.logger.info('- [%d] back in folder %s' % (self.depth_level, dir.get_fullpath()))
-
-        # availability = self.load_availability_info(dir)
-        # ignore_info = self.load_ignore_info(dir)
 
         logger_dirlist = util.WebifyLogger.get('dirlist')
         logger_dirlist.info('Capturing file list from %s' % dir.get_fullpath())
