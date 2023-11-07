@@ -65,10 +65,14 @@ class JupyterNotebookfile:
     def load(self):
         try:
             self.logger.debug('Loading ipynb: %s' % self.filepath)
-            f = open(self.filepath)
+            f = open(self.filepath, encoding='utf-8')
             data = json.load(f)
             self.process_cells(data['cells'])
             self.loaded = True
+        except ValueError as err:
+            print('JSON parsing error:')
+            print(err)
+            self.logger.warning('Failed loading ipynb: %s' % self.filepath)
         except:
             self.logger.warning('Failed loading ipynb: %s' % self.filepath)
         
