@@ -364,6 +364,24 @@ Any html or markdown file can use these lists to construct blog index pages.  A 
 {% endfor %}
 ```
 
+## A note about Juputer Notebooks
+
+Webify provides three ways of treating a Jupyter Notebook:
+
+1. Render the Jupyter Notebook as an HTML file and copy to the desitination folder;
+2. Copy the Jupyter Notebook as is to the destination folder; and
+3. Render the Jupyter Notebook as an HTML and copy both the HTML and the original file to the destination folder.
+
+Option 1 is useful when creating non-editable notes from Jupyter Notebooks.  This is the default behavior, which can be overwritten by adding the following in a yaml file.  
+
+~~~
+jupyternotebooks:
+  render-html: False | *True
+  copy-source: *False | True
+~~~
+
+This information is added to the rendering context of the current folder and its sub-folder and all Jupyter Notebooks sitting in this folder or its sub-folders will be processed according to these instructions.
+
 ## Live view
 
 It is possible to run webify in the background.  This combined with `<meta http-equiv="refresh" content="5">` in the header of the generated html files creates a live view environment that is easy to use.  Check out the `--live` switch.
