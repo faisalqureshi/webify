@@ -28,6 +28,10 @@ I was aware of the LaTeX ecosystem for creating technical documentation.  I have
 
 I decided to go with markdown+pandoc combination.  *From henceforth I shall develop my course content in markdown, and I would use pandoc to convert my notes into the desired format (html, LaTeX articles, or a beamer slides)*.  This combination, I felt, met my requirement of using plain text to create course content.
 
+# Installation instructions
+
+Please check [https://github.com/faisalqureshi/webify](https://github.com/faisalqureshi/webify) for installation instructions.
+
 # Webify Python Utility
 
 This led me to develop `webify`.  A python utility to create blog aware, static websites from plaintext.  Webify "duplicates" each file found in the source directory at the destination directory according to the following three rules:
