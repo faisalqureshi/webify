@@ -30,7 +30,7 @@ I decided to go with markdown+pandoc combination.  *From henceforth I shall deve
 
 # Installation instructions
 
-Please check [https://github.com/faisalqureshi/webify](https://github.com/faisalqureshi/webify) for installation instructions.
+Go <a href="#installation">here</a> or check [https://github.com/faisalqureshi/webify](https://github.com/faisalqureshi/webify).
 
 # Webify Python Utility
 
@@ -595,7 +595,7 @@ the usual entries (`caption`,`file`).  The following media filter, e.g., uses wi
 </div>
 ```
 
-# Installation and Usage
+<h1 id="installation"> Installation and Usage</h1>
 
 ## Mac OSX
 
