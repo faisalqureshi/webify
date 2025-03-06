@@ -231,7 +231,7 @@ class Webify:
                 if ipynb_settings.copy_source:
                     self.capture_dir_listing_information(list_files, filename, filename, is_available, is_ignored, filepath, output_filepath, 'ipynb', obj=None, data=None)
                 if ipynb_settings.render_html:
-                    nb_file = JupyterNotebookfile(filepath)
+                    nb_file = JupyterNotebookfile(filepath, ipynb_settings.execute_notebook or self.meta_data['execute_jupyter-notebook'])
                     nb_file.load()
                     self.capture_dir_listing_information(list_files, filename, converted_filename, is_available, is_ignored, filepath, converted_output_filepath, 'ipynb-html', obj=nb_file, data=nb_file.get_metadata())
 
@@ -798,6 +798,9 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--pandoc-var', action='append', default=[], help='A mechanism for providing -V Name:Val for pandoc.')
     cmdline_parser.add_argument('--pandoc-meta', action='append', default=[], help='A mechanism for providing -M Name:Val for pandoc.')
 
+    cmdline_parser.add_argument('--execute-jupyter-notebook', action='store_true',default=False,help='Executes jupyter notebook(s) before converting these to html.  This can take a long time, depending upon the contents of the jupyter notebooks.')
+
+
     cmdline_args = cmdline_parser.parse_args()
     
     # Setting up logging
@@ -867,7 +870,8 @@ if __name__ == '__main__':
         '__time__': cur_time,
         '__ignore_times__': cmdline_args.ignore_times,
         'pandoc-var': cmdline_args.pandoc_var,
-        'pandoc-meta': cmdline_args.pandoc_meta
+        'pandoc-meta': cmdline_args.pandoc_meta,
+        'execute_jupyter-notebook': cmdline_args.execute_jupyter_notebook
     }
     logger.debug('Meta data:')
     logger.debug(pp.pformat(meta_data))

@@ -1,10 +1,14 @@
 import util2 as util
 #import os
+import nbformat
 from nbconvert.exporters import HTMLExporter
+from nbconvert.preprocessors import ExecutePreprocessor
 import logging
 import json
 import re
 import pypandoc
+import subprocess
+import pathlib
 
 class JupyterNotebookSettings:
     def __init__(self, dir, rc):
@@ -15,6 +19,7 @@ class JupyterNotebookSettings:
         # default behavior
         self.copy_source = False
         self.render_html = True
+        self.execute_notebook = False
 
         self.logger.info('Reading Jupyter Notebook Settings: %s' % self.dir.get_fullpath())
 
@@ -31,6 +36,7 @@ class JupyterNotebookSettings:
 
         self.logger.info(' - render-html: %s' % self.render_html)
         self.logger.info(' - copy-source: %s' % self.copy_source)
+        self.logger.info(' - execute-notebook: %s' % self.execute_notebook)
 
     def load_folder_specific_settings(self, ipynb_settings):
         self.logger.debug(' Found')
@@ -49,18 +55,26 @@ class JupyterNotebookSettings:
         except:
             self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading render-html.  Using default value.' % self.dir.get_fullpath())
 
+        try: 
+            execute_notebook = ipynb_settings['execute_notebook']
+            assert(isinstance(execute_notebook, bool))
+            self.execute_notebook = execute_notebook
+        except:
+            self.logger.debug('Jupyter Notebook Settings: (%s):\n Execute Notebook not found.' % self.dir.get_fullpath())
+
         if ((copy_source or render_html) == False):
             self.logger.warning('Jupyter Notebook Settings: (%s):\n Both copy-source and render-html are False.  Forcing render-html to True.' % self.dir.get_fullpath())
             self.render_html = True
 
 class JupyterNotebookfile:
 
-    def __init__(self, filepath):
+    def __init__(self, filepath, execute_notebook):
         self.logger = util.WebifyLogger.get('nb')
         self.filepath = filepath
         self.title = None
         self.lesson_plan = None
         self.loaded = False
+        self.execute_notebook = execute_notebook
 
     def load(self):
         try:
@@ -100,11 +114,25 @@ class JupyterNotebookfile:
         }
 
     def get_html_buffer(self):
+        self.logger.debug('')
+        try:
+            with open(self.filepath) as f:
+                nb = nbformat.read(f, as_version=4)
+        except:
+            self.logger.warning('Jupyter Notebook read failed: %s' % self.filepath)
+            return ''
+
+        if self.execute_notebook:
+            self.logger.info(' - execute-notebook: True')
+            try:
+                ep = ExecutePreprocessor(timeout=600, kernel_name='python3')
+                ep.preprocess(nb, {'metadata': {'path': pathlib.Path(self.filepath).parent}})
+            except:
+                self.logger.warning('Jupyter Notebook execution failed: %s' % self.filepath)
+
         try:
             exporter = HTMLExporter()
-            buffer, _ = exporter.from_filename(self.filepath)
-            
-            self.logger.info('Jupyter Notebook rendered as html: %s' % self.filepath)
+            buffer, _ = exporter.from_notebook_node(nb)
         except:
             self.logger.warning('Jupyter Notebook conversion failed: %s' % self.filepath)
             return ''

@@ -209,10 +209,11 @@ class MDfile:
                           'preprocess-frontmatter': True,
                           'preprocess-buffer': None,
                           'slide-level': 1,
+                          'toc': False,
                           'copy-source': False,
                           'create-output-file': True,
                           'standalone-html': False,
-                          'ignore': False ,
+                          'ignore': False,
                           'ignore-times': False,
                           'availability': None }
 
@@ -409,6 +410,9 @@ class MDfile:
             slide_level = self.get_slide_level()
             pdoc_args.add('slide-level', slide_level)
 
+            toc = self.get_toc()
+            pdoc_args.add_flag('toc')
+            
         logger_file.info('Writing to: %s' % output_filepath)
         pdoc_args.get()
         return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
@@ -509,7 +513,7 @@ class MDfile:
         return 'buffer', buffer, self.filepath
 
     def compile(self, output_format, pandoc_args, output_filepath=None):
-
+        
         ret_type = 'file' if output_filepath else 'buffer'
         # ret_val = output_filepath
 
@@ -780,6 +784,11 @@ class MDfile:
         # assert(self.buffer)
         value = self.get_value('slide-level')
         util.WebifyLogger.get('file').debug('slide-level: %s' % str(value))
+        return value
+
+    def get_toc(self):
+        value = self.get_value('toc')
+        util.WebifyLogger.get('file').debug('TOC: %s' % value)
         return value
 
     def get_renderer(self):
