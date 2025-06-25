@@ -502,7 +502,7 @@ class Webify:
                 found, file_or_dir, item_path, item_name = self.check_item_in_cur_folder(dir, i['file'])
                 logger_ignore.debug('Ignore: check %s: (%s, %s, %s)' % (i['file'], found, file_or_dir, item_path))
                 if not found:
-                    logger_ignore.warning('[Ignored]: item %s not found in this folder (%s).' % (i['file'], file_or_dir))
+                    logger_ignore.warning('[Ignored]: item "%s" not found in "%s" (%s).' % (i['file'], dir.get_fullpath(), file_or_dir))
                 else:
                     ignore_flag = self.read_ignore_information(i['ignore'], item_path)
                     ignore_info[item_path] = {
