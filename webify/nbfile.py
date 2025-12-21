@@ -1,7 +1,7 @@
 import util2 as util
 #import os
 import nbformat
-from nbconvert.exporters import HTMLExporter
+from nbconvert.exporters import HTMLExporter, get_export_names, get_exporter
 from nbconvert.preprocessors import ExecutePreprocessor
 import logging
 import json
@@ -9,6 +9,7 @@ import re
 import pypandoc
 import subprocess
 import pathlib
+from toc import add_toc_to_html
 
 class JupyterNotebookSettings:
     def __init__(self, dir, rc):
@@ -131,11 +132,14 @@ class JupyterNotebookfile:
                 self.logger.warning('Jupyter Notebook execution failed: %s' % self.filepath)
 
         try:
-            exporter = HTMLExporter()
+            exporter = HTMLExporter(template_name = 'lab')
             buffer, _ = exporter.from_notebook_node(nb)
         except:
             self.logger.warning('Jupyter Notebook conversion failed: %s' % self.filepath)
             return ''
+
+        # Add floating TOC to the HTML
+        buffer = add_toc_to_html(buffer)
 
         return buffer
 
