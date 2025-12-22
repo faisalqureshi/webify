@@ -21,6 +21,7 @@ class JupyterNotebookSettings:
         self.copy_source = False
         self.render_html = True
         self.execute_notebook = False
+        self.generate_toc = False
 
         self.logger.info('Reading Jupyter Notebook Settings: %s' % self.dir.get_fullpath())
 
@@ -38,6 +39,7 @@ class JupyterNotebookSettings:
         self.logger.info(' - render-html: %s' % self.render_html)
         self.logger.info(' - copy-source: %s' % self.copy_source)
         self.logger.info(' - execute-notebook: %s' % self.execute_notebook)
+        self.logger.info(' - generate-toc: %s' % self.generate_toc)
 
     def load_folder_specific_settings(self, ipynb_settings):
         self.logger.debug(' Found')
@@ -48,6 +50,13 @@ class JupyterNotebookSettings:
             self.copy_source = copy_source
         except:
             self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading copy-source.  Using default value.' % self.dir.get_fullpath())
+
+        try:
+            generate_toc = ipynb_settings['generate-toc']
+            assert(isinstance(generate_toc, bool))
+            self.generate_toc = generate_toc
+        except:
+            self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading generate_toc.  Using default value.' % self.dir.get_fullpath())
 
         try:
             render_html = ipynb_settings['render-html']
@@ -143,8 +152,6 @@ class JupyterNotebookfile:
             self.logger.info(' - jupyter-toc: True')
             # Add floating TOC to the HTML
             buffer = add_toc_to_html(buffer)
-        else:
-            self.logger.info(' - jupyter-toc: False')
 
         return buffer
 
