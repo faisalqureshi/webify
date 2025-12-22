@@ -18,9 +18,33 @@ TOC_STYLE = """
     overflow-y: auto;
     background: #f8f9fa;
     border-right: 1px solid #dee2e6;
-    padding: 20px 15px;
+    padding: 20px 15px 40px 15px;
     z-index: 1000;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-sizing: border-box;
+}
+
+/* Ensure smooth scrolling in TOC */
+#toc-container {
+    scrollbar-width: thin;
+    scrollbar-color: #adb5bd #f8f9fa;
+}
+
+#toc-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc-container::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+#toc-container::-webkit-scrollbar-thumb {
+    background: #adb5bd;
+    border-radius: 3px;
+}
+
+#toc-container::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
 }
 
 #toc-container h2 {
@@ -57,23 +81,77 @@ TOC_STYLE = """
     color: #212529;
 }
 
+#toc-container .toc-h1-wrapper,
+#toc-container .toc-h2-wrapper,
+#toc-container .toc-h3-wrapper {
+    display: flex;
+    align-items: center;
+    margin-top: 6px;
+}
+
 #toc-container .toc-h1 {
     font-weight: 600;
-    margin-top: 10px;
+    flex: 1;
+    order: 1;
 }
 
 #toc-container .toc-h2 {
-    padding-left: 20px;
+    font-weight: 500;
+    flex: 1;
+    order: 1;
 }
 
 #toc-container .toc-h3 {
-    padding-left: 40px;
-    font-size: 12px;
+    font-size: 13px;
+    flex: 1;
+    order: 1;
 }
 
 #toc-container .toc-h4 {
-    padding-left: 60px;
     font-size: 12px;
+}
+
+#toc-container .toc-toggle {
+    cursor: pointer;
+    padding: 4px 6px;
+    margin-left: 4px;
+    user-select: none;
+    color: #6c757d;
+    font-size: 9px;
+    transition: transform 0.2s, color 0.2s;
+    border-radius: 3px;
+    flex-shrink: 0;
+    order: 2;
+}
+
+#toc-container .toc-toggle:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+#toc-container .toc-toggle::before {
+    content: '▼';
+}
+
+#toc-container .toc-toggle.collapsed::before {
+    content: '►';
+}
+
+#toc-container .toc-section {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    margin-left: 18px;
+    max-height: none;
+    opacity: 1;
+}
+
+#toc-container .toc-section.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+}
+
+#toc-container .toc-h1-wrapper {
+    margin-top: 10px;
 }
 
 /* Adjust main content to make room for TOC */
@@ -136,8 +214,35 @@ document.addEventListener('DOMContentLoaded', function() {
     tocContainer.appendChild(tocTitle);
 
     const tocList = document.createElement('ul');
+    let currentH1Section = null;
+    let currentH2Section = null;
+    let currentH3Section = null;
 
-    // Build TOC from headings
+    // Helper function to create collapsible heading entry
+    function createCollapsibleHeading(level, id, text) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'toc-' + level + '-wrapper';
+
+        const toggle = document.createElement('span');
+        toggle.className = 'toc-toggle';
+        toggle.dataset.id = id;
+
+        const a = document.createElement('a');
+        a.href = '#' + id;
+        a.textContent = text;
+        a.className = 'toc-' + level;
+
+        const section = document.createElement('div');
+        section.className = 'toc-section';
+
+        // Add link first, then toggle (arrow on right)
+        wrapper.appendChild(a);
+        wrapper.appendChild(toggle);
+
+        return { wrapper, section };
+    }
+
+    // Build hierarchical TOC from headings
     headings.forEach(heading => {
         const level = heading.tagName.toLowerCase();
         const id = heading.id;
@@ -151,32 +256,135 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Get text and clean up
         let text = clone.textContent.trim();
-        // Remove pilcrow and collapse all whitespace
         text = text.replace(/¶/g, '').replace(/\\s+/g, ' ').trim();
 
-        // If still no text after cleaning, use the ID as fallback
         if (!text) {
             text = id.replace(/-/g, ' ');
         }
 
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = '#' + id;
-        a.textContent = text;
-        a.className = 'toc-' + level;
+        if (level === 'h1') {
+            const { wrapper, section } = createCollapsibleHeading('h1', id, text);
+            const li = document.createElement('li');
+            li.appendChild(wrapper);
+            li.appendChild(section);
+            tocList.appendChild(li);
+            currentH1Section = section;
+            currentH2Section = null;
+            currentH3Section = null;
 
-        li.appendChild(a);
-        tocList.appendChild(li);
+        } else if (level === 'h2') {
+            const { wrapper, section } = createCollapsibleHeading('h2', id, text);
+
+            if (currentH1Section) {
+                currentH1Section.appendChild(wrapper);
+                currentH1Section.appendChild(section);
+            } else {
+                const li = document.createElement('li');
+                li.appendChild(wrapper);
+                li.appendChild(section);
+                tocList.appendChild(li);
+            }
+            currentH2Section = section;
+            currentH3Section = null;
+
+        } else if (level === 'h3') {
+            const { wrapper, section } = createCollapsibleHeading('h3', id, text);
+
+            const targetSection = currentH2Section || currentH1Section;
+            if (targetSection) {
+                targetSection.appendChild(wrapper);
+                targetSection.appendChild(section);
+            } else {
+                const li = document.createElement('li');
+                li.appendChild(wrapper);
+                li.appendChild(section);
+                tocList.appendChild(li);
+            }
+            currentH3Section = section;
+
+        } else if (level === 'h4') {
+            const a = document.createElement('a');
+            a.href = '#' + id;
+            a.textContent = text;
+            a.className = 'toc-h4';
+
+            const targetSection = currentH3Section || currentH2Section || currentH1Section;
+            if (targetSection) {
+                targetSection.appendChild(a);
+            } else {
+                const li = document.createElement('li');
+                li.appendChild(a);
+                tocList.appendChild(li);
+            }
+        }
     });
 
     tocContainer.appendChild(tocList);
+
+    // Remove toggle buttons from headings without children
+    tocContainer.querySelectorAll('.toc-section').forEach(section => {
+        if (section.children.length === 0) {
+            // This section is empty, remove the toggle button
+            const wrapper = section.previousElementSibling;
+            if (wrapper) {
+                const toggle = wrapper.querySelector('.toc-toggle');
+                if (toggle) {
+                    toggle.remove();
+                }
+            }
+            // Also remove the empty section
+            section.remove();
+        }
+        // Don't set max-height here - CSS handles it with max-height: none
+    });
+
+    // Set initial state: H1 expanded, H2 and H3 collapsed
+    tocContainer.querySelectorAll('.toc-h2-wrapper, .toc-h3-wrapper').forEach(wrapper => {
+        const toggle = wrapper.querySelector('.toc-toggle');
+        const section = wrapper.nextElementSibling;
+
+        if (toggle && section && section.classList.contains('toc-section')) {
+            // Collapse H2 and H3 sections by default
+            toggle.classList.add('collapsed');
+            section.classList.add('collapsed');
+            section.style.maxHeight = '0';
+        }
+    });
 
     // Insert TOC at the beginning of body
     console.log('TOC: Inserting container with', tocList.children.length, 'items');
     document.body.insertBefore(tocContainer, document.body.firstChild);
     console.log('TOC: Successfully inserted');
 
-    // Smooth scroll to sections
+    // Add collapse/expand functionality for toggle buttons
+    tocContainer.querySelectorAll('.toc-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Find the section (next sibling of parent wrapper)
+            const wrapper = this.parentElement;
+            const section = wrapper.nextElementSibling;
+
+            if (section && section.classList.contains('toc-section')) {
+                const isCollapsed = this.classList.contains('collapsed');
+
+                if (isCollapsed) {
+                    // Expand
+                    this.classList.remove('collapsed');
+                    section.classList.remove('collapsed');
+                    section.style.maxHeight = 'none';
+                } else {
+                    // Collapse
+                    this.classList.add('collapsed');
+                    section.classList.add('collapsed');
+                    section.style.maxHeight = '0';
+                }
+            }
+        });
+    });
+
+    // Smooth scroll for all links (including H1)
     tocContainer.querySelectorAll('a').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();

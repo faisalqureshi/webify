@@ -69,13 +69,14 @@ class JupyterNotebookSettings:
 
 class JupyterNotebookfile:
 
-    def __init__(self, filepath, execute_notebook):
+    def __init__(self, filepath, execute_notebook, generate_toc):
         self.logger = util.WebifyLogger.get('nb')
         self.filepath = filepath
         self.title = None
         self.lesson_plan = None
         self.loaded = False
         self.execute_notebook = execute_notebook
+        self.generate_toc = generate_toc
 
     def load(self):
         try:
@@ -138,8 +139,12 @@ class JupyterNotebookfile:
             self.logger.warning('Jupyter Notebook conversion failed: %s' % self.filepath)
             return ''
 
-        # Add floating TOC to the HTML
-        buffer = add_toc_to_html(buffer)
+        if self.generate_toc:
+            self.logger.info(' - jupyter-toc: True')
+            # Add floating TOC to the HTML
+            buffer = add_toc_to_html(buffer)
+        else:
+            self.logger.info(' - jupyter-toc: False')
 
         return buffer
 
