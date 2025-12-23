@@ -49,21 +49,21 @@ class JupyterNotebookSettings:
             assert(isinstance(copy_source, bool))
             self.copy_source = copy_source
         except:
-            self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading copy-source.  Using default value.' % self.dir.get_fullpath())
+            self.logger.debug('Jupyter Notebook Settings: (%s):\n Error reading copy-source.  Using default value.' % self.dir.get_fullpath())
 
         try:
             generate_toc = ipynb_settings['generate-toc']
             assert(isinstance(generate_toc, bool))
             self.generate_toc = generate_toc
         except:
-            self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading generate_toc.  Using default value.' % self.dir.get_fullpath())
+            self.logger.debug('Jupyter Notebook Settings: (%s):\n Error reading generate_toc.  Using default value.' % self.dir.get_fullpath())
 
         try:
             render_html = ipynb_settings['render-html']
             assert(isinstance(copy_source, bool))
             self.render_html = render_html
         except:
-            self.logger.warning('Jupyter Notebook Settings: (%s):\n Error reading render-html.  Using default value.' % self.dir.get_fullpath())
+            self.logger.debug('Jupyter Notebook Settings: (%s):\n Error reading render-html.  Using default value.' % self.dir.get_fullpath())
 
         try: 
             execute_notebook = ipynb_settings['execute_notebook']
