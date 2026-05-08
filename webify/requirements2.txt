@@ -5,6 +5,7 @@ jupyterlab
 MarkupSafe
 nbconvert
 nbformat
+nbstripout
 notebook
 packaging
 pandocfilters==1.4.2
