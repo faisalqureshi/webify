@@ -179,8 +179,20 @@ class MDfile:
     pdf-engine: *None | lualatex or tetex.  This info will be passed onto pandoc convertor.
 
     [INTERNAL]
+    latex-passes: None* | 1 | 2 | 3 | ...
+
+    Number of engine passes for beamer/pdf output.  Defaults to 2 when
+    `to: beamer` (TikZ overlays like \\piccover, cross-references, TOCs
+    all need a .aux from a prior pass), and 1 otherwise.  Set explicitly
+    (`latex-passes: 1` in YAML or `--latex-passes 1` on the CLI) to force
+    single-pass.  Ignored (with a warning) when `to: latex`, since no
+    engine runs.  Single-pass beamer/pdf builds also pass -halt-on-error
+    to the engine so a bad frame fails the build instead of dropping
+    silently.
+
+    [INTERNAL]
     copy-source: None | *False, True
-    
+
     Copy source markdwon file to destination.
     """
     def __init__(self, filepath, args):
