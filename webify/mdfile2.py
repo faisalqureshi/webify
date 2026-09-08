@@ -5,7 +5,10 @@ import codecs
 import argparse
 import pypandoc
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import pprint as pp
 import util2 as util
 import pystache
@@ -543,6 +546,95 @@ class MDfile:
         os.chdir(cwd)
 
         return ret
+
+    def compile_multipass(self, output_format, pandoc_args, output_filepath, passes):
+        """
+        Multi-pass PDF build via the LaTeX engine.  Used for beamer TikZ
+        overlays (\\piccover, \\piccovercap, ...), cross-references, and
+        anything else that needs a .aux from a prior pass.
+
+        pandoc writes a .tex to a temp dir; we then run the LaTeX engine
+        N times from self.rootdir so \\includegraphics paths resolve against
+        the source directory, with -output-directory pointed at the temp dir
+        so nothing lands next to the source.  -halt-on-error is passed so a
+        bad frame stops the run instead of silently dropping (which the
+        default -interaction=nonstopmode would otherwise do).  On failure
+        the offending "! ..." block is logged and the full log is copied to
+        <output>.log so it survives temp-dir cleanup.
+        """
+        # pandoc's "pdf" output format runs the engine internally; for the
+        # tex step we want raw LaTeX, so map pdf -> latex.  beamer stays as
+        # beamer (its .tex still carries the frame environments).
+        tex_output_format = 'latex' if output_format == 'pdf' else output_format
+        engine = self.get_pdf_engine() or 'pdflatex'
+
+        logger_pandoc = util.WebifyLogger.get('pandoc')
+        logger_pandoc.debug('multipass: engine=%s passes=%d format=%s' % (engine, passes, tex_output_format))
+
+        cwd = os.getcwd()
+        os.chdir(self.rootdir)
+
+        stem = os.path.splitext(os.path.basename(output_filepath))[0]
+
+        try:
+            with tempfile.TemporaryDirectory(prefix='mdfile-tex-') as tmp:
+                tex_path = os.path.join(tmp, stem + '.tex')
+                pdf_path = os.path.join(tmp, stem + '.pdf')
+                log_path = os.path.join(tmp, stem + '.log')
+
+                try:
+                    pypandoc.convert_text(self.buffer, to=tex_output_format, format='md',
+                                          outputfile=tex_path, extra_args=pandoc_args)
+                except Exception as e:
+                    self.logger.error('Pandoc conversion (to .tex) failed for %s' % self.filepath)
+                    self.logger.error('--- Pandoc says ---\n\n%s\n---' % e)
+                    return 'error', '', self.filepath
+
+                for i in range(passes):
+                    proc = subprocess.run(
+                        [engine, '-interaction=nonstopmode', '-halt-on-error',
+                         '-output-directory=' + tmp, tex_path],
+                        cwd=self.rootdir, capture_output=True, text=True)
+                    if proc.returncode != 0:
+                        self.logger.error('%s failed on pass %d of %d for %s' %
+                                          (engine, i + 1, passes, self.filepath))
+                        self._log_latex_error(log_path, output_filepath)
+                        return 'error', '', self.filepath
+
+                if not os.path.isfile(pdf_path):
+                    self.logger.error('%s completed but produced no PDF for %s' % (engine, self.filepath))
+                    self._log_latex_error(log_path, output_filepath)
+                    return 'error', '', self.filepath
+
+                shutil.move(pdf_path, output_filepath)
+        finally:
+            os.chdir(cwd)
+
+        self.logger.debug('Multipass compile succeeded: %s' % output_filepath)
+        return 'file', output_filepath, self.filepath
+
+    def _log_latex_error(self, log_path, output_filepath):
+        """Emit the offending `! ...` block from a pdflatex log and copy the
+        log alongside the output so it survives temp-dir cleanup."""
+        if not os.path.isfile(log_path):
+            self.logger.error('No LaTeX log file at %s' % log_path)
+            return
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.read().splitlines()
+        except Exception as e:
+            self.logger.error('Could not read LaTeX log %s: %s' % (log_path, e))
+            return
+        for idx, line in enumerate(lines):
+            if line.startswith('! '):
+                end = min(idx + 8, len(lines))
+                self.logger.error('\n'.join(lines[idx:end]))
+        saved_log = output_filepath + '.log'
+        try:
+            shutil.copy(log_path, saved_log)
+            self.logger.error('Full LaTeX log copied to: %s' % saved_log)
+        except Exception as e:
+            self.logger.error('Could not copy LaTeX log to %s: %s' % (saved_log, e))
 
     def make_output_filepath(self):
         output_format = self.get_output_format()
