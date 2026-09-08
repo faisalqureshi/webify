@@ -209,6 +209,7 @@ class MDfile:
                           'preprocess-frontmatter': True,
                           'preprocess-buffer': None,
                           'slide-level': 1,
+                          'latex-passes': None,
                           'toc': False,
                           'copy-source': False,
                           'create-output-file': True,
@@ -786,6 +787,16 @@ class MDfile:
         util.WebifyLogger.get('file').debug('slide-level: %s' % str(value))
         return value
 
+    def get_latex_passes(self):
+        # Explicit value from CLI or YAML wins; otherwise beamer gets 2 (for
+        # TikZ overlays and cross-refs), everything else gets 1.
+        value = self.get_value('latex-passes')
+        if value is None:
+            value = 2 if self.is_output_format('beamer') else 1
+        value = int(value)
+        util.WebifyLogger.get('file').debug('latex-passes: %d' % value)
+        return value
+
     def get_toc(self):
         value = self.get_value('toc')
         util.WebifyLogger.get('file').debug('TOC: %s' % value)
@@ -856,6 +867,8 @@ if __name__ == '__main__':
     cmdline_parser.add_argument('--do-not-preprocess-buffer', action='store_true', default=False, help='Turns off mustache preprocessing for buffer.  Buffer mustache preprocessing is only available for conversion to html.')
 
     cmdline_parser.add_argument('--slide-level', action='store', default=None, help='Slide level argument for pandoc (for beamer documents)')
+
+    cmdline_parser.add_argument('--latex-passes', action='store', type=int, default=None, help='Number of pdflatex passes for beamer/pdf/latex output. Defaults to 2 for beamer (TikZ overlays and cross-references), 1 otherwise. Overrides the "latex-passes" YAML front-matter key.')
 
     cmdline_parser.add_argument('--pdf-engine', action='store', default=None, help='PDF engine used to generate pdf. The default is vanilla LaTeX.  Possible options are lualatex or tetex.')
     cmdline_parser.add_argument('--renderer', action='store', default=None, help='Specify whether to use "mustache" or "jinja2" engine.  "jinja2" is the default choice.')
@@ -963,6 +976,7 @@ if __name__ == '__main__':
                'preprocess-buffer': False if cmdline_args.do_not_preprocess_buffer else None,
                'include-in-header': include_in_header,
                'slide-level': cmdline_args.slide_level,
+               'latex-passes': cmdline_args.latex_passes,
                'pdf-engine': cmdline_args.pdf_engine,
                'verbose': cmdline_args.verbose,
                'renderer': cmdline_args.renderer,
