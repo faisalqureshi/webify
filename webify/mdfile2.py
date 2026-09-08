@@ -416,9 +416,32 @@ class MDfile:
 
             toc = self.get_toc()
             pdoc_args.add_flag('toc')
-            
+
+        # Multipass branch.  latex-passes defaults to 2 for beamer, 1 for
+        # everything else; explicit YAML/CLI wins.  Latex-only output (to:
+        # latex) never runs an engine so multipass is meaningless there.
+        passes = self.get_latex_passes()
+        if passes > 1 and self.is_output_format('latex'):
+            self.logger.warning('latex-passes=%d ignored for "to: latex" (no engine runs): %s'
+                                % (passes, self.filepath))
+            passes = 1
+
+        if passes > 1:
+            logger_file.info('Writing to: %s (multipass, %d)' % (output_filepath, passes))
+            return self.compile_multipass(output_format=self.get_output_format(),
+                                          pandoc_args=pdoc_args.get(),
+                                          output_filepath=output_filepath,
+                                          passes=passes)
+
+        # Single-pass: when pandoc runs the engine (beamer/pdf), pass
+        # -halt-on-error so a bad frame stops the run rather than silently
+        # dropping.  Without this, pdflatex's -interaction=nonstopmode
+        # default recovers past ! errors and exits 0, leaving a PDF short
+        # a frame with no complaint.
+        if self.is_output_format('beamer') or self.is_output_format('pdf'):
+            pdoc_args.add('pdf-engine-opt', '-halt-on-error')
+
         logger_file.info('Writing to: %s' % output_filepath)
-        pdoc_args.get()
         return self.compile(output_format=self.get_output_format(), pandoc_args=pdoc_args.get(), output_filepath=output_filepath)
 
     def to_html(self, rc):
