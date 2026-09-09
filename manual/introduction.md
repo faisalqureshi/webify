@@ -195,6 +195,12 @@ ignore:
     ignore: False
 ```
 
+Each entry needs both `file:` and `ignore:`.  If the `ignore:` sub-key is
+missing, webify silently abandons the rest of the list and logs only
+`[Ignore]: cannot read ignore information`, so a file you thought was
+excluded still publishes.  The default value for `ignore:` is `False`,
+but it must appear explicitly for each item.
+
 _Aside_: The same effect can be achieved by adding this file to the `.webifyignore` file.
 
 ### Ignoring markdown files
@@ -415,13 +421,16 @@ preprocess-frontmatter:  *True | False
 preprocess-buffer:       False
 create-output-file:      True
 ignore:                  True | *False
+ignore-times:            True | *False
 template:                *None | <pandoc-template>
 highlight-style:         kate | *pygments
 slide-level:             *1 | 2
+latex-passes:            *None | 1 | 2 | 3 | ...
+toc:                     True | *False
 include-in-header:       *None | <filename(s)>
 include-before-body:     *None | <filename(s)>
 include-after-body:      *None | <filename(s)>
-bib:                     *None | <bibtex files(s)>
+bibliography:            *None | <bibtex files(s)>
 csl:                     *None | <csl file>
 availability:
   start:                 *bigbang | Date and Time
@@ -431,15 +440,41 @@ availability:
 - `*` next to a value indicates the default value.
 - Need to specify either `pdf` or `beamer` for the `to` key.
 - If `template` is not provided, default pandoc template is used.   Use `pandoc -D *FORMAT*` to see the default template.
-- `slide-level` is only available when converting markdown to beamer slide.
+- `slide-level` and `toc` are only available when converting markdown to beamer slides.
 - If `pdf-engine` isn't specified, pandoc uses the default LaTeX distribution.
 - `create-output-file` must be `True`.
 - `preprocess-buffer` must be `False`.
 - Yaml front matter is only preprocessed via mustache if `preprocess-frontmatter` is `True`.
+- `ignore-times`: recompile even when the output file is newer than the source.  The default is to skip files whose output is already up to date.
+- `latex-passes`: number of engine passes.  Defaults to 2 when `to: beamer` (needed for TikZ overlays, cross-references and tables of contents) and 1 otherwise.  Ignored with a warning when `to: latex`, since no engine runs.  See *Multi-pass LaTeX builds* below.
 - `include-in-header`, `include-before-body`, and `include-after-body` can be used to specify files whose contents will be inserted as the name suggests: in the header (before `\begin{document}`), in the body (after `\begin{document}` but before everything else), and just before `\end{document}`.  In each case, multiple files can be specified.
-- `bib`: specifies the bibliography file(s).
+- `bibliography`: specifies the bibliography file(s).
 - `csl`: specifies a [Citation Style Language](https://citationstyles.org) file that control how citations are processed.
 - `availability`: this key is only used by webify.
+
+#### Multi-pass LaTeX builds
+
+Beamer decks routinely need two engine passes.  TikZ overlays such as
+`\piccover`, cross-references such as `\pageref`, and any table of contents
+all read a `.aux` written by the previous pass; a single pass produces
+question marks or blank overlays.
+
+When `latex-passes` is 2 or more, mdfile takes over the LaTeX step from
+pandoc.  It writes the `.tex` to a temp directory, then runs the engine
+that many times, with `-output-directory` pointing at the temp dir so no
+intermediate files land next to the source.  `\includegraphics` paths
+still resolve against the source directory, so figures work as usual.
+The `.pdf` is moved into place only after the last pass succeeds.
+
+Single-pass beamer and PDF builds pass `-halt-on-error` to the engine so
+a bad frame stops the build.  Without this, pdflatex's default
+`-interaction=nonstopmode` skips past `!` errors, exits 0, and leaves a
+PDF with a silently dropped frame.
+
+When any engine pass fails, mdfile echoes the offending `! ...` block to
+stderr and copies the full LaTeX log to `<output>.pdf.log` next to the
+output file, so the diagnostics survive the temp directory being cleaned
+up.
 
 #### Example
 
@@ -460,6 +495,7 @@ preprocess-frontmatter:  *True | False
 preprocess-buffer:       *True | False
 standalone-html:         True  | *False
 ignore:                  True | *False
+ignore-times:            True | *False
 template:                *None | <pandoc-template>
 highlight-style:         kate | *pygments
 include-in-header:       *None | <filename(s)>
@@ -691,6 +727,21 @@ mdfile lorem-html.md
 ```
 
 Use `--help` to list available commandline options.
+
+A few flags are worth calling out, since the YAML front matter alone does not
+cover them:
+
+- `--latex-passes N`: override the `latex-passes` YAML key.  Use `1` to force
+  single-pass on a beamer deck that does not need TikZ overlays or
+  cross-references, or a larger value when a second pass still leaves
+  unresolved references.
+- `--pandoc-var Name:Val`: pass a template variable to pandoc (equivalent to
+  pandoc's `-V Name:Val`).  Repeatable.
+- `--pandoc-meta Name:Val`: pass a metadata value to pandoc (equivalent to
+  pandoc's `-M Name:Val`).  Repeatable.
+- `--yaml FILE ...`: load extra yaml files into the rendering context before
+  processing the markdown file.  Useful for injecting site-wide values from
+  the command line.
 
 # Questions and Comments
 
